@@ -90,8 +90,8 @@
 > Templates deprioritized — not essential to daily workflow per Ang.
 
 1. **Invite Ang to Clerk** + test job editing/payment logging
-2. **Deploy to Vercel** (Ang needs a real URL, not localhost)
-3. **Forefront commissions view** (Phase 6 — she tracks this daily)
+2. ~~**Deploy to Vercel**~~ ✅ **Live at rm117-bms.vercel.app — 2026-06-13**
+3. ~~**Forefront commissions view**~~ ✅ **Live — 41 FF jobs, $2,050 tracked, payment logging works — 2026-06-13**
 4. **QuickBooks sync** (Phase 4 — inbound: Zapier webhook when invoice paid → payments row)
 5. **DocuSign** (Phase 5 partial — proposals)
 6. **Client Portal** (Phase 7)

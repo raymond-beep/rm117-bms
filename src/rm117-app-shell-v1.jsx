@@ -6,12 +6,13 @@ import React, { useEffect, useState } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
 import { SignedIn, SignedOut, SignIn, UserButton } from '@clerk/clerk-react';
 import BmsDashboard from './rm117-dashboard-v1.jsx';
+import ForefrountView from './rm117-forefront-v1.jsx';
 import { money, PIPELINE_PHASES } from './lib/format.js';
 
 const NAV = [
   { to: '/', icon: '⌂', label: 'Dashboard', end: true },
   { to: '/bms', icon: '▤', label: 'BMS' },
-  { to: '/forefront', icon: '◈', label: 'Forefront', soon: 'Phase 6' },
+  { to: '/forefront', icon: '◈', label: 'Forefront' },
   { to: '/templates', icon: '✉', label: 'Templates', soon: 'Phase 5' },
   { to: '/portal', icon: '⚿', label: 'Client Portal', soon: 'Phase 7' },
 ];
@@ -49,7 +50,7 @@ export default function AppShell() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/bms" element={<BmsDashboard />} />
-              <Route path="/forefront" element={<ComingSoon title="Forefront Commissions" phase="Phase 6" detail="Per-job commission tracking, payment logging, and an outstanding-commissions summary. Data lands in Phase 2's import — no new data entry." />} />
+              <Route path="/forefront" element={<ForefrountView />} />
               <Route path="/templates" element={<ComingSoon title="Templates" phase="Phase 5" detail="Proposal, invoice, and email templates — stored in the database and iterated without code changes. Proposals send via DocuSign; invoices create in QuickBooks via the QBO API." />} />
               <Route path="/portal" element={<ComingSoon title="Client Portal" phase="Phase 7" detail="Clients log in with the email on file, see only their own jobs, download documents from the vault, and message the firm — one thread per job, bridged to email." />} />
               <Route path="*" element={<div className="page"><h1 className="page-title">Not found</h1></div>} />
