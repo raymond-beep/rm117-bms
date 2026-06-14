@@ -1,0 +1,617 @@
+// RM117 BMS job dashboard (second generation — Supabase-backed via /api).
+// Stat tiles, filter/search jobs table, JobEditor drawer (details + payments),
+// new-job creation. Optimistic saves with rollback on error (Phase 3),
+// payment logging (Phase 4). `outstanding` always arrives computed from the API.
+import React, { useEffect, useMemo, useState } from 'react';
+import { money, phaseLabel, shortDate, PHASE_LABELS, PHASE_ORDER, PIPELINE_PHASES } from './lib/format.js';
+
+export default function BmsDashboard() {
+  const [jobs, setJobs] = useState([]);
+  const [source, setSource] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [phaseFilter, setPhaseFilter] = useState('pipeline');
+  const [ffOnly, setFfOnly] = useState(false);
+  const [billOnly, setBillOnly] = useState(false);
+
+  // Drawer state: { mode: 'edit', job } | { mode: 'create' } | null
+  const [drawer, setDrawer] = useState(null);
+
+  // View mode: 'grouped' (phase sections) or 'table' (flat sortable)
+  const [viewMode, setViewMode] = useState('grouped');
+
+  async function loadJobs() {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch('/api/jobs');
+      if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+      const data = await res.json();
+      setJobs(data.jobs);
+      setSource(data.source);
+    } catch (err) {
+      setLoadError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { loadJobs(); }, []);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return jobs.filter((j) => {
+      if (phaseFilter === 'pipeline' && !PIPELINE_PHASES.includes(j.phase)) return false;
+      if (phaseFilter !== 'all' && phaseFilter !== 'pipeline' && j.phase !== phaseFilter) return false;
+      if (ffOnly && !j.is_forefront) return false;
+      if (billOnly && !j.bill_flag) return false;
+      if (q) {
+        const hay = `${j.job_id} ${j.client_name || ''} ${j.address || ''} ${j.notes || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [jobs, search, phaseFilter, ffOnly, billOnly]);
+
+  const stats = useMemo(() => {
+    const pipeline = jobs.filter((j) => PIPELINE_PHASES.includes(j.phase));
+    return {
+      pipelineCount: pipeline.length,
+      pipelineValue: pipeline.reduce((s, j) => s + Number(j.job_total || 0), 0),
+      outstanding: jobs.reduce((s, j) => s + Math.max(0, Number(j.outstanding || 0)), 0),
+      billFlags: jobs.filter((j) => j.bill_flag).length,
+      ffActive: jobs.filter((j) => j.is_forefront && j.phase !== 'completed').length,
+      ffOwed: jobs
+        .filter((j) => j.is_forefront && !j.ff_commission_paid)
+        .reduce((s, j) => s + Number(j.ff_commission || 0), 0),
+    };
+  }, [jobs]);
+
+  // Optimistic save: apply locally, POST, roll back on failure (Phase 3).
+  async function saveJob(jobId, fields) {
+    const prev = jobs;
+    setJobs((js) => js.map((j) => (j.job_id === jobId ? { ...j, ...fields } : j)));
+    const res = await fetch('/api/jobs/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: jobId, fields }),
+    });
+    if (!res.ok) {
+      setJobs(prev); // rollback
+      throw new Error((await res.json()).error || `Save failed (HTTP ${res.status})`);
+    }
+    return res.json();
+  }
+
+  async function createJob(fields) {
+    const res = await fetch('/api/jobs/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!res.ok) throw new Error((await res.json()).error || `Create failed (HTTP ${res.status})`);
+    await loadJobs();
+    return res.json();
+  }
+
+  return (
+    <div className="page">
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+        <h1 className="page-title">BMS — Jobs</h1>
+        {source && (
+          <span className={`source-pill source-${source}`}>
+            {source === 'supabase' ? 'Supabase (live)' : 'Mock data — connect Supabase'}
+          </span>
+        )}
+      </div>
+      <p className="page-sub">Job tracking, billing, and Forefront commissions.</p>
+
+      <div className="stat-row">
+        <div className="stat-tile">
+          <div className="label">Active pipeline</div>
+          <div className="value">{stats.pipelineCount} jobs</div>
+          <div className="hint">{money(stats.pipelineValue)} contracted</div>
+        </div>
+        <div className="stat-tile">
+          <div className="label">Outstanding</div>
+          <div className="value">{money(stats.outstanding)}</div>
+          <div className="hint">job totals minus payments</div>
+        </div>
+        <div className="stat-tile">
+          <div className="label">Ready to bill</div>
+          <div className="value">{stats.billFlags}</div>
+          <div className="hint">bill flags set</div>
+        </div>
+        <div className="stat-tile">
+          <div className="label">Forefront</div>
+          <div className="value">{stats.ffActive} active</div>
+          <div className="hint">{money(stats.ffOwed)} commission unpaid</div>
+        </div>
+      </div>
+
+      <div className="toolbar">
+        <input
+          type="search"
+          placeholder="Search job ID, client, address, notes…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <select value={phaseFilter} onChange={(e) => setPhaseFilter(e.target.value)}>
+          <option value="pipeline">Pipeline (not completed/held)</option>
+          <option value="all">All phases</option>
+          {PHASE_ORDER.map((p) => (
+            <option key={p} value={p}>{PHASE_LABELS[p]}</option>
+          ))}
+        </select>
+        <label className="toggle">
+          <input type="checkbox" checked={ffOnly} onChange={(e) => setFfOnly(e.target.checked)} /> Forefront
+        </label>
+        <label className="toggle">
+          <input type="checkbox" checked={billOnly} onChange={(e) => setBillOnly(e.target.checked)} /> Bill flag
+        </label>
+        <div className="view-toggle">
+          <button className={'view-btn' + (viewMode === 'grouped' ? ' active' : '')} onClick={() => setViewMode('grouped')}>Grouped</button>
+          <button className={'view-btn' + (viewMode === 'table' ? ' active' : '')} onClick={() => setViewMode('table')}>Table</button>
+        </div>
+        <button className="btn btn-primary" onClick={() => setDrawer({ mode: 'create' })}>+ New Job</button>
+      </div>
+
+      {loading ? (
+        <div className="card"><div className="empty">Loading jobs…</div></div>
+      ) : loadError ? (
+        <div className="card"><div className="empty">Couldn't load jobs: {loadError}</div></div>
+      ) : filtered.length === 0 ? (
+        <div className="card"><div className="empty">No jobs match the current filters.</div></div>
+      ) : viewMode === 'grouped' ? (
+        <div className="phase-groups">
+          {PHASE_ORDER.map((phase) => {
+            const phaseJobs = filtered.filter((j) => j.phase === phase);
+            if (phaseJobs.length === 0) return null;
+            return (
+              <div key={phase} className="phase-group">
+                <div className={`phase-group-header phase-header-${phase}`}>
+                  <span className="phase-group-name">{PHASE_LABELS[phase]}</span>
+                  <span className="phase-group-count">{phaseJobs.length}</span>
+                </div>
+                <div className="phase-group-jobs">
+                  {phaseJobs.map((job) => (
+                    <div key={job.job_id} className="job-card" onClick={() => setDrawer({ mode: 'edit', job })}>
+                      <div className="job-card-left">
+                        <div className="job-card-client">
+                          {job.client_name || <span className="muted">—</span>}
+                          {job.is_forefront && <span className="badge badge-ff" style={{ marginLeft: 8 }}>FF</span>}
+                          {job.bill_flag && <span className="badge badge-bill" style={{ marginLeft: 4 }}>BILL</span>}
+                        </div>
+                        <div className="job-card-sub">{job.job_id}</div>
+                        {job.address && <div className="job-card-sub">{job.address}</div>}
+                        {job.last_correspondence && <div className="job-card-corr">{job.last_correspondence}</div>}
+                      </div>
+                      <div className="job-card-right">
+                        <div className="job-card-total">{money(job.job_total)}</div>
+                        {Number(job.outstanding) > 0 && (
+                          <div className="job-card-outstanding">{money(job.outstanding)} left</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="card">
+          <table className="jobs-table">
+            <thead>
+              <tr>
+                <th>Job ID</th>
+                <th>Client</th>
+                <th>Phase</th>
+                <th className="num">Total</th>
+                <th className="num">Outstanding</th>
+                <th>Flags</th>
+                <th>Last correspondence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((job) => (
+                <tr key={job.job_id} onClick={() => setDrawer({ mode: 'edit', job })}>
+                  <td className="job-id">{job.job_id}</td>
+                  <td>
+                    {job.client_name || <span className="muted">—</span>}
+                    {job.address && <div className="muted" style={{ fontSize: 12 }}>{job.address}</div>}
+                  </td>
+                  <td><span className={`badge badge-${job.phase}`}>{phaseLabel(job)}</span></td>
+                  <td className="num">{money(job.job_total)}</td>
+                  <td className={`num ${Number(job.outstanding) > 0 ? 'outstanding-pos' : 'outstanding-zero'}`}>
+                    {money(job.outstanding)}
+                  </td>
+                  <td>
+                    {job.bill_flag && <span className="badge badge-bill">BILL</span>}{' '}
+                    {job.is_forefront && <span className="badge badge-ff">FF</span>}{' '}
+                    {job.import_needs_review && <span className="review-flag" title={job.import_notes || ''}>⚠ review</span>}
+                  </td>
+                  <td className="muted">
+                    {job.last_correspondence || '—'}
+                    {job.last_email_date && <div style={{ fontSize: 12 }}>{shortDate(job.last_email_date)}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {drawer?.mode === 'edit' && (
+        <JobEditor
+          job={jobs.find((j) => j.job_id === drawer.job.job_id) || drawer.job}
+          onClose={() => setDrawer(null)}
+          onSave={saveJob}
+          onPaymentLogged={loadJobs}
+        />
+      )}
+      {drawer?.mode === 'create' && (
+        <NewJobDrawer onClose={() => setDrawer(null)} onCreate={createJob} />
+      )}
+    </div>
+  );
+}
+
+/* ============================ JobEditor drawer ============================ */
+
+function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
+  const [tab, setTab] = useState('details');
+  const [form, setForm] = useState(() => ({
+    client_name: job.client_name || '',
+    address: job.address || '',
+    phase: job.phase,
+    phase_override: job.phase_override || '',
+    job_total: job.job_total ?? 0,
+    bill_flag: Boolean(job.bill_flag),
+    is_forefront: Boolean(job.is_forefront),
+    ff_commission: job.ff_commission ?? '',
+    notes: job.notes || '',
+    last_correspondence: job.last_correspondence || '',
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const set = (key) => (e) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setForm((f) => ({ ...f, [key]: value }));
+  };
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(job.job_id, {
+        ...form,
+        phase_override: form.phase_override || null,
+        job_total: Number(form.job_total) || 0,
+        ff_commission: form.ff_commission === '' ? null : Number(form.ff_commission),
+        last_correspondence: form.last_correspondence || null,
+        notes: form.notes || null,
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="drawer-overlay" onClick={onClose} />
+      <div className="drawer" role="dialog" aria-label={`Edit ${job.job_id}`}>
+        <div className="drawer-head">
+          <div>
+            <h2>{job.job_id}</h2>
+            <div className="sub">
+              {money(job.outstanding)} outstanding · created {shortDate(job.created_at)}
+            </div>
+          </div>
+          <button className="drawer-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="drawer-tabs">
+          <button className={`drawer-tab${tab === 'details' ? ' active' : ''}`} onClick={() => setTab('details')}>Details</button>
+          <button className={`drawer-tab${tab === 'payments' ? ' active' : ''}`} onClick={() => setTab('payments')}>Payments</button>
+        </div>
+
+        {tab === 'details' && (
+          <>
+            <div className="drawer-body">
+              <div className="field">
+                <label>Client name</label>
+                <input type="text" value={form.client_name} onChange={set('client_name')} />
+              </div>
+              <div className="field">
+                <label>Address</label>
+                <input type="text" value={form.address} onChange={set('address')} />
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label>Phase</label>
+                  <select value={form.phase} onChange={set('phase')}>
+                    {PHASE_ORDER.map((p) => <option key={p} value={p}>{PHASE_LABELS[p]}</option>)}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Phase override (wins if set)</label>
+                  <input type="text" value={form.phase_override} onChange={set('phase_override')} placeholder="optional label" />
+                </div>
+              </div>
+              <div className="field-row">
+                <div className="field">
+                  <label>Job total ($)</label>
+                  <input type="number" min="0" step="0.01" value={form.job_total} onChange={set('job_total')} />
+                </div>
+                <div className="field">
+                  <label>FF commission ($)</label>
+                  <input type="number" min="0" step="0.01" value={form.ff_commission} onChange={set('ff_commission')} disabled={!form.is_forefront} />
+                </div>
+              </div>
+              <label className="check-field">
+                <input type="checkbox" checked={form.bill_flag} onChange={set('bill_flag')} />
+                Ready to bill
+              </label>
+              <label className="check-field">
+                <input type="checkbox" checked={form.is_forefront} onChange={set('is_forefront')} />
+                Forefront job (carries a commission)
+              </label>
+              <div className="field">
+                <label>Last correspondence</label>
+                <input type="text" value={form.last_correspondence} onChange={set('last_correspondence')} />
+              </div>
+              <div className="field">
+                <label>Notes</label>
+                <textarea value={form.notes} onChange={set('notes')} />
+              </div>
+              {job.import_needs_review && (
+                <div className="field">
+                  <label className="review-flag">⚠ Import flagged this row for review</label>
+                  <div className="placeholder-note">{job.import_notes || 'No import notes recorded.'}</div>
+                </div>
+              )}
+            </div>
+            <div className="drawer-foot">
+              {error && <span className="error">{error}</span>}
+              <button className="btn" onClick={onClose}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </>
+        )}
+
+        {tab === 'payments' && (
+          <PaymentsTab job={job} onLogged={onPaymentLogged} />
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ============================ Payments tab (Phase 4) ============================ */
+
+const PAY_METHODS = ['check', 'venmo', 'zelle', 'qb', 'cash', 'other'];
+const PAY_TYPES = ['retainer', 'dp1', 'dp2', 'dp3', 'cd', 'final', 'other'];
+
+function PaymentsTab({ job, onLogged }) {
+  const [payments, setPayments] = useState(null);
+  const [form, setForm] = useState({
+    amount: '',
+    payment_method: 'check',
+    payment_type: 'other',
+    paid_date: new Date().toISOString().slice(0, 10),
+    notes: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function loadPayments() {
+    const res = await fetch(`/api/payments?job_id=${encodeURIComponent(job.job_id)}`);
+    const data = await res.json();
+    setPayments(data.payments || []);
+  }
+  useEffect(() => { loadPayments(); }, [job.job_id]);
+
+  const paid = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
+
+  async function logPayment() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: job.job_id, ...form, amount: Number(form.amount) }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+      setForm((f) => ({ ...f, amount: '', notes: '' }));
+      await loadPayments();
+      onLogged?.();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="drawer-body">
+        {payments === null ? (
+          <div className="placeholder-note">Loading payments…</div>
+        ) : payments.length === 0 ? (
+          <div className="placeholder-note">No payments logged for this job yet.</div>
+        ) : (
+          <>
+            <ul className="pay-list">
+              {payments.map((p) => (
+                <li key={p.id}>
+                  <span>
+                    <strong>{money(p.amount, { cents: true })}</strong>{' '}
+                    <span className="meta">{p.payment_type.toUpperCase()} · {p.payment_method}</span>
+                    {p.qbo_invoice_id && <span className="meta"> · QBO {p.qbo_invoice_id}</span>}
+                    {p.notes && <div className="meta">{p.notes}</div>}
+                  </span>
+                  <span className="meta">{shortDate(p.paid_date)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="pay-total">
+              <span>Paid {money(paid, { cents: true })} of {money(job.job_total, { cents: true })}</span>
+              <span className={Number(job.job_total) - paid > 0 ? 'outstanding-pos' : 'outstanding-zero'}>
+                {money(Number(job.job_total) - paid, { cents: true })} outstanding
+              </span>
+            </div>
+          </>
+        )}
+
+        <h3 style={{ fontSize: 14, margin: '18px 0 10px' }}>Log a payment</h3>
+        <div className="field-row">
+          <div className="field">
+            <label>Amount ($)</label>
+            <input type="number" min="0" step="0.01" value={form.amount}
+              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))} />
+          </div>
+          <div className="field">
+            <label>Date</label>
+            <input type="date" value={form.paid_date}
+              onChange={(e) => setForm((f) => ({ ...f, paid_date: e.target.value }))} />
+          </div>
+        </div>
+        <div className="field-row">
+          <div className="field">
+            <label>Type</label>
+            <select value={form.payment_type} onChange={(e) => setForm((f) => ({ ...f, payment_type: e.target.value }))}>
+              {PAY_TYPES.map((t) => <option key={t} value={t}>{t.toUpperCase()}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label>Method</label>
+            <select value={form.payment_method} onChange={(e) => setForm((f) => ({ ...f, payment_method: e.target.value }))}>
+              {PAY_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="field">
+          <label>Notes</label>
+          <input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+        </div>
+      </div>
+      <div className="drawer-foot">
+        {error && <span className="error">{error}</span>}
+        <button className="btn btn-primary" onClick={logPayment} disabled={saving || !form.amount}>
+          {saving ? 'Logging…' : 'Log payment'}
+        </button>
+      </div>
+    </>
+  );
+}
+
+/* ============================ New job drawer ============================ */
+
+function NewJobDrawer({ onClose, onCreate }) {
+  const [form, setForm] = useState({
+    job_id: '',
+    client_name: '',
+    address: '',
+    phase: 'potential',
+    job_total: '',
+    is_forefront: false,
+    ff_commission: '',
+    notes: '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const set = (key) => (e) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setForm((f) => ({ ...f, [key]: value }));
+  };
+
+  async function handleCreate() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onCreate({
+        ...form,
+        job_total: Number(form.job_total) || 0,
+        ff_commission: form.ff_commission === '' ? null : Number(form.ff_commission),
+      });
+      onClose();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="drawer-overlay" onClick={onClose} />
+      <div className="drawer" role="dialog" aria-label="New job">
+        <div className="drawer-head">
+          <div>
+            <h2>New Job</h2>
+            <div className="sub">Job ID must match the QuickBooks Customer Display Name exactly.</div>
+          </div>
+          <button className="drawer-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="drawer-body">
+          <div className="field">
+            <label>Job ID — YY_NNN_[FF_]LastName</label>
+            <input type="text" value={form.job_id} onChange={set('job_id')} placeholder="26_012_Smith or 26_012_FF_Smith" />
+          </div>
+          <div className="field">
+            <label>Client name</label>
+            <input type="text" value={form.client_name} onChange={set('client_name')} />
+          </div>
+          <div className="field">
+            <label>Address</label>
+            <input type="text" value={form.address} onChange={set('address')} />
+          </div>
+          <div className="field-row">
+            <div className="field">
+              <label>Phase</label>
+              <select value={form.phase} onChange={set('phase')}>
+                {PHASE_ORDER.map((p) => <option key={p} value={p}>{PHASE_LABELS[p]}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label>Job total ($)</label>
+              <input type="number" min="0" step="0.01" value={form.job_total} onChange={set('job_total')} />
+            </div>
+          </div>
+          <label className="check-field">
+            <input type="checkbox" checked={form.is_forefront} onChange={set('is_forefront')} />
+            Forefront job
+          </label>
+          {form.is_forefront && (
+            <div className="field">
+              <label>FF commission ($)</label>
+              <input type="number" min="0" step="0.01" value={form.ff_commission} onChange={set('ff_commission')} />
+            </div>
+          )}
+          <div className="field">
+            <label>Notes</label>
+            <textarea value={form.notes} onChange={set('notes')} />
+          </div>
+        </div>
+        <div className="drawer-foot">
+          {error && <span className="error">{error}</span>}
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleCreate} disabled={saving || !form.job_id || !form.client_name}>
+            {saving ? 'Creating…' : 'Create job'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
