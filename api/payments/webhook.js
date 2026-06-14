@@ -1,0 +1,81 @@
+// POST /api/payments/webhook
+// Called by Zapier when a QuickBooks Online invoice is paid.
+// Zapier maps QBO invoice fields to this JSON body and POSTs here.
+//
+// Expected body from Zapier:
+// {
+//   "secret":      "{{WEBHOOK_SECRET env var value}}",
+//   "job_id":      "{{Customer Display Name from QBO}}",   ← must match YY_NNN_[FF_]LastName
+//   "amount":      "{{Total Amount}}",
+//   "paid_date":   "{{Transaction Date}}",                 ← YYYY-MM-DD
+//   "qbo_invoice_id": "{{Invoice ID}}",
+//   "payment_type": "other"                               ← Zapier sends this as a fixed string
+// }
+import { getDb, hasDb } from '../_lib/db.js';
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'POST only' });
+  }
+
+  const {
+    secret,
+    job_id,
+    amount,
+    paid_date,
+    qbo_invoice_id,
+    payment_type = 'other',
+    notes,
+  } = req.body || {};
+
+  // Validate shared secret — must match WEBHOOK_SECRET env var
+  const expectedSecret = process.env.WEBHOOK_SECRET;
+  if (!expectedSecret || secret !== expectedSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Required fields
+  if (!job_id)   return res.status(400).json({ error: 'job_id is required' });
+  if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'amount must be > 0' });
+  if (!paid_date) return res.status(400).json({ error: 'paid_date is required' });
+
+  if (!hasDb()) {
+    console.log('[webhook] mock mode — payment not persisted', { job_id, amount });
+    return res.status(200).json({ received: true, persisted: false, note: 'mock mode' });
+  }
+
+  const db = getDb();
+
+  // Verify the job exists
+  const { data: job, error: jobErr } = await db
+    .from('jobs')
+    .select('job_id')
+    .eq('job_id', job_id)
+    .single();
+
+  if (jobErr || !job) {
+    // Log but don't hard-fail — QBO customer names sometimes differ slightly
+    console.warn('[webhook] job not found for job_id:', job_id);
+    return res.status(404).json({ error: `No job found with job_id "${job_id}". Check the QBO Customer Display Name matches exactly.` });
+  }
+
+  // Insert the payment record
+  const row = {
+    job_id,
+    amount: Number(amount),
+    payment_method: 'qb',
+    payment_type: ['retainer','dp1','dp2','dp3','cd','final','other'].includes(payment_type) ? payment_type : 'other',
+    paid_date,
+    qbo_invoice_id: qbo_invoice_id || null,
+    notes: notes || 'Auto-synced from QuickBooks via Zapier',
+  };
+
+  const { data, error } = await db.from('payments').insert(row).select().single();
+  if (error) {
+    console.error('[webhook] insert failed:', error);
+    return res.status(500).json({ error: error.message });
+  }
+
+  console.log('[webhook] payment logged:', data.id, 'for job', job_id, 'amount', amount);
+  return res.status(201).json({ received: true, persisted: true, payment_id: data.id });
+}

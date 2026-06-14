@@ -15,6 +15,7 @@ const routes = {
   '/api/jobs/update': () => import('./api/jobs/update.js'),
   '/api/payments': () => import('./api/payments.js'),
   '/api/forefront': () => import('./api/forefront.js'),
+  '/api/payments/webhook': () => import('./api/payments/webhook.js'),
 };
 
 for (const [path, load] of Object.entries(routes)) {
