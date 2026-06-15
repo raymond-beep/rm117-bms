@@ -12,6 +12,7 @@
     "update:billing": "node scripts/update-billing.js"
   },
   "dependencies": {
+    "@clerk/backend": "^3.7.0",
     "@clerk/clerk-react": "^5.61.8",
     "@supabase/supabase-js": "^2.49.0",
     "dotenv": "^16.4.0",

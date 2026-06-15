@@ -15,6 +15,8 @@ const routes = {
   '/api/jobs/update': () => import('./api/jobs/update.js'),
   '/api/payments': () => import('./api/payments.js'),
   '/api/forefront': () => import('./api/forefront.js'),
+  '/api/inbox': () => import('./api/inbox.js'),
+  '/api/calendar': () => import('./api/calendar.js'),
   '/api/payments/webhook': () => import('./api/payments/webhook.js'),
 };
 

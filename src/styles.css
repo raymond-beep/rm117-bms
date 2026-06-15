@@ -218,3 +218,36 @@ input, select, textarea { font: inherit; }
 /* ---------- Misc ---------- */
 .empty { padding: 40px; text-align: center; color: var(--ink-faint); }
 .review-flag { color: var(--warn); font-size: 12px; font-weight: 600; }
+
+/* ---------- Priority Inbox ---------- */
+.inbox-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+.inbox-item { padding: 10px 4px; border-bottom: 1px solid var(--border); opacity: 0.6; }
+.inbox-item:last-child { border-bottom: none; }
+.inbox-item.is-client { opacity: 1; }
+.inbox-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.inbox-from { font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.inbox-tag {
+  flex: none; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: rgba(31, 58, 95, 0.1); color: var(--brand); max-width: 55%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.inbox-subj { font-size: 13px; color: var(--ink); margin-top: 2px; }
+.inbox-snip { font-size: 12px; color: var(--ink-faint); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Calendar widget */
+.cal-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+.cal-item { display: flex; align-items: center; gap: 10px; padding: 9px 4px;
+  border-bottom: 1px solid var(--border); }
+.cal-item:last-child { border-bottom: none; }
+.cal-when { flex: none; width: 78px; display: flex; flex-direction: column; line-height: 1.25; }
+.cal-day { font-size: 12px; font-weight: 600; color: var(--ink); }
+.cal-time { font-size: 11px; color: var(--ink-faint); }
+.cal-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cal-title { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-loc { font-size: 12px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-item.cal-company { border-left: 2px solid var(--brand); padding-left: 8px; }
+.cal-tag {
+  flex: none; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: rgba(31, 58, 95, 0.1); color: var(--brand);
+}

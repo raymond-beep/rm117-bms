@@ -1,0 +1,115 @@
+qbo_customer,matched_job_id,match_method,match_confidence,phase,qbo_contract,qbo_paid,qbo_outstanding,opening_balance_amt,n_invoices,app_job_total,app_paid,app_outstanding,name_mismatch,paid_delta(qbo-app)
+Mickael Avedissian,25_031_FF_Avedissian,hint,medium,cd_phase,44400.0,22400.0,22000.0,22000.0,3,8800,0,8800,YES,22400.0
+26_035_FF_Stegeman,26_035_FF_Stegeman,exact,high,potential,15800.0,0.0,15800.0,0.0,7,15800,0,15800,,0.0
+26_014_FF_Jones_365 Webster Ave,26_014_FF_Jones_365 Webster Ave,exact,high,on_hold,21500.0,6450.0,15050.0,0.0,4,21500,6450,15050,,0.0
+26_003_Deuel_544 Valley,26_003_Deuel_544 Valley,exact,high,on_hold,14000.0,0.0,14000.0,0.0,4,14000,0,14000,,0.0
+25_044_FF_Luebenow-Suchy,25_044_FF_Luebenow-Suchy,exact,high,completed,26400.0,14000.0,12400.0,12400.0,5,26400,15200,11200,,-1200.0
+26_033_Guido,26_033_Guido,exact,high,design_phase,12800.0,1200.0,11600.0,0.0,4,12800,1200,11600,,0.0
+26_039_Sun_Middle Patent,26_039_Sun_Middle Patent,exact,high,design_phase,11500.0,0.0,11500.0,0.0,4,11500,0,11500,,0.0
+26_026_Abar_Glen Ave,26_026_Abar_Glen Ave,exact,high,survey_zoning,11500.0,0.0,11500.0,0.0,4,11500,0,11500,,0.0
+26_030_Rodriguez_1KnappAve,26_030_Rodriguez_1 Knapp Ave,prefix(YY_NNN),high,active,12500.0,1200.0,11300.0,0.0,5,12500,1200,11300,YES,0.0
+26_002_Deuel_542 Valley,26_002_Deuel_542 Valley,exact,high,on_hold,11000.0,0.0,11000.0,0.0,4,11000,0,11000,,0.0
+25_047_Costello_77 Tulip,25_047_Costello_Tulip,prefix(YY_NNN),high,completed,21000.0,10500.0,10500.0,10500.0,4,21000,10500,10500,YES,0.0
+23_047_FF_Jones,23_047_FF_Jones,exact,high,completed,10000.0,0.0,10000.0,0.0,4,10000,0,10000,,0.0
+26_037_FF_Zhang,26_037_FF_Zhang,exact,high,completed,10000.0,0.0,10000.0,0.0,4,10000,0,10000,,0.0
+25_043_FF_Maizel,25_043_FF_Maizel,exact,high,on_hold,9600.0,0.0,9600.0,0.0,5,9600,0,9600,,0.0
+25_002_Odunlami_Lot2,25_002_FF_Warmington | 25_002_Odunlami_Lot 2,prefix-multi,low,,14500.0,5000.0,9500.0,9500.0,2,,,,YES,
+26_027_Costello_Retford,26_027_Costello_Retford,exact,high,design_phase,10500.0,1200.0,9300.0,0.0,4,10500,1200,9300,,0.0
+25_037_Smith,25_037_Smith,exact,high,completed,23800.0,15000.0,8800.0,8800.0,2,23800,15000,8800,,0.0
+25_012_FF_Stewart,25_012_FF_Stewart,exact,high,on_hold,8400.0,0.0,8400.0,0.0,5,8400,0,8400,,0.0
+24_074_Madden_Mantoloking,24_074_Madden_Mantoloking*,exact,high,on_hold,9000.0,1500.0,7500.0,7500.0,1,9000,1500,7500,,0.0
+25_038_FF_Basho,25_038_FF_Basho,exact,high,active,12500.0,5100.0,7400.0,0.0,4,12500,5100,7400,,0.0
+26_016_Sun_Hilltop_NY,26_016_Sun_Hilltop_NY,exact,high,on_hold,11500.0,4500.0,7000.0,0.0,4,11500,4500,7000,,0.0
+26_026_Abar_GlenAve,26_026_Abar_Glen Ave,prefix(YY_NNN),high,survey_zoning,6500.0,0.0,6500.0,0.0,1,11500,0,11500,YES,0.0
+26_031_Abar_Colgate,26_031_Abar_Colgate,exact,high,survey_zoning,6500.0,0.0,6500.0,0.0,3,6500,0,6500,,0.0
+25_050_FF_Rafanan,25_050_FF_Rafanan,exact,high,on_hold,9000.0,2600.0,6400.0,6400.0,3,9000,2600,6400,,0.0
+25_051_Rodriguez_779 Lamberts Mill Rd,25_051_Rodriguez_779 Lamberts Mill Rd,exact,high,completed,11400.0,5200.0,6200.0,0.0,4,11400,5200,6200,,0.0
+24_020_Kandro,24_020_Kandro,exact,high,completed,8000.0,2000.0,6000.0,0.0,4,8000,2000,6000,,0.0
+24_080_FF_Heitner,24_080_FF_Heitner,exact,high,on_hold,5700.0,0.0,5700.0,0.0,4,5700,0,5700,,0.0
+26_005_Deuel_Patel,26_005_Deuel_Patel,exact,high,on_hold,8800.0,3200.0,5600.0,0.0,5,8800,3200,5600,,0.0
+26_024_Costello_77 Benjamin St,26_024_Costello_77 Benjamin St,exact,high,design_phase,10500.0,5000.0,5500.0,0.0,4,10500,5000,5500,,0.0
+Nosker_Interiors,,hint,none,,8250.0,2750.0,5500.0,2750.0,2,,,,YES,
+25_045_Vanderbeck,25_045_Vanderbeck,exact,high,on_hold,8550.0,3350.0,5200.0,5200.0,2,8550,3350,5200,,0.0
+25_042_FF_Li,25_042_FF_Li,exact,high,completed,8500.0,3300.0,5200.0,5200.0,3,8500,3300,5200,,0.0
+25_013_FF_Goldberg,25_013_FF_Goldberg,exact,high,design_phase,8500.0,3300.0,5200.0,0.0,4,8500,3300,5200,,0.0
+23_039_Sperber,23_039_Sperber,exact,high,completed,7500.0,2500.0,5000.0,0.0,4,7500,2500,5000,,0.0
+25_036_FF_Springstead,25_036_FF_Springstead,exact,high,completed,11600.0,6800.0,4800.0,4800.0,4,11600,6800,4800,,0.0
+26_028_FF_Tysk,26_028_FF_Tysk,exact,high,design_phase,5400.0,800.0,4600.0,0.0,4,5400,800,4600,,0.0
+25_040_FF_Fitzpatrick,25_040_FF_Fitzpatrick,exact,high,on_hold,5000.0,800.0,4200.0,4200.0,1,5000,800,4200,,0.0
+26_FF_032_Riera,,none,none,,5000.0,800.0,4200.0,0.0,4,,,,YES,
+26_020_FF_Keilly,26_020_FF_Keilly,exact,high,design_phase,5000.0,800.0,4200.0,0.0,4,5000,800,4200,,0.0
+26_021_FF_Halpin-Szelag,26_021_FF_Halpin-Szelag,exact,high,design_phase,4800.0,800.0,4000.0,0.0,4,4800,800,4000,,0.0
+25_033_FF_Schwarz,25_033_FF_Schwarz,exact,high,completed,13000.0,9200.0,3800.0,3800.0,4,13000,9200,3800,,0.0
+26_029_FF_Bakhtin,26_029_FF_Bakhtin,exact,high,design_phase,4800.0,1000.0,3800.0,0.0,4,4800,1000,3800,,0.0
+25_035_FF_Chad_Rodriguez,25_035_FF_Chad_Rodriguez,exact,high,completed,9600.0,6000.0,3600.0,0.0,4,9600,6000,3600,,0.0
+26_007_Antunes_307 Ann St,26_007_Antunes_307 Ann St,exact,high,completed,3600.0,0.0,3600.0,0.0,4,3600,0,3600,,0.0
+26_011_Kuhn_352 Amherst,26_011_Kuhn_352 Amherst,exact,high,completed,11500.0,8500.0,3000.0,0.0,4,11500,8500,3000,,0.0
+26_009_FF_Chou,26_009_FF_Chou,exact,high,design_phase,4900.0,1900.0,3000.0,0.0,4,4900,1900,3000,,0.0
+26_012_Dunn_Parlin,26_012_Dunn_Parlin,exact,high,on_hold,3000.0,0.0,3000.0,0.0,3,3000,0,3000,,0.0
+Anthony Odunlami,25_002_Odunlami_Lot 2 | 25_003_Odunlami_Lot 1,lastname-multi,low,,2500.0,0.0,2500.0,2500.0,1,,,,,
+Chalimar Frees,25_023_Samsel_Chalimar,lastname,medium,completed,2500.0,0.0,2500.0,2500.0,1,2500,0,2500,,0.0
+24_008_Dunn_Fritchey,24_008_Dunn_Fritchey,exact,high,on_hold,2500.0,0.0,2500.0,2500.0,1,2500,0,2500,,0.0
+24_071_Madden_Toms River,24_071_Madden_Toms River,exact,high,completed,5250.0,2750.0,2500.0,1250.0,2,5250,2750,2500,,0.0
+25_054_McCalla,25_054_McCalla,exact,high,completed,4800.0,2800.0,2000.0,0.0,3,4800,2800,2000,,0.0
+24_062_FF_Jaipersaud,24_062_FF_Jaipersaud,exact,high,completed,6200.0,4200.0,2000.0,2000.0,1,6200,4200,2000,,0.0
+24_059_FF_Westerling,24_059_FF_Westerling,exact,high,completed,8200.0,6500.0,1700.0,1700.0,2,8200,6500,1700,,0.0
+25_021_Bryce_Fulton,25_021_Bryce_Fulton,exact,high,completed,3500.0,2000.0,1500.0,0.0,2,3500,2000,1500,,0.0
+Jeff Dunn,23_007_Dunn_Antique Car* | 23_044_Dunn_Atlantic Highlands | 24_008_Dunn Fritchey | 24_008_Dunn_Fritchey | 24_012_Dunn_Melillo | 25_022_Dunn_Bathroom | 26_012_Dunn_Parlin,lastname-multi,low,,1000.0,0.0,1000.0,0.0,1,,,,YES,
+26_036_Costello_Woodland,26_036_Costello_Woodland,exact,high,design_phase,600.0,0.0,600.0,0.0,1,600,0,600,,0.0
+25_048_Abar_Concord,25_048_Abar_Concord,exact,high,completed,6050.0,5800.0,250.0,0.0,4,6050,5800,250,,0.0
+25_041_FF_Reynders,25_041_FF_Reynders,exact,high,completed,6600.0,6600.0,0.0,0.0,3,6600,6600,0,,0.0
+26_018_Deuel_197 Grove,26_018_Deuel_197 Grove,exact,high,completed,1600.0,1600.0,0.0,0.0,1,1600,1600,0,,0.0
+26_023_Deuel_Kamal,26_023_Deuel_Kamal,exact,high,completed,2300.0,2300.0,0.0,0.0,2,2300,2300,0,,0.0
+26_025_Samsel_510 Harrison Place,26_025_Dubleski_Holmdel,prefix(YY_NNN),high,on_hold,4000.0,4000.0,0.0,0.0,1,0,0,0,YES,4000.0
+26_015_Costello_101 Denman Rd,26_015_Costello_101 Denman Rd,exact,high,completed,10500.0,10500.0,0.0,0.0,4,10500,10500,0,,0.0
+26_017_Deuel_Teggart,26_017_Deuel_Teggart,exact,high,completed,2000.0,2000.0,0.0,0.0,1,2000,2000,0,,0.0
+26_008_FF_Lonergan,26_008_FF_Lonergan,exact,high,completed,9400.0,9400.0,0.0,0.0,4,9400,9400,0,,0.0
+25_054_Malanga_Subdivide,25_054_McCalla,prefix(YY_NNN),high,completed,1200.0,1200.0,0.0,0.0,1,4800,2800,2000,YES,-1600.0
+26_004_Easton PA Fire Escapes,26_004_Easton PA Fire Escapes,exact,high,completed,4500.0,4500.0,0.0,0.0,1,4500,4500,0,,0.0
+25_052_DaSilva_Dorian,25_052_DaSilva_Dorian,exact,high,completed,9140.0,9140.0,0.0,0.0,5,9140,9140,0,,0.0
+26_001_Deuel_544,26_001_Deuel_544 Valley_Garage,prefix(YY_NNN),high,completed,3200.0,3200.0,0.0,0.0,3,3200,3200,0,YES,0.0
+25_052_FE_Mendham,25_052_DaSilva_Dorian,prefix(YY_NNN),high,completed,3300.0,3300.0,0.0,0.0,2,9140,9140,0,YES,-5840.0
+25_053_DaSilva_Maple,25_053_DaSilva_Maple,exact,high,completed,4000.0,4000.0,0.0,0.0,1,4000,4000,0,,0.0
+25_049_DaSilva_Munsee,25_049_DaSilva_Munsee,exact,high,completed,11600.0,11600.0,0.0,0.0,4,11600,11600,0,,0.0
+Resound Technologies LLC (deleted),,none,none,,0.5,0.5,0.0,0.0,1,,,,YES,
+Nandini Ramesh (deleted),25_030_Ramesh,lastname,medium,completed,4500.0,4500.0,0.0,0.0,2,2500,0,2500,YES,4500.0
+Nimchy Regis (deleted),25_024_FF_Regis,lastname,medium,completed,9600.0,9600.0,0.0,0.0,2,1400,0,1400,YES,9600.0
+25_003_Samsel_Raritan (deleted),25_003_Odunlami_Lot 1 | 25_003_Samsel_Raritan,prefix-multi,low,,4500.0,4500.0,0.0,0.0,1,,,,,
+Jay Rodriguez (deleted),25_028_Rodriguez_1 Noe | 25_035_FF_Chad_Rodriguez | 25_051_Rodriguez_779 Lamberts Mill Rd | 26_030_Rodriguez_1 Knapp Ave,lastname-multi,low,,11000.0,11000.0,0.0,0.0,1,,,,,
+Mike Costello (deleted),25_006_Costello | 25_029_Costello_310 Retford | 25_047_Costello_Tulip | 26_015_Costello_101 Denman Rd | 26_024_Costello_77 Benjamin St | 26_027_Costello_Retford | 26_036_Costello_Woodland,lastname-multi,low,,10500.0,10500.0,0.0,0.0,1,,,,,
+Domenick Malanga (deleted),23_045_Malanga_Zoning | 25_010_Malanga_Harrison St. | 25_027_Malanga_Union | 25_053_Malanga_Subdivide,lastname-multi,low,,4500.0,4500.0,0.0,0.0,1,,,,,
+Helio Antunes (deleted),24_030_Antunes* | 25_019_Antunes_175 E Crescent | 26_007_Antunes_307 Ann St,lastname-multi,low,,8500.0,8500.0,0.0,0.0,1,,,,,
+Luis Correia (deleted),,none,none,,11000.0,11000.0,0.0,0.0,1,,,,,
+25_020_Migueis (deleted),25_020_Migueis,prefix(YY_NNN),high,completed,1900.0,1900.0,0.0,0.0,1,1900,1900,0,,0.0
+25_010_Malanga_HarrisonST (deleted),25_010_Malanga_Harrison St.,prefix(YY_NNN),high,completed,4500.0,4500.0,0.0,0.0,1,4500,4500,0,,0.0
+24_024_Natale (deleted),24_024_Natale,prefix(YY_NNN),high,completed,10500.0,10500.0,0.0,0.0,1,10500,10500,0,YES,0.0
+23_045_Malanga_Zoning,23_045_Malanga_Zoning,exact,high,completed,1200.0,1200.0,0.0,0.0,1,1200,1200,0,,0.0
+24_075_DaSilva_FlorhamPark (deleted),24_075_DaSilva_Florham Park,prefix(YY_NNN),high,completed,12500.0,12500.0,0.0,0.0,1,12500,12500,0,,0.0
+24_070_Kahn (deleted),24_070_Kahn,prefix(YY_NNN),high,completed,3500.0,3500.0,0.0,0.0,1,3500,3500,0,,0.0
+24_055_Szeles_Finn (deleted),24_055_Szeles_Finn,prefix(YY_NNN),high,completed,5000.0,5000.0,0.0,0.0,1,5000,5000,0,,0.0
+25_019_Antunes_175 (deleted),25_019_Antunes_175 E Crescent,prefix(YY_NNN),high,completed,3300.0,3300.0,0.0,0.0,1,3300,3300,0,,0.0
+25_014_Amato (deleted),25_014_Amato,prefix(YY_NNN),high,completed,3600.0,3600.0,0.0,0.0,1,3600,3600,0,,0.0
+25_006_Costello (deleted),25_006_Costello,prefix(YY_NNN),high,completed,10500.0,10500.0,0.0,0.0,1,10500,9300,1200,,1200.0
+23_007_Dunn_AntiqueCar (deleted),23_007_Dunn_Antique Car*,prefix(YY_NNN),high,on_hold,10000.0,10000.0,0.0,0.0,1,0,0,0,,10000.0
+24_030_Antunes (deleted),24_030_Antunes*,prefix(YY_NNN),high,on_hold,20000.0,20000.0,0.0,0.0,1,20000,5000,15000,,15000.0
+25_002_FF_Warmington (deleted),25_002_FF_Warmington | 25_002_Odunlami_Lot 2,prefix-multi,low,,13800.0,13800.0,0.0,0.0,1,,,,,
+25_001_Sztyk (deleted),25_001_Sztyk,prefix(YY_NNN),high,on_hold,5800.0,5800.0,0.0,0.0,1,5800,1000,4800,,4800.0
+23_070_FF_Kosuda (deleted),23_070_FF_Kosuda,prefix(YY_NNN),high,completed,4750.0,4750.0,0.0,0.0,1,4750,4750,0,,0.0
+23_044_Dunn_Atlantic Highlands (deleted),23_044_Dunn_Atlantic Highlands,prefix(YY_NNN),high,completed,6650.0,6650.0,0.0,0.0,1,6650,6650,0,,0.0
+24_033_FF_Szeles_Moore (deleted),24_033_FF_Szeles_Moore,prefix(YY_NNN),high,completed,0.0,0.0,0.0,0.0,1,4400,0,4400,,0.0
+24_034_FF_Wallden (deleted),24_034_FF_Wallden,prefix(YY_NNN),high,completed,7750.0,7750.0,0.0,0.0,1,7750,7750,0,,0.0
+24_083_ElHassan_Cafe (deleted),24_083_ElHassan_Cafe,prefix(YY_NNN),high,completed,5500.0,5500.0,0.0,0.0,1,5500,5500,0,,0.0
+25_085_O'Bagel_Montclair (deleted),25_085_O'Bagel_Montclair,prefix(YY_NNN),high,completed,5500.0,5500.0,0.0,0.0,1,5500,5500,0,,0.0
+24_084_Geroldi (deleted),24_084_Geroldi,prefix(YY_NNN),high,completed,2300.0,2300.0,0.0,0.0,1,2600,2300,300,,0.0
+24_064_Leffler Kathy Leffler (deleted),24_064_FF_Dirt Diva | 24_064_Leffler,prefix-multi,low,,6200.0,6200.0,0.0,0.0,1,,,,,
+24_076_FF_Kelleher (deleted),24_076_FF_Kelleher,prefix(YY_NNN),high,completed,8000.0,8000.0,0.0,0.0,1,8000,8000,0,,0.0
+24_061_Manginelli (deleted),24_061_Manginelli,prefix(YY_NNN),high,completed,0.0,0.0,0.0,0.0,1,3200,0,3200,,0.0
+24_063_FF_Garcia (deleted),24_063_FF_Garcia,prefix(YY_NNN),high,completed,10800.0,10800.0,0.0,0.0,1,10800,7800,3000,,3000.0
+24_053_FF_McGrath (deleted),24_053_FF_McGrath,prefix(YY_NNN),high,on_hold,9500.0,9500.0,0.0,0.0,1,9500,7700,1800,,1800.0
+24_077_Feniak (deleted),24_077_Feniak,prefix(YY_NNN),high,completed,6000.0,6000.0,0.0,0.0,1,6000,2000,4000,,4000.0
+24_012_Dunn_Melillo (deleted),24_012_Dunn_Melillo,prefix(YY_NNN),high,completed,3000.0,3000.0,0.0,0.0,1,3000,3000,0,,0.0
+24_045_FF_Sorkin (deleted),24_045_FF_Sorkin,prefix(YY_NNN),high,completed,6500.0,6500.0,0.0,0.0,1,6500,6500,0,,0.0
+24_050_FF_Shipper (deleted),24_050_FF_Shipper,prefix(YY_NNN),high,completed,4500.0,4500.0,0.0,0.0,1,4500,4500,0,,0.0
+24_067_Hillal (deleted),24_067_Hillal,prefix(YY_NNN),high,completed,1000.0,1000.0,0.0,0.0,1,4000,1000,3000,,0.0
+24_078_FF_Eng (deleted),24_078_FF_Eng,prefix(YY_NNN),high,completed,2500.0,2500.0,0.0,0.0,1,2500,2500,0,,0.0
+24_032_FF_Zietlow (deleted),24_032_FF_Zietlow,prefix(YY_NNN),high,completed,6200.0,6200.0,0.0,0.0,1,6200,6200,0,,0.0

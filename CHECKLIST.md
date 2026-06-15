@@ -1,5 +1,5 @@
 # RM117 BMS — Master Build Checklist
-**Last updated:** 2026-06-13
+**Last updated:** 2026-06-15
 **Working folder:** `RM117-App-handoff copy` (the second-gen scaffold)
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
 
@@ -92,21 +92,51 @@
 1. **Invite Ang to Clerk** + test job editing/payment logging
 2. ~~**Deploy to Vercel**~~ ✅ **Live at rm117-bms.vercel.app — 2026-06-13**
 3. ~~**Forefront commissions view**~~ ✅ **Live — 41 FF jobs, $2,050 tracked, payment logging works — 2026-06-13**
-4. **QuickBooks sync** (Phase 4 — inbound: Zapier webhook when invoice paid → payments row)
-5. **DocuSign** (Phase 5 partial — proposals)
-6. **Client Portal** (Phase 7)
-7. **Templates** (Phase 5 — last, not essential per Ang)
+4. ~~**QuickBooks sync**~~ ✅ **Zapier webhook live + historical payments imported — 2026-06-14**
+5. ~~**Priority Inbox (Gmail)**~~ ✅ **Live — per-user read-only Gmail, client-sender matching — 2026-06-15**
+6. ~~**Client backbone (from QBO)**~~ ✅ **`clients` table seeded + typed — 2026-06-15**
+7. **DocuSign** (Phase 5 partial — proposals)
+8. **Client Portal** (Phase 7)
+9. **Templates** (Phase 5 — last, not essential per Ang)
+
+---
+
+## Priority Inbox + Client Backbone — 2026-06-15
+> Goal: dashboard surfaces each user's client emails; `clients` table becomes the real backbone.
+
+### Priority Inbox (Gmail) — DONE
+- [x] Per-user read-only Gmail via Clerk Google OAuth + `gmail.readonly` (`api/inbox.js`, `_lib/clerk.js`)
+- [x] OAuth fixed: Clerk custom-credentials **Scopes** must be the FULL URL
+  `https://www.googleapis.com/auth/gmail.readonly` (bare `gmail.readonly` → Google `invalid_scope`)
+- [x] Google Cloud project = **rm117-bms** (# 358622628253) on Ray's personal Gmail; Testing mode,
+  Ray+Ang test users — do NOT publish (restricted scope)
+- [x] Sender→client matching upgraded to email-first + surname fallback (`_lib/client-match.js`)
+- [x] Deployed to production (working-dir `vercel deploy --prod`)
+
+### Client backbone (QBO Customer Contact List) — DONE
+- [x] `scripts/import-clients.js` — 64 clients imported (46 w/ email), 64/133 jobs linked
+- [x] Clients typed: 2 contractor, 8 investor (incl. Monita Sun), rest homeowner
+- [ ] **Reconcile 12 unmatched QBO customers** → see `CLIENT-RECON.md`, then re-run `import-clients.js`
+- [ ] Merge duplicate no-email client rows (Gabe DaSilva ×2, Josh Russo ×2)
+- [ ] Commit the inbox + client work to git (currently deployed but uncommitted)
+
+### Google Calendar widget — DONE (personal); shared cal pending Ang
+- [x] `calendar.readonly` scope added (Google + Clerk), Google Calendar API enabled in rm117-bms
+- [x] `api/calendar.js` + `CalendarWidget` live — reads user's primary Google cal + `COMPANY_CALENDAR_ID`
+- [ ] **Shared RM117 calendar (needs Ang — she owns the iCloud one):** create a Google calendar for
+  RM117, share with all staff, everyone adds it to Apple Calendar (add Google account) for native
+  two-way sync. Then give Ray the Calendar ID → set `COMPANY_CALENDAR_ID` in `.env` + Vercel → redeploy.
 
 ---
 
 ## Phase 3 — App Re-point + Core Job Management
 > Goal: staff can create, edit, search all jobs in the app; Sheet archived.
 
-- [ ] Re-point `api/jobs.js` to read live Supabase data (replaces mock)
+- [x] Re-point `api/jobs.js` to read live Supabase data — confirmed working 2026-06-13
 - [ ] Confirm `api/jobs/update.js` saves job edits to Supabase
 - [ ] Confirm `api/jobs/create.js` creates new jobs in Supabase
 - [ ] `JobEditor` drawer: edit + save all fields, optimistic UI, error rollback
-- [ ] Dashboard stat tiles reflect live Supabase data
+- [x] Dashboard stat tiles reflect live Supabase data — outstanding computed from payments table
 - [ ] Job filters work: by phase, Forefront flag, client name
 - [ ] Set up Clerk auth (if not done in Phase 0): admin roles for Ray + Ang
 - [ ] Run app in parallel with Sheet for 1–2 weeks; Ang confirms data matches
@@ -125,15 +155,23 @@
 ## Phase 4 — Payments, Billing & Quarterly View
 > Goal: every payment logged in app; outstanding always accurate; QBO paid invoices sync back.
 
-- [ ] `api/payments.js` — create/read/update payment records
+- [x] `api/payments/webhook.js` — POST endpoint with secret auth, job lookup, payment insert — 2026-06-14
+- [ ] `api/payments.js` — GET payment history per job (for JobEditor Payments tab)
 - [ ] `JobEditor` Payments tab: full payment history + inline "log a payment"
-- [ ] `outstanding` computed from real payment records
+- [x] `outstanding` computed from real payment records — live in `api/jobs.js` — 2026-06-13
 - [ ] Billing view: quarterly breakdown by job, outstanding highlighted
-- [ ] Set up **Zapier webhook**: on QBO paid invoice → POST to Supabase edge function → creates `payments` row
+- [x] **Zapier webhook live**: QBO "New Paid Invoice" → POST to `rm117-bms.vercel.app/api/payments/webhook` → `payments` row — 2026-06-14
+- [x] **Historical payments imported**: 131 payments from QBO CSV via `scripts/import-payments.js` — 2026-06-14
+- [x] **Job totals corrected**: 77 `job_total` values synced from QBO invoice data via `scripts/sync-job-totals.js` — 2026-06-14
 
-### Deferred accounts for Phase 4:
-- [ ] Set up **Zapier** account + webhook step (connects to QBO)
-  - Zapier triggers on "Invoice Paid" in QBO → POSTs Job ID + amount to your Supabase edge function URL
+### Remaining QBO cleanup (next session):
+- [ ] Add `26_FF_032_Riera` to Supabase — exists in QBO but not in app
+- [ ] Resolve ~10 name mismatches between QBO and Supabase (job numbers differ slightly — need Ray to confirm correct mapping before auto-applying):
+  - `25_052_FE_Mendham` (QBO) vs `25_053_FE_Mendham` (Supabase)
+  - `25_054_Malanga_Subdivide` (QBO) vs `25_053_Malanga_Subdivide` (Supabase)
+  - `26_025_Samsel_510 Harrison Place` (QBO) vs `26_022_Samsel_510 Harrison. Place` (Supabase)
+  - Personal-name QBO accounts (Mickael Avedissian, Jay Rodriguez, etc.) — need Ray to confirm which job IDs these map to
+- [ ] Ang to review $190K outstanding on "completed" phase jobs — money owed on finished work
 
 ### Phase 4 done when:
 - All payments logged; outstanding accurate; QBO paid invoices auto-sync via webhook
@@ -179,6 +217,8 @@
 
 ## Phase 7 — Client Portal
 > Goal: a client can log in, view their job, download PDFs, and message the firm.
+> **Prereq DONE (2026-06-15):** `clients` table seeded from QBO (64 clients, emails on file,
+> jobs linked via `client_id`) — the login/identity backbone now exists.
 
 - [ ] Clerk `client` role: magic-link login with email on file (no password)
 - [ ] Portal landing: client sees only their own job(s) — phase, outstanding balance

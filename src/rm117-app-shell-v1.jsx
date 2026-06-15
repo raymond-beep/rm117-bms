@@ -4,7 +4,7 @@
 // (COMPANY_CALENDAR_ID, Clerk Google OAuth). Job stats are live via /api/jobs.
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
-import { SignedIn, SignedOut, SignIn, UserButton } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignIn, UserButton, useAuth, useClerk } from '@clerk/clerk-react';
 import BmsDashboard from './rm117-dashboard-v1.jsx';
 import ForefrountView from './rm117-forefront-v1.jsx';
 import { money, PIPELINE_PHASES } from './lib/format.js';
@@ -117,22 +117,182 @@ function Home() {
       )}
 
       <div className="grid-2">
-        <div className="card">
-          <div className="card-head"><h3>Calendar</h3></div>
-          <div className="card-body placeholder-note">
-            Front and center once connected: your Google Calendar plus the shared company
-            calendar (<code>COMPANY_CALENDAR_ID</code>). Requires Phase 0 — Clerk Google OAuth
-            (<code>calendar.readonly</code>) and the company calendar ID in <code>.env</code>.
+        <CalendarWidget />
+        <InboxWidget />
+      </div>
+    </div>
+  );
+}
+
+// Upcoming events from the signed-in user's Google Calendar (read-only) via
+// /api/calendar — their primary calendar plus the shared company calendar
+// (COMPANY_CALENDAR_ID). Same Google OAuth as the inbox; needs calendar.readonly.
+function CalendarWidget() {
+  const { getToken } = useAuth();
+  const clerk = useClerk();
+  const [state, setState] = useState({ status: 'loading' });
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const token = await getToken();
+        const r = await fetch('/api/calendar?days=14', {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await r.json();
+        if (!alive) return;
+        if (!data.connected) setState({ status: 'disconnected', reason: data.reason });
+        else setState({ status: 'ready', events: data.events || [] });
+      } catch {
+        if (alive) setState({ status: 'error' });
+      }
+    })();
+    return () => { alive = false; };
+  }, [getToken]);
+
+  const fmtDay = (iso) =>
+    new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const fmtTime = (ev) =>
+    ev.allDay ? 'All day'
+      : new Date(ev.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+
+  return (
+    <div className="card">
+      <div className="card-head"><h3>Calendar</h3></div>
+      <div className="card-body">
+        {state.status === 'loading' && <div className="placeholder-note">Loading your calendar…</div>}
+
+        {state.status === 'error' && (
+          <div className="placeholder-note">Couldn’t load the calendar right now. Try refreshing.</div>
+        )}
+
+        {state.status === 'disconnected' && (
+          <div className="placeholder-note">
+            {state.reason === 'clerk_not_configured'
+              ? 'Google isn’t configured yet.'
+              : state.reason === 'google_reauth_needed'
+                ? 'Reconnect Google and grant calendar access to see your events here.'
+                : 'Connect your Google account (read-only) to see your calendar here.'}
+            {state.reason !== 'clerk_not_configured' && (
+              <div style={{ marginTop: 10 }}>
+                <button className="btn" onClick={() => clerk.openUserProfile()}>Connect Google</button>
+              </div>
+            )}
           </div>
-        </div>
-        <div className="card">
-          <div className="card-head"><h3>Priority Inbox</h3></div>
-          <div className="card-body placeholder-note">
-            Your own Gmail priority inbox (per-user OAuth via Clerk, <code>gmail.readonly</code>).
-            Separate from BMS job correspondence (<code>projects@rm117.com</code>) — the two are
-            never conflated. Requires Phase 0 Clerk setup.
+        )}
+
+        {state.status === 'ready' && state.events.length === 0 && (
+          <div className="placeholder-note">Nothing scheduled in the next 14 days.</div>
+        )}
+
+        {state.status === 'ready' && state.events.length > 0 && (
+          <ul className="cal-list">
+            {state.events.map((ev) => (
+              <li key={`${ev.calendar}-${ev.id}`} className={`cal-item cal-${ev.calendar}`}>
+                <div className="cal-when">
+                  <span className="cal-day">{fmtDay(ev.start)}</span>
+                  <span className="cal-time">{fmtTime(ev)}</span>
+                </div>
+                <div className="cal-main">
+                  <span className="cal-title">{ev.title}</span>
+                  {ev.location && <span className="cal-loc">{ev.location}</span>}
+                </div>
+                {ev.calendar === 'company' && <span className="cal-tag">RM117</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Per-user Gmail Priority Inbox, filtered to client senders (Phase 0).
+// Reads the signed-in user's own Gmail (read-only) via /api/inbox. Client mail
+// is surfaced first and tagged; everything else is dimmed. No shared mailbox.
+function InboxWidget() {
+  const { getToken } = useAuth();
+  const clerk = useClerk();
+  const [state, setState] = useState({ status: 'loading' });
+  const [clientsOnly, setClientsOnly] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const token = await getToken();
+        const r = await fetch(`/api/inbox?clientsOnly=${clientsOnly ? 1 : 0}`, {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await r.json();
+        if (!alive) return;
+        if (!data.connected) setState({ status: 'disconnected', reason: data.reason });
+        else setState({ status: 'ready', messages: data.messages || [] });
+      } catch {
+        if (alive) setState({ status: 'error' });
+      }
+    })();
+    return () => { alive = false; };
+  }, [getToken, clientsOnly]);
+
+  return (
+    <div className="card">
+      <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3>Priority Inbox</h3>
+        {state.status === 'ready' && (
+          <label style={{ fontSize: 12, fontWeight: 400, display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="checkbox" checked={clientsOnly} onChange={(e) => setClientsOnly(e.target.checked)} />
+            Clients only
+          </label>
+        )}
+      </div>
+      <div className="card-body">
+        {state.status === 'loading' && <div className="placeholder-note">Loading your inbox…</div>}
+
+        {state.status === 'error' && (
+          <div className="placeholder-note">Couldn’t load the inbox right now. Try refreshing.</div>
+        )}
+
+        {state.status === 'disconnected' && (
+          <div className="placeholder-note">
+            {state.reason === 'clerk_not_configured'
+              ? 'Gmail isn’t configured yet (Phase 0 Clerk setup pending).'
+              : 'Connect your Google account (read-only Gmail) to see client emails here.'}
+            {state.reason !== 'clerk_not_configured' && (
+              <div style={{ marginTop: 10 }}>
+                <button className="btn" onClick={() => clerk.openUserProfile()}>Connect Google</button>
+              </div>
+            )}
           </div>
-        </div>
+        )}
+
+        {state.status === 'ready' && state.messages.length === 0 && (
+          <div className="placeholder-note">
+            No {clientsOnly ? 'client ' : ''}emails in the last 14 days.
+          </div>
+        )}
+
+        {state.status === 'ready' && state.messages.length > 0 && (
+          <ul className="inbox-list">
+            {state.messages.map((m) => (
+              <li key={m.id} className={`inbox-item${m.isClient ? ' is-client' : ''}`}>
+                <div className="inbox-row">
+                  <span className="inbox-from">{m.from}</span>
+                  {m.isClient && (
+                    <span className="inbox-tag" title={m.jobs.join(', ')}>
+                      {m.jobs.length === 1 ? m.jobs[0] : (m.clientLabel || 'Client')}
+                    </span>
+                  )}
+                </div>
+                <div className="inbox-subj">{m.subject}</div>
+                <div className="inbox-snip">{m.snippet}</div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

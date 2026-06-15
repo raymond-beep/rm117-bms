@@ -13,6 +13,17 @@
 // }
 import { getDb, hasDb } from '../_lib/db.js';
 
+function normalizePaymentType(raw = '') {
+  const t = String(raw).toLowerCase().replace(/[\s-_]+/g, '');
+  if (t.includes('retainer') || t.includes('deposit') && t.includes('1') === false) return 'retainer';
+  if (t.includes('dp1') || t.includes('deposit1') || t.includes('firstpay')) return 'dp1';
+  if (t.includes('dp2') || t.includes('deposit2') || t.includes('secondpay')) return 'dp2';
+  if (t.includes('dp3') || t.includes('deposit3')) return 'dp3';
+  if (t.includes('cd') || t.includes('construction') || t.includes('permit')) return 'cd';
+  if (t.includes('final') || t.includes('balance') || t.includes('last')) return 'final';
+  return 'other';
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST only' });
@@ -64,7 +75,7 @@ export default async function handler(req, res) {
     job_id,
     amount: Number(amount),
     payment_method: 'qb',
-    payment_type: ['retainer','dp1','dp2','dp3','cd','final','other'].includes(payment_type) ? payment_type : 'other',
+    payment_type: normalizePaymentType(payment_type),
     paid_date,
     qbo_invoice_id: qbo_invoice_id || null,
     notes: notes || 'Auto-synced from QuickBooks via Zapier',
