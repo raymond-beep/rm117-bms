@@ -14,11 +14,12 @@
 **Resolved by Ray (2026-06-16):**
 - **Jeff Dunn** ×2 → merged, kept `jeffreysdunn1@gmail.com`; +3 Dunn jobs linked.
 - **Tyler Deuel** ×2 → merged, kept `tyler@breatheeasyremodeling.com`; +1 Deuel job linked (now 4 jobs).
-- **Riera job CREATED** as `26_032_FF_Riera` (FF, design_phase, $5,000 total), linked to client Jose
-  Riera, $800 retainer logged (paid 2026-06-11) → $4,200 outstanding. ⚠️ Two follow-ups: (a) confirm
-  **phase** — I set `design_phase` as a reasonable default; adjust in the Progress tab if wrong.
-  (b) The QBO Customer Display Name is `26_FF_032_Riera` (FF/number transposed) — **rename it in QBO to
-  `26_032_FF_Riera`** so future QBO payments auto-sync via the webhook (job_id must match exactly).
+- **Riera job CREATED, then RENAMED → `26_032_FF_Williams`** (Ang: the client renamed the project from
+  Riera to Williams; Ray updated the QBO customer to `26_032_FF_Williams`). FF, **design_phase**
+  (confirmed by Ray), $5,000 total, $800 retainer logged (paid 2026-06-11) → $4,200 outstanding.
+  Client still linked to **Jose Riera** (the customer who renamed it; confirm if the client should be
+  renamed too). job_id now matches the QBO Customer Display Name exactly → future payments auto-sync
+  via the webhook, no further QBO action needed.
 
 After this pass: **134 jobs, 86 client-linked, 48 unlinked.**
 
