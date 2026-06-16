@@ -368,7 +368,15 @@ input, select, textarea { font: inherit; }
 }
 .tl-body { display: flex; flex-direction: column; padding-bottom: 16px; }
 .tl-phase { font-size: 14px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+.tl-now { font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--brass-ink); letter-spacing: 0.5px; }
 .tl-date { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+.tl-date-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.tl-date-input {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink);
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
+}
+.tl-date-input:hover { border-color: var(--muted); }
+.tl-saving { font-family: var(--mono); font-size: 10px; color: var(--muted); }
 .tl-step.done .tl-dot { background: var(--success); border-color: var(--success); }
 .tl-step.current .tl-dot { background: var(--brass); border-color: var(--brass-ink); box-shadow: 0 0 0 3px var(--ff-bg); }
 .tl-step.current .tl-phase { color: var(--brass-ink); }

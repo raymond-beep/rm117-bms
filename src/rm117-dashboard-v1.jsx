@@ -493,15 +493,18 @@ function ProgressTab({ job, onSave }) {
   const [date, setDate] = useState(job.next_milestone_date ? job.next_milestone_date.slice(0, 10) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [savingPhase, setSavingPhase] = useState(null);
 
-  useEffect(() => {
-    let live = true;
-    fetch(`/api/phase-events?job_id=${encodeURIComponent(job.job_id)}`)
-      .then((r) => r.json())
-      .then((d) => { if (live) setEvents(d.events || []); })
-      .catch(() => { if (live) setEvents([]); });
-    return () => { live = false; };
-  }, [job.job_id]);
+  async function loadEvents() {
+    try {
+      const res = await fetch(`/api/phase-events?job_id=${encodeURIComponent(job.job_id)}`);
+      const d = await res.json();
+      setEvents(d.events || []);
+    } catch {
+      setEvents([]);
+    }
+  }
+  useEffect(() => { loadEvents(); }, [job.job_id]);
 
   // Earliest reached-date per phase, from the append-only event log.
   const reachedByPhase = {};
@@ -527,15 +530,79 @@ function ProgressTab({ job, onSave }) {
     }
   }
 
+  // Set or clear the date a given phase was reached (edits the timeline itself,
+  // not the upcoming milestone).
+  async function setPhaseDate(phase, dateStr) {
+    setSavingPhase(phase);
+    setError(null);
+    try {
+      const res = await fetch('/api/phase-events', {
+        method: dateStr ? 'POST' : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dateStr ? { job_id: job.job_id, phase, date: dateStr } : { job_id: job.job_id, phase }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
+      await loadEvents();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingPhase(null);
+    }
+  }
+
   return (
     <>
       <div className="drawer-body">
+        <div className="pay-form-title" style={{ marginTop: 0 }}>Phase progress</div>
+        <div className="placeholder-note" style={{ padding: '0 0 10px' }}>
+          Set the date each phase was reached (e.g. when you surveyed). For an upcoming deadline to
+          track, use “Next milestone” below.
+        </div>
+        {events === null ? (
+          <div className="placeholder-note">Loading timeline…</div>
+        ) : (
+          <>
+            {onHold && <div className="onhold-banner">⏸ This job is currently On Hold.</div>}
+            <ol className="timeline">
+              {LADDER.map((p, i) => {
+                const reached = reachedByPhase[p];
+                const status = onHold
+                  ? (reached ? 'done' : 'upcoming')
+                  : i < currentIdx ? 'done' : i === currentIdx ? 'current' : 'upcoming';
+                return (
+                  <li key={p} className={`tl-step ${status}`}>
+                    <span className="tl-dot" aria-hidden="true" />
+                    <span className="tl-body">
+                      <span className="tl-phase">
+                        {PHASE_LABELS[p]}
+                        {status === 'current' && <span className="tl-now"> · current</span>}
+                      </span>
+                      <span className="tl-date-row">
+                        <input
+                          type="date"
+                          className="tl-date-input"
+                          value={reached ? String(reached).slice(0, 10) : ''}
+                          onChange={(e) => setPhaseDate(p, e.target.value)}
+                        />
+                        {savingPhase === p && <span className="tl-saving">saving…</span>}
+                      </span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </>
+        )}
+
         <div className="milestone-box">
-          <div className="pay-form-title" style={{ margin: '0 0 10px' }}>Next milestone — the date to follow</div>
+          <div className="pay-form-title" style={{ margin: '0 0 4px' }}>Next milestone — upcoming date to follow</div>
+          <div className="placeholder-note" style={{ padding: '0 0 10px' }}>
+            Shows in the dashboard “Coming up” list. This is a future deadline, not a phase date.
+          </div>
           <div className="field-row">
             <div className="field" style={{ marginBottom: 0 }}>
               <label>What's next</label>
-              <input type="text" value={label} placeholder="e.g. CDs due, Survey scheduled"
+              <input type="text" value={label} placeholder="e.g. CDs due, Permit submitted"
                 onChange={(e) => setLabel(e.target.value)} />
             </div>
             <div className="field" style={{ marginBottom: 0 }}>
@@ -550,36 +617,6 @@ function ProgressTab({ job, onSave }) {
             </button>
           </div>
         </div>
-
-        {onHold && <div className="onhold-banner">⏸ This job is currently On Hold.</div>}
-
-        <div className="pay-form-title">Phase progress</div>
-        {events === null ? (
-          <div className="placeholder-note">Loading timeline…</div>
-        ) : (
-          <ol className="timeline">
-            {LADDER.map((p, i) => {
-              const reached = reachedByPhase[p];
-              const status = onHold
-                ? (reached ? 'done' : 'upcoming')
-                : i < currentIdx ? 'done' : i === currentIdx ? 'current' : 'upcoming';
-              return (
-                <li key={p} className={`tl-step ${status}`}>
-                  <span className="tl-dot" aria-hidden="true" />
-                  <span className="tl-body">
-                    <span className="tl-phase">{PHASE_LABELS[p]}</span>
-                    <span className="tl-date">
-                      {status === 'current' ? `in this phase since ${shortDate(reached)}`
-                        : reached ? `reached ${shortDate(reached)}`
-                        : status === 'done' ? 'reached —'
-                        : 'upcoming'}
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-        )}
       </div>
     </>
   );
