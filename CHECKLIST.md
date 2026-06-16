@@ -1,5 +1,5 @@
 # RM117 BMS — Master Build Checklist
-**Last updated:** 2026-06-15
+**Last updated:** 2026-06-15 (visual refresh + mobile responsive shipped)
 **Working folder:** `RM117-App-handoff copy` (the second-gen scaffold)
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
 
@@ -112,6 +112,10 @@
   Ray+Ang test users — do NOT publish (restricted scope)
 - [x] Sender→client matching upgraded to email-first + surname fallback (`_lib/client-match.js`)
 - [x] Deployed to production (working-dir `vercel deploy --prod`)
+- [ ] **Known issue — surname fallback false-positives:** non-client senders get tagged as clients
+  (e.g. **"ClickUp Team"** matched a client surname). Tighten `_lib/client-match.js`: skip
+  no-reply/automated/team addresses + known SaaS domains; require email-domain match (not just
+  surname) before flagging. Low priority — cosmetic, noted 2026-06-15.
 
 ### Client backbone (QBO Customer Contact List) — DONE
 - [x] `scripts/import-clients.js` — 64 clients imported (46 w/ email), 64/133 jobs linked
@@ -126,6 +130,34 @@
 - [ ] **Shared RM117 calendar (needs Ang — she owns the iCloud one):** create a Google calendar for
   RM117, share with all staff, everyone adds it to Apple Calendar (add Google account) for native
   two-way sync. Then give Ray the Calendar ID → set `COMPANY_CALENDAR_ID` in `.env` + Vercel → redeploy.
+
+---
+
+## Visual Refresh ("Architectural" direction) + Mobile — 2026-06-15
+> Goal: recreate the design-handoff look in the live codebase, and make it usable on a phone.
+> Source: `~/Desktop/design_handoff_rm117_visual_refresh/` (README + `RM117 Mockup.dc.html` + screenshots).
+
+### Desktop refresh — DONE
+- [x] JetBrains Mono loaded (`index.html`); used for ALL data (IDs, money, dates, stat values, micro-labels)
+- [x] Warm-paper token set in `src/styles.css` (`#f6f5f1` bg, `#e6e3db` borders, `#9a968c`/`#7a766c` text)
+- [x] Title-block stat strip (single container, 1px gridlines, big mono values)
+- [x] Grouped sidebar nav (WORKSPACE / UPCOMING mono captions, brass active left-border, brass avatar chip)
+- [x] Eyebrow + greeting page headers; recolored phase group bars; refreshed editor drawer + payments tab
+- [x] Forefront + BMS + Dashboard restyled; **functionality unchanged**
+- [x] Committed `8d0ef17` + deployed prod → rm117-bms.vercel.app
+
+### Mobile responsive — DONE
+- [x] Sidebar hidden ≤760px; slim dark mobile top bar (brand + Clerk `UserButton` for sign-out / Connect Google)
+- [x] Bottom tab bar (Home / Jobs / Forefront), active-tab in `--primary`
+- [x] Stacked header, 2×2 stat tiles, single-column cards, sized-down type
+- [x] Fixed CSS Grid overflow: `minmax(0,1fr)` on stat strip + grid-2 (mono data shrinks to fit)
+- [x] Verified at true 390px via Chrome DevTools-Protocol emulation — NO OVERFLOW on Dashboard + BMS
+- [x] Committed `fab22e4` + deployed prod; confirmed on Ray's phone 2026-06-15
+
+### Still TODO from the handoff (own pass)
+- [ ] Mobile BMS toolbar → compact filter-chip row (currently wraps to stacked rows — usable, not pixel-perfect)
+- [ ] Client Portal (Phase 7) — desktop + mobile (net-new surface; backbone ready)
+- [ ] Mobile field-specific screens (job detail w/ call/directions, bottom-sheet log-payment)
 
 ---
 

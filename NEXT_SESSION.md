@@ -1,9 +1,25 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-15 (Priority Inbox FIXED + client backbone + Google Calendar)
+**Last updated:** 2026-06-15 (Visual refresh + mobile responsive shipped)
 
 ---
 
-## ✅ Shipped & live this session (2026-06-15)
+## ✅ Shipped & live (2026-06-15, latest)
+
+**Visual refresh — "Architectural" direction (desktop + mobile).** Recreated the design handoff
+(`~/Desktop/design_handoff_rm117_visual_refresh/`) in the live codebase: warm-paper palette,
+JetBrains Mono for all data, title-block stat strip, grouped/brass sidebar, eyebrow+greeting headers,
+recolored phase bars, refreshed editor drawer. **Functionality unchanged.** Then made it responsive:
+sidebar hidden on phones, slim dark top bar (keeps Clerk `UserButton` → sign-out / Connect Google),
+bottom tab bar (Home/Jobs/Forefront), 2×2 stats, single-column cards. Fixed a CSS Grid overflow with
+`minmax(0,1fr)`; verified at true 390px via CDP emulation (NO OVERFLOW) and on Ray's phone. Touched
+`index.html`, `src/styles.css`, `rm117-app-shell-v1.jsx`, `rm117-dashboard-v1.jsx`,
+`rm117-forefront-v1.jsx`. Commits `8d0ef17` (desktop) + `fab22e4` (mobile) on `main`; deployed prod.
+**Known issue:** inbox surname-fallback tags some non-clients as clients (e.g. "ClickUp Team") — see
+`_lib/client-match.js`; low-priority cleanup logged in CHECKLIST.
+
+---
+
+## ✅ Shipped & live (earlier 2026-06-15)
 
 **1. Priority Inbox (Gmail) — WORKING.** Per-user read-only Gmail, filtered to client senders.
 The long OAuth fight's root cause was tiny: **Clerk's Google custom-credentials Scopes field had the
@@ -43,9 +59,11 @@ Opening Balances real? (b) rename QBO customers to Job-ID format / use Estimates
 `scripts/recon/RECON-SUMMARY-for-Ang.md`. **Did NOT change app data.**
 
 **D. Cleanup chores.** (i) Merge duplicate no-email client rows (Gabe DaSilva ×2, Josh Russo ×2).
-(ii) Remove the diagnostic `console.log`s in `api/_lib/clerk.js` + `api/inbox.js`. (iii) **Git hygiene:**
-the inbox + client + calendar work is deployed but **uncommitted** — make a cleanup commit so the repo
-matches production (deploys here are working-dir `vercel deploy --prod`, gitDirty, NOT git push).
+(ii) Remove the diagnostic `console.log`s in `api/_lib/clerk.js` + `api/inbox.js`. (iii) **Inbox
+false-positives:** surname-only fallback in `_lib/client-match.js` tags automated/SaaS senders as
+clients (e.g. **"ClickUp Team"**) — skip no-reply/team addresses + known SaaS domains, require an
+email-domain match before flagging. (iv) ~~Git hygiene~~ ✅ done — repo now matches production
+(commits through `fab22e4`); deploys remain working-dir `vercel deploy --prod`, NOT git push.
 
 **E. (Optional, discussed) Redesign the app layout in Claude design** before building the Client Portal,
 so the portal is built on the final shell. Design files staged in `~/Desktop/RM117 App Design/`.
@@ -70,6 +88,8 @@ imported. Job totals match QBO invoice data.
 | Priority Inbox (Gmail, per-user) | ✅ Live (2026-06-15) |
 | Client backbone from QBO (64 clients, typed) | ✅ Done (2026-06-15) |
 | Google Calendar widget (personal) | ✅ Live (2026-06-15) |
+| Visual refresh — Architectural (desktop) | ✅ Live (2026-06-15) |
+| Mobile responsive (sidebar→tab bar, 2×2 stats) | ✅ Live (2026-06-15) |
 | Shared RM117 company calendar | ⬜ Needs Ang |
 | JobEditor — edit/save jobs | ⬜ Not started |
 | Per-job payment history view | ⬜ Not started |
