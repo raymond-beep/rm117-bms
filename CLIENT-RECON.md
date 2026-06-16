@@ -1,5 +1,45 @@
 # Client Reconciliation — QBO ↔ Supabase
 
+## 2026-06-16 update — cleanup pass done; payments await Ray's confirmation
+
+**Done this pass (no confirmation needed):**
+- Merged 3 duplicate client rows: Chris Madden ×3 → 1 (3 jobs); Gabe DaSilva ×2 → 1 (3 jobs).
+  Clients 65 → 62.
+- Linked 17 more jobs to clients (64 → **81 linked**, 52 still unlinked) via
+  `scripts/link-jobs-to-clients.js` (exact full-name or unique-surname only).
+  Resolved several recon rows below: `25_047_Costello_Tulip`, `25_038_FF_Kaden` (+ renamed the
+  `25_XXX_FF_Kaden` placeholder client to **Allison Kaden**), `25_031_FF_Avedissian`,
+  `25_023_Samsel_Chalimar` (→ Chalimar Frees), the Odunlami/Malanga/Samsel/Costello jobs.
+
+**Flagged — ambiguous duplicate clients (Ray to decide, NOT merged):**
+- **Jeff Dunn** ×2 — `geocon303@gmail.com` (1 job) vs `jeffreysdunn1@gmail.com` (0 jobs). Same person, two emails, or two people?
+- **Tyler Deuel** ×2 — `tyler@breatheeasyremodeling.com` (3 jobs) vs `rupatop@gmail.com` (1 job). Contractor vs homeowner, or one person?
+
+**⏳ Payment imports — need Ray to confirm the job mapping before I apply (MONEY data).**
+These QBO customers have payments not yet in Supabase. The linking above corroborates most
+mappings, but job-number conflicts + unknown ones still need your call. Confirm and I'll import.
+
+| QBO customer | → Supabase job_id | Payments to add | Confidence |
+|---|---|---|---|
+| Mickael Avedissian | `25_031_FF_Avedissian` | 4,800 + 1,200 + 7,600 + 8,800 = **$22,400** | high (job now linked to this client) |
+| Jay Rodriguez | `25_028_Rodriguez_1 Noe` | 1,200 + 9,800 = **$11,000** | high (job now linked) |
+| Nimchy Regis | `25_024_FF_Regis` | 3,400 ×2 + 1,400 ×2 = **$9,600** | med (confirm it's Jennifer Regis' job) |
+| Nandini Ramesh | `25_030_Ramesh` | 1,000 + 1,000 + 2,500 = **$4,500** | med |
+| `25_052_FE_Mendham` (QBO) | `25_053_FE_Mendham`? | 1,800 + 1,500 = **$3,300** | conflict: 052 vs 053 — which # is right? |
+| `25_054_Malanga_Subdivide` (QBO) | `25_053_Malanga_Subdivide`? | **$1,200** | conflict: 054 vs 053 |
+| `26_025_Samsel_510 Harrison Place` (QBO) | `26_022_Samsel_510 Harrison. Place`? | **$4,000** | conflict: 025 vs 022 |
+| Mike Costello | which Costello job? (25_006 / 25_029 / 25_047) | 1,200 + 9,300 = **$10,500** | needs Ray — 3 Costello jobs |
+| Nosker_Interiors | ? (client Patrick Nosker exists, no job) | **$2,750** | needs Ray — is there a job? |
+| Luis Correia | ? (no job, no client) | 5,200 + 5,800 = **$11,000** | needs Ray — missing job? |
+
+**⏳ Missing job — `Riera`.** QBO customer `26_FF_032_Riera` (client **Jose Riera** already exists,
+`ndiriera@yahoo.com`) but **the job isn't in Supabase**. Need: confirm exact `job_id` (is it
+`26_032_FF_Riera` to match the `YY_NNN_FF_Name` convention, or literally `26_FF_032_Riera`?), then
+create the job (total $5,000 = $800 retainer + $1,400 DP1 + $1,400 DP2 + $1,400 CDs) + add the
+$800 retainer payment (paid 2026-06-11). Once created I'll link it to the Jose Riera client.
+
+---
+
 Generated 2026-06-15 after importing the QBO Customer Contact List into the
 `clients` table (`scripts/import-clients.js`).
 
