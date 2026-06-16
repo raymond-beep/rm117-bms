@@ -9,6 +9,13 @@ import BmsDashboard from './rm117-dashboard-v1.jsx';
 import ForefrountView from './rm117-forefront-v1.jsx';
 import { money, PIPELINE_PHASES } from './lib/format.js';
 
+// Bottom tab bar (mobile) — the live workspace surfaces only.
+const MOBILE_TABS = [
+  { to: '/', label: 'Home', icon: '⌂', end: true },
+  { to: '/bms', label: 'Jobs', icon: '▤' },
+  { to: '/forefront', label: 'Forefront', icon: '◈' },
+];
+
 // Nav grouped into mono-captioned sections (matches the Architectural shell).
 const NAV_GROUPS = [
   {
@@ -61,6 +68,10 @@ export default function AppShell() {
               <UserChip />
             </div>
           </aside>
+          <header className="mobile-topbar">
+            <div className="brand">RM117<small>Architecture &amp; Design</small></div>
+            <UserButton />
+          </header>
           <main className="main">
             <Routes>
               <Route path="/" element={<Home />} />
@@ -71,6 +82,14 @@ export default function AppShell() {
               <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />
             </Routes>
           </main>
+          <nav className="mobile-tabbar">
+            {MOBILE_TABS.map((tab) => (
+              <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => `tab-item${isActive ? ' active' : ''}`}>
+                <span className="tab-icon">{tab.icon}</span>
+                <span className="tab-label">{tab.label}</span>
+              </NavLink>
+            ))}
+          </nav>
         </div>
       </SignedIn>
     </>
