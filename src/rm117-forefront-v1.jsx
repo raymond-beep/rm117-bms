@@ -49,28 +49,32 @@ export default function ForefrountView() {
 
   return (
     <div className="page">
-      <h1 className="page-title">Forefront Commissions</h1>
-      <p className="page-sub">Commission tracking for all Forefront referral jobs.</p>
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">Forefront</div>
+          <h1 className="greeting">Commissions</h1>
+        </div>
+      </div>
 
-      <div className="stat-row">
-        <div className="stat-tile">
+      <div className="stat-strip">
+        <div className="stat-cell">
           <div className="label">Active FF jobs</div>
           <div className="value">{stats.count}</div>
           <div className="hint">with commission tracking</div>
         </div>
-        <div className="stat-tile">
+        <div className="stat-cell">
           <div className="label">Total owed</div>
           <div className="value">{money(stats.totalOwed)}</div>
           <div className="hint">sum of all commissions</div>
         </div>
-        <div className="stat-tile">
+        <div className="stat-cell">
           <div className="label">Total paid</div>
           <div className="value">{money(stats.totalPaid)}</div>
           <div className="hint">commission payments logged</div>
         </div>
-        <div className="stat-tile">
+        <div className="stat-cell">
           <div className="label">Outstanding</div>
-          <div className="value" style={{ color: stats.outstanding > 0 ? 'var(--warn)' : 'var(--good)' }}>
+          <div className="value" style={{ color: stats.outstanding > 0 ? 'var(--warn)' : 'var(--success)' }}>
             {money(stats.outstanding)}
           </div>
           <div className="hint">commissions still owed</div>
@@ -154,7 +158,7 @@ export default function ForefrountView() {
                         </button>
                       )}
                       {c.status === 'completed' && (
-                        <span className="badge" style={{ background: '#e6f4ed', color: 'var(--good)', fontSize: 11 }}>Paid in full</span>
+                        <span className="badge" style={{ background: '#e6f4ed', color: 'var(--success)', fontSize: 11 }}>Paid in full</span>
                       )}
                     </td>
                   </tr>
@@ -232,7 +236,7 @@ function CommissionDrawer({ commission, onClose, onLogged }) {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700 }}>
               <span>Outstanding</span>
-              <span style={{ color: outstanding > 0 ? 'var(--warn)' : 'var(--good)' }}>{money(outstanding)}</span>
+              <span style={{ color: outstanding > 0 ? 'var(--warn)' : 'var(--success)' }}>{money(outstanding)}</span>
             </div>
           </div>
 

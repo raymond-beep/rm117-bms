@@ -99,33 +99,33 @@ export default function BmsDashboard() {
 
   return (
     <div className="page">
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-        <h1 className="page-title">BMS — Jobs</h1>
+      <div className="section-eyebrow">
+        <span className="eyebrow" style={{ marginBottom: 0 }}>Jobs</span>
         {source && (
-          <span className={`source-pill source-${source}`}>
-            {source === 'supabase' ? 'Supabase (live)' : 'Mock data — connect Supabase'}
+          <span className={source === 'supabase' ? 'pill-live' : 'pill-mock'}>
+            {source === 'supabase' ? 'SUPABASE LIVE' : 'MOCK DATA'}
           </span>
         )}
       </div>
-      <p className="page-sub">Job tracking, billing, and Forefront commissions.</p>
+      <h1 className="section-h1">Job log</h1>
 
-      <div className="stat-row">
-        <div className="stat-tile">
+      <div className="stat-strip">
+        <div className="stat-cell">
           <div className="label">Active pipeline</div>
           <div className="value">{stats.pipelineCount} jobs</div>
           <div className="hint">{money(stats.pipelineValue)} contracted</div>
         </div>
-        <div className="stat-tile">
+        <div className="stat-cell">
           <div className="label">Outstanding</div>
           <div className="value">{money(stats.outstanding)}</div>
           <div className="hint">job totals minus payments</div>
         </div>
-        <div className="stat-tile">
+        <div className="stat-cell">
           <div className="label">Ready to bill</div>
           <div className="value">{stats.billFlags}</div>
           <div className="hint">bill flags set</div>
         </div>
-        <div className="stat-tile">
+        <div className="stat-cell">
           <div className="label">Forefront</div>
           <div className="value">{stats.ffActive} active</div>
           <div className="hint">{money(stats.ffOwed)} commission unpaid</div>
@@ -182,10 +182,10 @@ export default function BmsDashboard() {
                       <div className="job-card-left">
                         <div className="job-card-client">
                           {job.client_name || <span className="muted">—</span>}
-                          {job.is_forefront && <span className="badge badge-ff" style={{ marginLeft: 8 }}>FF</span>}
-                          {job.bill_flag && <span className="badge badge-bill" style={{ marginLeft: 4 }}>BILL</span>}
+                          {job.is_forefront && <span className="badge badge-ff">FF</span>}
+                          {job.bill_flag && <span className="badge badge-bill">BILL</span>}
                         </div>
-                        <div className="job-card-sub">{job.job_id}</div>
+                        <div className="job-card-id">{job.job_id}</div>
                         {job.address && <div className="job-card-sub">{job.address}</div>}
                         {job.last_correspondence && <div className="job-card-corr">{job.last_correspondence}</div>}
                       </div>
@@ -312,7 +312,7 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
           <div>
             <h2>{job.job_id}</h2>
             <div className="sub">
-              {money(job.outstanding)} outstanding · created {shortDate(job.created_at)}
+              <span className="out">{money(job.outstanding)} outstanding</span> · created {shortDate(job.created_at)}
             </div>
           </div>
           <button className="drawer-close" onClick={onClose} aria-label="Close">✕</button>
@@ -346,11 +346,11 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
                 </div>
               </div>
               <div className="field-row">
-                <div className="field">
+                <div className="field mono-field">
                   <label>Job total ($)</label>
                   <input type="number" min="0" step="0.01" value={form.job_total} onChange={set('job_total')} />
                 </div>
-                <div className="field">
+                <div className="field mono-field">
                   <label>FF commission ($)</label>
                   <input type="number" min="0" step="0.01" value={form.ff_commission} onChange={set('ff_commission')} disabled={!form.is_forefront} />
                 </div>
@@ -455,25 +455,25 @@ function PaymentsTab({ job, onLogged }) {
               {payments.map((p) => (
                 <li key={p.id}>
                   <span>
-                    <strong>{money(p.amount, { cents: true })}</strong>{' '}
+                    <span className="amt">{money(p.amount, { cents: true })}</span>{' '}
                     <span className="meta">{p.payment_type.toUpperCase()} · {p.payment_method}</span>
                     {p.qbo_invoice_id && <span className="meta"> · QBO {p.qbo_invoice_id}</span>}
-                    {p.notes && <div className="meta">{p.notes}</div>}
+                    {p.notes && <div className="meta" style={{ textTransform: 'none', letterSpacing: 0 }}>{p.notes}</div>}
                   </span>
-                  <span className="meta">{shortDate(p.paid_date)}</span>
+                  <span className="when">{shortDate(p.paid_date)}</span>
                 </li>
               ))}
             </ul>
             <div className="pay-total">
               <span>Paid {money(paid, { cents: true })} of {money(job.job_total, { cents: true })}</span>
-              <span className={Number(job.job_total) - paid > 0 ? 'outstanding-pos' : 'outstanding-zero'}>
-                {money(Number(job.job_total) - paid, { cents: true })} outstanding
+              <span className={Number(job.job_total) - paid > 0 ? 'left' : 'outstanding-zero'}>
+                {money(Number(job.job_total) - paid, { cents: true })} left
               </span>
             </div>
           </>
         )}
 
-        <h3 style={{ fontSize: 14, margin: '18px 0 10px' }}>Log a payment</h3>
+        <div className="pay-form-title">Log a payment</div>
         <div className="field-row">
           <div className="field">
             <label>Amount ($)</label>

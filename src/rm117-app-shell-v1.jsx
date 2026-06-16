@@ -4,17 +4,28 @@
 // (COMPANY_CALENDAR_ID, Clerk Google OAuth). Job stats are live via /api/jobs.
 import React, { useEffect, useState } from 'react';
 import { Routes, Route, NavLink } from 'react-router-dom';
-import { SignedIn, SignedOut, SignIn, UserButton, useAuth, useClerk } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignIn, UserButton, useAuth, useClerk, useUser } from '@clerk/clerk-react';
 import BmsDashboard from './rm117-dashboard-v1.jsx';
 import ForefrountView from './rm117-forefront-v1.jsx';
 import { money, PIPELINE_PHASES } from './lib/format.js';
 
-const NAV = [
-  { to: '/', icon: '⌂', label: 'Dashboard', end: true },
-  { to: '/bms', icon: '▤', label: 'BMS' },
-  { to: '/forefront', icon: '◈', label: 'Forefront' },
-  { to: '/templates', icon: '✉', label: 'Templates', soon: 'Phase 5' },
-  { to: '/portal', icon: '⚿', label: 'Client Portal', soon: 'Phase 7' },
+// Nav grouped into mono-captioned sections (matches the Architectural shell).
+const NAV_GROUPS = [
+  {
+    caption: 'Workspace',
+    items: [
+      { to: '/', label: 'Dashboard', end: true },
+      { to: '/bms', label: 'BMS' },
+      { to: '/forefront', label: 'Forefront' },
+    ],
+  },
+  {
+    caption: 'Upcoming',
+    items: [
+      { to: '/templates', label: 'Templates', soon: 'P5' },
+      { to: '/portal', label: 'Client Portal', soon: 'P7' },
+    ],
+  },
 ];
 
 export default function AppShell() {
@@ -29,21 +40,25 @@ export default function AppShell() {
         <div className="shell">
           <aside className="sidebar">
             <div className="sidebar-logo">
-              RM117
-              <small>Room 117 Architecture &amp; Design</small>
+              <div className="logo-mark">RM117</div>
+              <small>Architecture &amp; Design</small>
             </div>
             <nav>
-              {NAV.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
-                  <span className="icon">{item.icon}</span>
-                  {item.label}
-                  {item.soon && <span className="soon">{item.soon}</span>}
-                </NavLink>
+              {NAV_GROUPS.map((group) => (
+                <React.Fragment key={group.caption}>
+                  <div className={`nav-cap${group.caption === 'Upcoming' ? ' upcoming' : ''}`}>{group.caption}</div>
+                  {group.items.map((item) => (
+                    <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}${item.soon ? ' soon-item' : ''}`}>
+                      {item.label}
+                      {item.soon && <span className="soon">{item.soon}</span>}
+                    </NavLink>
+                  ))}
+                </React.Fragment>
               ))}
             </nav>
-            <div className="sidebar-footer" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <UserButton />
-              <span>Second generation · Supabase-backed</span>
+            <div className="sidebar-footer">
+              <div className="cl-userbutton"><UserButton /></div>
+              <UserChip />
             </div>
           </aside>
           <main className="main">
@@ -53,7 +68,7 @@ export default function AppShell() {
               <Route path="/forefront" element={<ForefrountView />} />
               <Route path="/templates" element={<ComingSoon title="Templates" phase="Phase 5" detail="Proposal, invoice, and email templates — stored in the database and iterated without code changes. Proposals send via DocuSign; invoices create in QuickBooks via the QBO API." />} />
               <Route path="/portal" element={<ComingSoon title="Client Portal" phase="Phase 7" detail="Clients log in with the email on file, see only their own jobs, download documents from the vault, and message the firm — one thread per job, bridged to email." />} />
-              <Route path="*" element={<div className="page"><h1 className="page-title">Not found</h1></div>} />
+              <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />
             </Routes>
           </main>
         </div>
@@ -77,41 +92,60 @@ function Home() {
           pipelineValue: pipeline.reduce((s, j) => s + Number(j.job_total || 0), 0),
           outstanding: jobs.reduce((s, j) => s + Math.max(0, Number(j.outstanding || 0)), 0),
           billFlags: jobs.filter((j) => j.bill_flag).length,
+          ffActive: jobs.filter((j) => j.is_forefront && j.phase !== 'completed').length,
+          ffOwed: jobs
+            .filter((j) => j.is_forefront && !j.ff_commission_paid)
+            .reduce((s, j) => s + Number(j.ff_commission || 0), 0),
         });
       })
       .catch(() => setStats(null));
   }, []);
 
+  const { user } = useUser();
+  const firstName = user?.firstName || 'there';
+  const hour = new Date().getHours();
+  const partOfDay = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+  const dateLabel = new Date()
+    .toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+    .toUpperCase()
+    .replace(',', '');
+
   return (
     <div className="page">
-      <h1 className="page-title">Dashboard</h1>
-      <p className="page-sub">
-        Room 117 Architecture &amp; Design — home base.
-        {source === 'mock' && ' Showing sample data until Supabase is connected (Phase 0–1).'}
-      </p>
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">Home base</div>
+          <h1 className="greeting">Good {partOfDay}, {firstName}.</h1>
+        </div>
+        <div className="page-meta">
+          {dateLabel}<br />
+          {source === 'mock'
+            ? <span className="mock">● Sample data</span>
+            : <span className="live">● Supabase live</span>}
+        </div>
+      </div>
 
       {stats && (
-        <div className="stat-row">
-          <div className="stat-tile">
+        <div className="stat-strip">
+          <div className="stat-cell">
             <div className="label">Active pipeline</div>
             <div className="value">{stats.pipelineCount} jobs</div>
             <div className="hint">{money(stats.pipelineValue)} contracted</div>
           </div>
-          <div className="stat-tile">
+          <div className="stat-cell">
             <div className="label">Outstanding</div>
             <div className="value">{money(stats.outstanding)}</div>
             <div className="hint">across all jobs</div>
           </div>
-          <div className="stat-tile">
+          <div className="stat-cell">
             <div className="label">Ready to bill</div>
             <div className="value">{stats.billFlags}</div>
             <div className="hint">bill flags set</div>
           </div>
-          <div className="stat-tile">
-            <div className="label">Data source</div>
-            <div className="value" style={{ fontSize: 16, paddingTop: 6 }}>
-              <span className={`source-pill source-${source}`}>{source === 'supabase' ? 'Supabase (live)' : 'Mock data'}</span>
-            </div>
+          <div className="stat-cell">
+            <div className="label">Forefront</div>
+            <div className="value">{stats.ffActive} active</div>
+            <div className="hint">{money(stats.ffOwed)} commission unpaid</div>
           </div>
         </div>
       )}
@@ -121,6 +155,14 @@ function Home() {
         <InboxWidget />
       </div>
     </div>
+  );
+}
+
+function UserChip() {
+  const { user } = useUser();
+  const name = user?.fullName || user?.firstName || 'Signed in';
+  return (
+    <div className="who">{name}<br />Room 117</div>
   );
 }
 
@@ -160,7 +202,10 @@ function CalendarWidget() {
 
   return (
     <div className="card">
-      <div className="card-head"><h3>Calendar</h3></div>
+      <div className="card-head">
+        <h3>Calendar</h3>
+        <span className="head-meta">NEXT 14 DAYS</span>
+      </div>
       <div className="card-body">
         {state.status === 'loading' && <div className="placeholder-note">Loading your calendar…</div>}
 
@@ -240,13 +285,15 @@ function InboxWidget() {
 
   return (
     <div className="card">
-      <div className="card-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="card-head">
         <h3>Priority Inbox</h3>
-        {state.status === 'ready' && (
-          <label style={{ fontSize: 12, fontWeight: 400, display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+        {state.status === 'ready' ? (
+          <label className="inbox-toggle">
             <input type="checkbox" checked={clientsOnly} onChange={(e) => setClientsOnly(e.target.checked)} />
             Clients only
           </label>
+        ) : (
+          <span className="head-meta">CLIENTS</span>
         )}
       </div>
       <div className="card-body">
@@ -301,8 +348,12 @@ function InboxWidget() {
 function ComingSoon({ title, phase, detail }) {
   return (
     <div className="page">
-      <h1 className="page-title">{title}</h1>
-      <p className="page-sub">{phase}</p>
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">{phase}</div>
+          <h1 className="greeting">{title}</h1>
+        </div>
+      </div>
       <div className="card"><div className="card-body placeholder-note">{detail}</div></div>
     </div>
   );
