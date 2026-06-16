@@ -11,9 +11,16 @@
   `25_XXX_FF_Kaden` placeholder client to **Allison Kaden**), `25_031_FF_Avedissian`,
   `25_023_Samsel_Chalimar` (→ Chalimar Frees), the Odunlami/Malanga/Samsel/Costello jobs.
 
-**Flagged — ambiguous duplicate clients (Ray to decide, NOT merged):**
-- **Jeff Dunn** ×2 — `geocon303@gmail.com` (1 job) vs `jeffreysdunn1@gmail.com` (0 jobs). Same person, two emails, or two people?
-- **Tyler Deuel** ×2 — `tyler@breatheeasyremodeling.com` (3 jobs) vs `rupatop@gmail.com` (1 job). Contractor vs homeowner, or one person?
+**Resolved by Ray (2026-06-16):**
+- **Jeff Dunn** ×2 → merged, kept `jeffreysdunn1@gmail.com`; +3 Dunn jobs linked.
+- **Tyler Deuel** ×2 → merged, kept `tyler@breatheeasyremodeling.com`; +1 Deuel job linked (now 4 jobs).
+- **Riera job CREATED** as `26_032_FF_Riera` (FF, design_phase, $5,000 total), linked to client Jose
+  Riera, $800 retainer logged (paid 2026-06-11) → $4,200 outstanding. ⚠️ Two follow-ups: (a) confirm
+  **phase** — I set `design_phase` as a reasonable default; adjust in the Progress tab if wrong.
+  (b) The QBO Customer Display Name is `26_FF_032_Riera` (FF/number transposed) — **rename it in QBO to
+  `26_032_FF_Riera`** so future QBO payments auto-sync via the webhook (job_id must match exactly).
+
+After this pass: **134 jobs, 86 client-linked, 48 unlinked.**
 
 **⏳ Payment imports — need Ray to confirm the job mapping before I apply (MONEY data).**
 These QBO customers have payments not yet in Supabase. The linking above corroborates most
