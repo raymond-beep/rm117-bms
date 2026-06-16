@@ -14,6 +14,7 @@ const routes = {
   '/api/jobs/create': () => import('./api/jobs/create.js'),
   '/api/jobs/update': () => import('./api/jobs/update.js'),
   '/api/payments': () => import('./api/payments.js'),
+  '/api/clients': () => import('./api/clients.js'),
   '/api/forefront': () => import('./api/forefront.js'),
   '/api/inbox': () => import('./api/inbox.js'),
   '/api/calendar': () => import('./api/calendar.js'),

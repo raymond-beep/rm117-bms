@@ -262,9 +262,14 @@ export default function BmsDashboard() {
 
 /* ============================ JobEditor drawer ============================ */
 
+// Field tags: which fields the client sees in the portal vs internal-only.
+const PortalTag = () => <span className="tag-portal" title="Visible to the client in the portal">👁 client</span>;
+const InternalTag = () => <span className="tag-internal" title="Internal only — never shown to clients">🔒 internal</span>;
+
 function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
   const [tab, setTab] = useState('details');
   const [form, setForm] = useState(() => ({
+    client_id: job.client_id || '',
     client_name: job.client_name || '',
     address: job.address || '',
     phase: job.phase,
@@ -276,8 +281,21 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
     notes: job.notes || '',
     last_correspondence: job.last_correspondence || '',
   }));
+  const [clients, setClients] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // Load the client list for the picker — one identity shared with the portal.
+  useEffect(() => {
+    let live = true;
+    fetch('/api/clients')
+      .then((r) => r.json())
+      .then((d) => { if (live) setClients(d.clients || []); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, []);
+
+  const linkedClient = clients.find((c) => c.id === form.client_id) || null;
 
   const set = (key) => (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -290,6 +308,7 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
     try {
       await onSave(job.job_id, {
         ...form,
+        client_id: form.client_id || null,
         phase_override: form.phase_override || null,
         job_total: Number(form.job_total) || 0,
         ff_commission: form.ff_commission === '' ? null : Number(form.ff_commission),
@@ -326,16 +345,38 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
           <>
             <div className="drawer-body">
               <div className="field">
-                <label>Client name</label>
+                <label>Linked client <PortalTag /></label>
+                <select value={form.client_id} onChange={set('client_id')}>
+                  <option value="">— Not linked —</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}{c.email ? ` · ${c.email}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {linkedClient ? (
+                <div className="client-card">
+                  <div className="client-card-row"><span className="ck">Type</span><span className="cv">{linkedClient.type || '—'}</span></div>
+                  <div className="client-card-row"><span className="ck">Email</span><span className="cv">{linkedClient.email || '—'}</span></div>
+                  <div className="client-card-row"><span className="ck">Phone</span><span className="cv">{linkedClient.phone || '—'}</span></div>
+                  {linkedClient.company && <div className="client-card-row"><span className="ck">Company</span><span className="cv">{linkedClient.company}</span></div>}
+                  <div className="client-card-note">Shared with the client portal. Edit contact details on the client record.</div>
+                </div>
+              ) : (
+                <div className="placeholder-note">Not linked to a client record — this job won't appear in the client portal. Pick a client above to connect it.</div>
+              )}
+              <div className="field">
+                <label>Display name on this job</label>
                 <input type="text" value={form.client_name} onChange={set('client_name')} />
               </div>
               <div className="field">
-                <label>Address</label>
+                <label>Address <PortalTag /></label>
                 <input type="text" value={form.address} onChange={set('address')} />
               </div>
               <div className="field-row">
                 <div className="field">
-                  <label>Phase</label>
+                  <label>Phase <PortalTag /></label>
                   <select value={form.phase} onChange={set('phase')}>
                     {PHASE_ORDER.map((p) => <option key={p} value={p}>{PHASE_LABELS[p]}</option>)}
                   </select>
@@ -368,7 +409,7 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
                 <input type="text" value={form.last_correspondence} onChange={set('last_correspondence')} />
               </div>
               <div className="field">
-                <label>Notes</label>
+                <label>Notes <InternalTag /></label>
                 <textarea value={form.notes} onChange={set('notes')} />
               </div>
               {job.import_needs_review && (
@@ -398,8 +439,13 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
 
 /* ============================ Payments tab (Phase 4) ============================ */
 
-const PAY_METHODS = ['check', 'venmo', 'zelle', 'qb', 'cash', 'other'];
+// 'qb' is reserved for the Zapier→Supabase sync; QuickBooks payments arrive
+// automatically, so the manual form only offers payments received outside QBO.
+const MANUAL_METHODS = ['check', 'venmo', 'zelle', 'cash', 'other'];
 const PAY_TYPES = ['retainer', 'dp1', 'dp2', 'dp3', 'cd', 'final', 'other'];
+
+// A payment came from QuickBooks if it carries a QBO invoice id or the qb method.
+const isQboPayment = (p) => p.payment_method === 'qb' || Boolean(p.qbo_invoice_id);
 
 function PaymentsTab({ job, onLogged }) {
   const [payments, setPayments] = useState(null);
@@ -456,8 +502,11 @@ function PaymentsTab({ job, onLogged }) {
                 <li key={p.id}>
                   <span>
                     <span className="amt">{money(p.amount, { cents: true })}</span>{' '}
-                    <span className="meta">{p.payment_type.toUpperCase()} · {p.payment_method}</span>
-                    {p.qbo_invoice_id && <span className="meta"> · QBO {p.qbo_invoice_id}</span>}
+                    <span className={`pay-src ${isQboPayment(p) ? 'qbo' : 'ext'}`}>
+                      {isQboPayment(p) ? 'QuickBooks' : p.payment_method}
+                    </span>
+                    <span className="meta"> {p.payment_type.toUpperCase()}</span>
+                    {p.qbo_invoice_id && <span className="meta"> · INV {p.qbo_invoice_id}</span>}
                     {p.notes && <div className="meta" style={{ textTransform: 'none', letterSpacing: 0 }}>{p.notes}</div>}
                   </span>
                   <span className="when">{shortDate(p.paid_date)}</span>
@@ -474,6 +523,10 @@ function PaymentsTab({ job, onLogged }) {
         )}
 
         <div className="pay-form-title">Log a payment</div>
+        <div className="placeholder-note" style={{ padding: '0 0 10px' }}>
+          QuickBooks payments sync automatically — log only payments received outside QuickBooks
+          (check, Venmo, Zelle, cash).
+        </div>
         <div className="field-row">
           <div className="field">
             <label>Amount ($)</label>
@@ -496,7 +549,7 @@ function PaymentsTab({ job, onLogged }) {
           <div className="field">
             <label>Method</label>
             <select value={form.payment_method} onChange={(e) => setForm((f) => ({ ...f, payment_method: e.target.value }))}>
-              {PAY_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+              {MANUAL_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
         </div>

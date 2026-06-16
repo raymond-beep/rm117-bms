@@ -70,6 +70,21 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: `No job found with job_id "${job_id}". Check the QBO Customer Display Name matches exactly.` });
   }
 
+  // Idempotency / dedup: if this QBO invoice already produced a payment, don't
+  // insert again. Zapier can retry or double-fire, and we never want a single
+  // QBO payment counted twice. Keyed on qbo_invoice_id (the QBO record of truth).
+  if (qbo_invoice_id) {
+    const { data: existing } = await db
+      .from('payments')
+      .select('id')
+      .eq('qbo_invoice_id', qbo_invoice_id)
+      .maybeSingle();
+    if (existing) {
+      console.log('[webhook] duplicate ignored for qbo_invoice_id', qbo_invoice_id);
+      return res.status(200).json({ received: true, persisted: false, duplicate: true, payment_id: existing.id });
+    }
+  }
+
   // Insert the payment record
   const row = {
     job_id,

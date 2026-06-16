@@ -5,6 +5,7 @@ import { getDb, hasDb, PHASES } from '../_lib/db.js';
 // Whitelist — only fields the JobEditor may write. Everything else is computed,
 // import-only, or managed elsewhere.
 const EDITABLE = new Set([
+  'client_id',
   'client_name',
   'address',
   'phase',
@@ -33,6 +34,8 @@ export default async function handler(req, res) {
   for (const [key, value] of Object.entries(fields)) {
     if (EDITABLE.has(key)) updates[key] = value;
   }
+  // client_id is a uuid FK — an empty string from the picker means "unlink".
+  if (updates.client_id === '') updates.client_id = null;
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No editable fields in request' });
   }

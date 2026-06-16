@@ -1,5 +1,33 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-15 (Visual refresh + mobile responsive shipped)
+**Last updated:** 2026-06-16 (JobEditor verified + client-link & payment-safety built)
+
+---
+
+## 🟡 Built this session, NOT yet committed/deployed (2026-06-16)
+
+Working-tree only — review in browser (localhost:5173 or after deploy), then commit + `vercel --prod`.
+
+**1. Client-link Details tab (portal foundation).** Details tab is now backed by the `clients`
+record via `jobs.client_id` instead of free-text. New `GET /api/clients` (picker source);
+`GET /api/jobs` now joins each job's `client` object; `client_id` added to the update whitelist
+(empty string → null = unlink). Details shows a client picker + a read-only contact card
+(type/email/phone/company) and tags fields **👁 client** (portal-visible: client, address, phase)
+vs **🔒 internal** (notes). `client_name` kept as the per-job display label. Verified: link → join →
+unlink round-trip against live Supabase.
+
+**2. Payment safety (QBO double-entry guard).** Webhook (`api/payments/webhook.js`) now dedups on
+`qbo_invoice_id` — Zapier retries/double-fires return `duplicate:true`, no second row (verified).
+Manual "Log payment" form drops the `qb` method (QBO syncs automatically) and shows a note; the
+Payments list badges each payment **QuickBooks** vs the outside method. `qbo_invoice_id` shown as
+`INV …`.
+
+**Architecture decision (Ray, 2026-06-16):** QuickBooks stays the system of record for invoices/AR;
+the app is a control surface; `qbo_invoice_id` is the idempotency key. Do payments in two stages —
+**Stage A = above (non-QBO logging + dedup), done.** **Stage B (next milestone) = outbound QBO:**
+build the QBO API client (`QBO_*` env vars set, unused) so the app can create/send milestone invoices
+to QBO (Ang's "create invoice, send when phase met" flow) + optionally record payments to QBO, with
+DocuSign proposals feeding the milestone schedule. Stage B may need a quick word with Ang on the
+milestone schedule. Bonus: app-driven invoice creation fixes the AR-inflation problem.
 
 ---
 
@@ -91,8 +119,8 @@ imported. Job totals match QBO invoice data.
 | Visual refresh — Architectural (desktop) | ✅ Live (2026-06-15) |
 | Mobile responsive (sidebar→tab bar, 2×2 stats) | ✅ Live (2026-06-15) |
 | Shared RM117 company calendar | ⬜ Needs Ang |
-| JobEditor — edit/save jobs | ⬜ Not started |
-| Per-job payment history view | ⬜ Not started |
+| JobEditor — edit/save jobs | ✅ Verified vs live Supabase (2026-06-16) |
+| Per-job payment history + log payment | ✅ Verified vs live Supabase (2026-06-16) |
 | DocuSign proposals | ⬜ Not started |
 | Client Portal | ⬜ Not started (backbone ready) |
 
@@ -167,16 +195,23 @@ in the script, run with `--dry-run` first.
 
 ---
 
-## Next big feature: JobEditor (Phase 3 completion)
+## JobEditor (Phase 3/4) — ✅ DONE & VERIFIED (2026-06-16)
 
-After QBO cleanup, the next thing that unblocks Ang for daily use is being able to
-**edit jobs and log payments inside the app** instead of just viewing them.
+The JobEditor was already fully built (Details edit/save + Payments history + log-payment)
+and is now **verified end-to-end against live Supabase production**:
+- `api/jobs/update.js` — saves whitelisted edits; rejects invalid phase (400). ✅ persists.
+- `api/payments.js` — GET history per job ✅; POST validates method/type/amount/date,
+  rejects bad input (400) ✅; real insert persists and appears in GET ✅.
+- JobEditor drawer (`rm117-dashboard-v1.jsx`): Details tab → `saveJob` (optimistic + rollback);
+  Payments tab → loads history, "Log payment" form; `onPaymentLogged` → `loadJobs()` refresh.
+- `outstanding` recomputes correctly after a payment (verified, test row cleaned up).
 
-Tasks:
-- `api/jobs/update.js` — confirm it saves edits to Supabase correctly
-- `api/payments.js` — GET payment history per job
-- JobEditor drawer — Payments tab showing history + "Log a payment" button
-- Test: Ang edits a job, payment appears, outstanding updates
+Verification used a marked `$0.01` test payment on `25_001_Sztyk`, deleted afterward via
+Supabase — production data untouched.
+
+**Optional follow-ups (not blocking):** expose `amount_billed` in the Details tab; add a
+delete/void-payment action (no endpoint yet — corrections require direct Supabase); browser
+click-through with Ang for final UX sign-off.
 
 ---
 
