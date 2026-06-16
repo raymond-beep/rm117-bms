@@ -183,17 +183,32 @@
 - [x] Payments list badges **QuickBooks** vs received-outside method; shows `INV …`
 - Architecture: QBO = system of record for invoices/AR; app = control surface; `qbo_invoice_id` = idempotency key
 
-### Progress Timeline (internal, no client logins) — DONE (commit `8a21050`, deployed)
+### Progress Timeline (internal, no client logins) — DONE (commits `8a21050`, `b8fb41e`, deployed)
 - [x] `job_phase_events` table — append-only phase-reached log; auto-stamped on phase change (idempotent on no-op)
 - [x] 133 jobs seeded a baseline event at `created_at`; history accrues real dates going forward
 - [x] `jobs.next_milestone_label` + `next_milestone_date` — the one "date to follow"
-- [x] `GET /api/phase-events` — a job's timeline
-- [x] JobEditor **Progress tab**: phase ladder (done/current/upcoming w/ reached dates) + editable next-milestone
+- [x] `GET/POST/DELETE /api/phase-events` — read timeline, set/clear a phase's reached date
+- [x] JobEditor **Progress tab**: phase ladder + **editable per-phase dates** + next-milestone (clearly separated)
 - [x] Dashboard **"Coming up"** strip (soonest milestones, overdue in red) + milestone badge on job cards
+- [x] Bugfix (`b8fb41e`): phase dates were read-only → editing "survey date" wrongly became a milestone. Now editable inline.
 - [x] Verified vs live Supabase; `npm run build` passes; deployed prod
 - [ ] (Optional) Pre-seed milestones from `last_correspondence` notes, or leave to Ang
 - **Decision (Ray, 2026-06-16):** full Client Portal DEFERRED — login-management overhead; built the
   internal Progress Timeline as the no-auth alternative. Revisit the portal later.
+
+### Data-quality & cleanup pass — DONE (commits `74673c8`, `766d2b6`, deployed)
+- [x] Inbox false-positives fixed (`_lib/client-match.js`) — skip automated/SaaS/role senders before surname fallback
+- [x] Removed diagnostic `console.log`s from `api/_lib/clerk.js` + `api/inbox.js`
+- [x] Merged duplicate clients (Chris Madden ×3, Gabe DaSilva ×2, Jeff Dunn ×2, Tyler Deuel ×2)
+- [x] Renamed placeholder clients (Kaden, Chou, Odunlami merged) + cleared stale "needs review" notes
+- [x] **Job→client coverage 64 → 126 of 134** via `scripts/link-jobs-to-clients.js` + `scripts/create-clients-for-unlinked.js`
+- [x] Created missing **Riera** job → renamed to `26_032_FF_Williams` (client renamed; QBO updated to match)
+- [x] Verified financials clean: 0 orphaned/negative/null payments, 0 overpaid jobs, 0 import-review flags
+- [ ] **8 jobs still unlinked** (blank/commercial names) — type the client in JobEditor (see `NEXT_SESSION.md`)
+- [ ] **Client-type reclassification** — 88/96 defaulted `homeowner`; needs Ray/Ang (who's contractor/investor)
+- [ ] **~$80K QBO payment imports** — confirm job mappings in `CLIENT-RECON.md`, then import (MONEY)
+- [ ] **8 on-hold/completed jobs with $0 total** — fill missing contract values from QBO
+- [ ] **Williams** FF job needs a `forefront_commissions` row (commission amount) to show in the FF tracker
 
 ---
 

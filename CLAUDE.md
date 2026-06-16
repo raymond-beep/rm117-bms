@@ -28,11 +28,18 @@ QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
 |------|---------|
 | `src/rm117-app-shell-v1.jsx` | App shell: sidebar, dashboard, calendar, inbox, BMS at `/bms` |
 | `src/rm117-dashboard-v1.jsx` | BMS job dashboard — data layer being swapped Sheet→Supabase (Phase 3) |
-| `api/jobs.js` | GET /api/jobs — reads jobs from Supabase (was the Sheet) |
-| `api/jobs/update.js` | POST — `saveJob()` writes job edits to Supabase |
-| `api/payments.js` | Payment records per job (Phase 4) |
+| `api/jobs.js` | GET /api/jobs — reads jobs from Supabase, joins each job's `client` record |
+| `api/jobs/update.js` | POST — `saveJob()` writes job edits; stamps a `job_phase_events` row on phase change |
+| `api/clients.js` | GET /api/clients — client list for the Details-tab picker |
+| `api/payments.js` | Payment records per job (Phase 4); webhook dedups on `qbo_invoice_id` |
+| `api/phase-events.js` | GET/POST/DELETE — per-job phase-reached timeline (Progress tab) |
 | `scripts/import-sheet.js` | One-time Sheet → Supabase migration (Phase 2) |
+| `scripts/link-jobs-to-clients.js` | Link unlinked jobs to existing clients (dry-run default) |
+| `scripts/create-clients-for-unlinked.js` | Create clients for unlinked jobs w/ real names (dry-run default) |
 | `.env` | Supabase, Resend, DocuSign, QBO, Google creds |
+
+All `api/` routes must also be registered in `server.js` (the local-dev Express wrapper); on Vercel
+each `api/` file deploys directly as a function.
 
 ## Environment
 `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `RESEND_API_KEY` (or `POSTMARK_*`), `DOCUSIGN_*`,
@@ -43,12 +50,21 @@ QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
 
 ## Data model
 Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `proposals`,
-`templates`, `forefront_commissions`, `staff`. Client tier (Phase 7): `clients`, `threads`,
-`messages`, `file_records`, `notifications`.
+`templates`, `forefront_commissions`, `staff`, `job_phase_events`. Client tier (Phase 7): `clients`,
+`threads`, `messages`, `file_records`, `notifications`.
 - **`jobs`** keyed by Job ID (`YY_NNN_[FF_]LastName`). `client_id` = who's billed;
   `referred_by_id` = who referred the work in (nullable; inbound referrals only — no outbound).
+  `next_milestone_label` + `next_milestone_date` = the one upcoming "date to follow".
 - **`outstanding` is computed**, never stored: `job_total - sum(payments.amount)`.
+- **`job_phase_events`** = append-only log of when each job reached a phase (powers the Progress
+  timeline). Auto-stamped on phase change; editable per phase via `POST /api/phase-events`.
 - `import_notes` / `import_needs_review` flag rows the Phase 2 import couldn't parse cleanly.
+
+## Progress Timeline (internal — chosen over the client portal)
+Ray opted to hold the external client portal (login-management overhead) and instead surface job
+progress to staff: the JobEditor **Progress tab** shows a phase ladder (reached dates, editable) +
+a "Next milestone" date; the dashboard shows a **"Coming up"** strip. Portal tables still exist for
+a future revisit.
 
 ## Job phases (single `phase` field, in order — no separate status)
 Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold → Completed

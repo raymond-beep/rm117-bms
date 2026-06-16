@@ -1,5 +1,51 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-16 (JobEditor verified + client-link & payment-safety built)
+**Last updated:** 2026-06-16 (full session: JobEditor verified · client-link · payment-safety · Progress Timeline + editable phase dates · data cleanup)
+
+---
+
+## ▶ RESUME HERE — state as of 2026-06-16 (end of session)
+
+App is live at **rm117-bms.vercel.app**, Supabase-backed, all of today's work **committed to `main`
+and deployed to prod**. Latest commit: `b8fb41e`.
+
+**Shipped today (all deployed):**
+- **JobEditor** verified end-to-end (edit jobs + log payments against live Supabase).
+- **Client-link Details tab** — jobs now linked to `clients` via a picker; portal-visible vs internal field tags.
+- **Payment safety** — webhook dedups on `qbo_invoice_id`; manual logging is non-QBO-only with QB-vs-outside badges.
+- **Progress Timeline** (the internal alternative to a client portal) — per-job phase ladder with
+  reached dates + a "Next milestone" date, surfaced in a dashboard **"Coming up"** strip + card badges.
+  **Phase dates are editable** (set "when we surveyed" right on the timeline).
+- **Data cleanup** — fixed inbox false-positives, removed debug logs, merged duplicate clients, and
+  took job→client coverage from **64 → 126 of 134**. Created the **Williams** job (was Riera; client
+  renamed) at `26_032_FF_Williams`.
+
+**Pick up here next (prioritized; most need Ray/Ang input, not code):**
+1. **~$80K QBO payment imports** — `CLIENT-RECON.md` has the table. MONEY → confirm job mappings.
+   Avedissian $22.4K + Rodriguez $11K are high-confidence and ready on your word.
+2. **Client-type reclassification** — 88 of 96 clients defaulted to `homeowner`; reclassify
+   contractors/investors (needs your knowledge of who's who).
+3. **8 on-hold/completed jobs with $0 total** — likely missing contract values to pull from QBO:
+   `25_022_Dunn_Bathroom, 23_007_Dunn_Antique Car, 26_025_Dubleski_Holmdel, 25_016_O'Bagel Wayne,
+   26_019_Madden, 25_023_Rodrigues, 25_008_O'Bagel_Stirling, 26_010_Melrose`.
+4. **8 unlinked jobs** (blank/commercial names) — type the client in via JobEditor:
+   `25_016_O'Bagel Wayne, 25_014_Amato, 24_083_ElHassan_Cafe, 25_007_FE_Sebastian,
+   25_019_Antunes_175 E Crescent, 25_009_Samsel_Terry Lane, 24_082_LaRose, 25_053_FE_Mendham`.
+5. **Williams** is a Forefront job with no commission row yet — set a commission amount so it shows
+   in the Forefront tracker.
+6. **Stage B — outbound QBO + DocuSign** (the "create/send milestone invoices from the app" goal):
+   `QBO_*` env vars are set but unused. Needs a quick word with Ang on the milestone schedule.
+7. **Shared RM117 company calendar** — blocked on Ang (she owns the iCloud one); see item A below.
+8. **Client Portal** — deferred by Ray (external-login overhead); the Progress Timeline covers the
+   core need for now. All Phase-7 tables + `clients.clerk_user_id` exist if/when revisited.
+
+**Today's commits (on `main`):** `e98877f` client-link + payment-safety · `8a21050` Progress Timeline
+· `74673c8` cleanup (inbox/logs/linker) · `766d2b6` bulk client creation · `b8fb41e` editable phase dates
+· plus doc commits (`f824ede`, `a4e6af9`, `73410e7`, `badf676`).
+
+**New connection points added today** (also in `CLAUDE.md`):
+- Endpoints: `GET /api/clients`, `GET/POST/DELETE /api/phase-events`. Routes registered in `server.js`.
+- Table: `job_phase_events`; columns `jobs.next_milestone_label` + `jobs.next_milestone_date` (see `SCHEMA.md`).
+- Scripts: `scripts/link-jobs-to-clients.js`, `scripts/create-clients-for-unlinked.js` (both dry-run by default).
 
 ---
 
