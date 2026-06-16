@@ -1,6 +1,6 @@
 # RM117 BMS — Master Build Checklist
 **Last updated:** 2026-06-15 (visual refresh + mobile responsive shipped)
-**Working folder:** `RM117-App-handoff copy` (the second-gen scaffold)
+**Working folder:** `RM117 App` (renamed 2026-06-16; was `RM117-App-handoff copy`)
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
 
 ---

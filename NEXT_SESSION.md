@@ -182,7 +182,7 @@ Tasks:
 
 ## Vercel / deployment notes
 
-- Project folder: `/Users/raymondarocha/Desktop/RM117-App-handoff copy`
+- Project folder: `/Users/raymondarocha/Desktop/RM117 App` (renamed 2026-06-16 from `RM117-App-handoff copy`)
 - Vercel project: `rm117-bms` under `rm117-s-projects`
 - To deploy: `cd` to project folder, `vercel --prod`
 - Folder is linked to Vercel (`.vercel/project.json` now exists)
