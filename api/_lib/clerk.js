@@ -42,13 +42,10 @@ export async function getGoogleToken(userId) {
       const res = await clerk().users.getUserOauthAccessToken(userId, provider);
       const list = Array.isArray(res) ? res : res?.data;
       const token = list?.[0]?.token;
-      const scopes = list?.[0]?.scopes;
-      console.log(`[clerk] provider=${provider} count=${list?.length ?? 0} hasToken=${Boolean(token)} scopes=${JSON.stringify(scopes)}`);
       if (token) return { token };
     } catch (e) {
       const detail = e?.errors?.[0]?.message || e?.errors?.[0]?.code || e?.message || String(e);
       lastErr = `s=${e?.status} ${detail}`;
-      console.log(`GERR ${provider} ${lastErr}`);
     }
   }
   return { error: 'google_not_connected', detail: lastErr };

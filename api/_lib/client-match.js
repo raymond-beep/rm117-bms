@@ -19,6 +19,46 @@ const STOP = new Set([
 
 const JOBID_PREFIX = /^\d{2}_\d{3}_/;
 
+// Automated / role / bulk senders that must NEVER be tagged as a client via the
+// surname fallback (e.g. "ClickUp Team", "no-reply@…"). Exact-email match against
+// the clients table still wins — a real client emailing from their own address is
+// unaffected. This only gates the fuzzy name fallback.
+const AUTOMATED_LOCALPART = new Set([
+  'noreply', 'no-reply', 'donotreply', 'do-not-reply', 'notifications', 'notification',
+  'notify', 'support', 'help', 'hello', 'info', 'contact', 'team', 'billing', 'invoices',
+  'receipts', 'news', 'newsletter', 'newsletters', 'updates', 'update', 'alerts', 'alert',
+  'mailer', 'mail', 'bounce', 'bounces', 'postmaster', 'admin', 'automated', 'auto',
+  'account', 'accounts', 'service', 'services', 'marketing', 'sales', 'care', 'email',
+]);
+
+// Known bulk/SaaS sender domains — never client mail. Matched as a suffix so
+// subdomains (e.g. mail.clickup.com) are covered too. Easy to extend.
+const SAAS_DOMAINS = [
+  'clickup.com', 'slack.com', 'atlassian.net', 'atlassian.com', 'notion.so', 'asana.com',
+  'monday.com', 'trello.com', 'intuit.com', 'quickbooks.com', 'mailchimp.com', 'mailchimpapp.com',
+  'sendgrid.net', 'hubspot.com', 'docusign.net', 'docusign.com', 'zapier.com', 'calendly.com',
+  'google.com', 'googlemail.com', 'youtube.com', 'linkedin.com',
+  'facebookmail.com', 'amazon.com', 'amazonses.com', 'dropbox.com', 'adobe.com', 'canva.com',
+  'stripe.com', 'squareup.com', 'vercel.com', 'github.com', 'apple.com',
+];
+
+// Display-name words that signal an automated/bulk sender.
+const AUTOMATED_NAME_WORDS = new Set(['team', 'support', 'notifications', 'billing', 'noreply', 'newsletter']);
+
+function isAutomatedSender(sender) {
+  const email = (sender.email || '').toLowerCase().trim();
+  const at = email.indexOf('@');
+  if (at > 0) {
+    const local = email.slice(0, at).replace(/\+.*$/, ''); // drop +suffix
+    const domain = email.slice(at + 1);
+    if (AUTOMATED_LOCALPART.has(local)) return true;
+    if (SAAS_DOMAINS.some((d) => domain === d || domain.endsWith('.' + d))) return true;
+  }
+  const nameWords = (sender.name || '').toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  if (nameWords.some((w) => AUTOMATED_NAME_WORDS.has(w))) return true;
+  return false;
+}
+
 function tokens(str) {
   return (str || '')
     .toLowerCase()
@@ -72,6 +112,10 @@ export function buildMatcher(jobs, clients = []) {
         const hit = emailToClient.get(email);
         return { isClient: true, label: hit.label, via: 'email', jobs: hit.jobs };
       }
+      // Automated/SaaS/role senders never reach the fuzzy fallback — only an
+      // exact email match (handled above) can flag them as a client.
+      if (isAutomatedSender(sender)) return { isClient: false };
+
       // Fallback: match the sender's DISPLAY-NAME surname against a job surname.
       // (We deliberately ignore the email local-part here — it was a noise source.)
       let best = null;

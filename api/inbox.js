@@ -45,16 +45,13 @@ export default async function handler(req, res) {
 
   const userId = await getUserId(req);
   if (!userId) {
-    console.log('[api/inbox] no userId — token missing/invalid');
     return res.status(401).json({ error: 'unauthorized' });
   }
 
   const { token, error } = await getGoogleToken(userId);
   if (error) {
-    console.log(`[api/inbox] userId=${userId} google token error=${error}`);
     return res.status(200).json({ connected: false, reason: error });
   }
-  console.log(`[api/inbox] userId=${userId} google token OK, fetching gmail`);
 
   const url = new URL(req.url, 'http://localhost');
   const days = Math.min(Number(url.searchParams.get('days')) || 14, 60);
