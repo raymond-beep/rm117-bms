@@ -18,6 +18,8 @@ const EDITABLE = new Set([
   'ff_commission_paid',
   'notes',
   'last_correspondence',
+  'next_milestone_label',
+  'next_milestone_date',
   'import_needs_review',
   'import_notes',
 ]);
@@ -36,6 +38,9 @@ export default async function handler(req, res) {
   }
   // client_id is a uuid FK — an empty string from the picker means "unlink".
   if (updates.client_id === '') updates.client_id = null;
+  // next_milestone_date is a date column — empty string means "clear it".
+  if (updates.next_milestone_date === '') updates.next_milestone_date = null;
+  if (updates.next_milestone_label === '') updates.next_milestone_label = null;
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: 'No editable fields in request' });
   }
@@ -52,6 +57,19 @@ export default async function handler(req, res) {
 
   try {
     const db = getDb();
+
+    // If the phase is changing, read the stored value first so we can stamp a
+    // phase-reached event (the progress timeline) only on a real transition.
+    let priorPhase = null;
+    if (updates.phase) {
+      const { data: cur } = await db
+        .from('jobs')
+        .select('phase')
+        .eq('job_id', job_id)
+        .single();
+      priorPhase = cur?.phase ?? null;
+    }
+
     const { data, error } = await db
       .from('jobs')
       .update(updates)
@@ -59,6 +77,15 @@ export default async function handler(req, res) {
       .select()
       .single();
     if (error) throw error;
+
+    if (updates.phase && updates.phase !== priorPhase) {
+      const { error: evErr } = await db
+        .from('job_phase_events')
+        .insert({ job_id, phase: updates.phase });
+      // Don't fail the save if the timeline log hiccups — it's a side record.
+      if (evErr) console.error('[api/jobs/update] phase-event insert', evErr);
+    }
+
     res.status(200).json({ source: 'supabase', persisted: true, job: data });
   } catch (err) {
     console.error('[api/jobs/update]', err);

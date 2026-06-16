@@ -3,9 +3,23 @@
 
 ---
 
-## 🟡 Built this session, NOT yet committed/deployed (2026-06-16)
+## ✅ Progress Timeline shipped (2026-06-16)
 
-Working-tree only — review in browser (localhost:5173 or after deploy), then commit + `vercel --prod`.
+**Internal job-progress tracker — the no-auth alternative to a client portal.** Ray was wary of
+managing external client logins, so instead of the portal we built the *root value* (job phase
+progress + dates to follow) as a staff-only feature. New `job_phase_events` table (append-only
+phase-reached log; auto-stamped on phase change in `api/jobs/update.js`; 133 jobs seeded a
+baseline). New `jobs.next_milestone_label` + `next_milestone_date` ("the one date to follow").
+New `GET /api/phase-events`. JobEditor gains a **Progress** tab: phase ladder (done/current/
+upcoming with reached dates) + editable next-milestone. Dashboard shows a **"Coming up"** strip
+(soonest milestones, overdue in red) + a milestone badge on job cards. Verified vs live Supabase
+(phase-change stamping is idempotent on no-op; milestone round-trips); build passes. Committed +
+deployed prod. **Decided (Ray): hold the full client portal** (Stage B QBO too) — revisit portal
+later; Ang to confirm milestone workflow.
+
+---
+
+## ✅ Client-link + payment-safety shipped (2026-06-16, commit `e98877f`, deployed prod)
 
 **1. Client-link Details tab (portal foundation).** Details tab is now backed by the `clients`
 record via `jobs.client_id` instead of free-text. New `GET /api/clients` (picker source);

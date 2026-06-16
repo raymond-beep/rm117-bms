@@ -70,6 +70,15 @@ export default function BmsDashboard() {
     };
   }, [jobs]);
 
+  // Jobs with a next-milestone date, soonest first — the dashboard "Coming up" feed.
+  const upcoming = useMemo(() => (
+    jobs
+      .filter((j) => j.next_milestone_date)
+      .sort((a, b) => String(a.next_milestone_date).localeCompare(String(b.next_milestone_date)))
+      .slice(0, 6)
+  ), [jobs]);
+  const todayStr = new Date().toISOString().slice(0, 10);
+
   // Optimistic save: apply locally, POST, roll back on failure (Phase 3).
   async function saveJob(jobId, fields) {
     const prev = jobs;
@@ -132,6 +141,25 @@ export default function BmsDashboard() {
         </div>
       </div>
 
+      {upcoming.length > 0 && (
+        <div className="comingup">
+          <div className="comingup-title">Coming up</div>
+          <div className="comingup-list">
+            {upcoming.map((j) => {
+              const overdue = String(j.next_milestone_date).slice(0, 10) < todayStr;
+              return (
+                <button key={j.job_id} className={`comingup-item${overdue ? ' overdue' : ''}`}
+                  onClick={() => setDrawer({ mode: 'edit', job: j })}>
+                  <span className="cu-date">{fmtDateOnly(j.next_milestone_date)}</span>
+                  <span className="cu-label">{j.next_milestone_label || 'Milestone'}</span>
+                  <span className="cu-job">{j.client_name || j.job_id}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="toolbar">
         <input
           type="search"
@@ -187,6 +215,11 @@ export default function BmsDashboard() {
                         </div>
                         <div className="job-card-id">{job.job_id}</div>
                         {job.address && <div className="job-card-sub">{job.address}</div>}
+                        {job.next_milestone_date && (
+                          <div className={`job-card-milestone${String(job.next_milestone_date).slice(0, 10) < todayStr ? ' overdue' : ''}`}>
+                            ◆ {job.next_milestone_label || 'Next'} · {fmtDateOnly(job.next_milestone_date)}
+                          </div>
+                        )}
                         {job.last_correspondence && <div className="job-card-corr">{job.last_correspondence}</div>}
                       </div>
                       <div className="job-card-right">
@@ -338,6 +371,7 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
         </div>
         <div className="drawer-tabs">
           <button className={`drawer-tab${tab === 'details' ? ' active' : ''}`} onClick={() => setTab('details')}>Details</button>
+          <button className={`drawer-tab${tab === 'progress' ? ' active' : ''}`} onClick={() => setTab('progress')}>Progress</button>
           <button className={`drawer-tab${tab === 'payments' ? ' active' : ''}`} onClick={() => setTab('payments')}>Payments</button>
         </div>
 
@@ -429,8 +463,122 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
           </>
         )}
 
+        {tab === 'progress' && (
+          <ProgressTab job={job} onSave={onSave} />
+        )}
+
         {tab === 'payments' && (
           <PaymentsTab job={job} onLogged={onPaymentLogged} />
+        )}
+      </div>
+    </>
+  );
+}
+
+/* ============================ Progress tab (phase timeline) ============================ */
+
+// Linear progress ladder — 'on_hold' is an orthogonal state, shown separately.
+const LADDER = ['potential', 'survey_zoning', 'design_phase', 'cd_phase', 'active', 'completed'];
+
+// Format a date-only string ('YYYY-MM-DD') in local time without a TZ shift.
+function fmtDateOnly(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function ProgressTab({ job, onSave }) {
+  const [events, setEvents] = useState(null);
+  const [label, setLabel] = useState(job.next_milestone_label || '');
+  const [date, setDate] = useState(job.next_milestone_date ? job.next_milestone_date.slice(0, 10) : '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/phase-events?job_id=${encodeURIComponent(job.job_id)}`)
+      .then((r) => r.json())
+      .then((d) => { if (live) setEvents(d.events || []); })
+      .catch(() => { if (live) setEvents([]); });
+    return () => { live = false; };
+  }, [job.job_id]);
+
+  // Earliest reached-date per phase, from the append-only event log.
+  const reachedByPhase = {};
+  for (const e of events || []) {
+    if (!reachedByPhase[e.phase]) reachedByPhase[e.phase] = e.entered_at;
+  }
+
+  const onHold = job.phase === 'on_hold';
+  const currentIdx = LADDER.indexOf(job.phase); // -1 when on_hold
+
+  async function saveMilestone() {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(job.job_id, {
+        next_milestone_label: label || null,
+        next_milestone_date: date || null,
+      });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="drawer-body">
+        <div className="milestone-box">
+          <div className="pay-form-title" style={{ margin: '0 0 10px' }}>Next milestone — the date to follow</div>
+          <div className="field-row">
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>What's next</label>
+              <input type="text" value={label} placeholder="e.g. CDs due, Survey scheduled"
+                onChange={(e) => setLabel(e.target.value)} />
+            </div>
+            <div className="field" style={{ marginBottom: 0 }}>
+              <label>Target date</label>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="milestone-actions">
+            {error && <span className="error">{error}</span>}
+            <button className="btn btn-primary" onClick={saveMilestone} disabled={saving}>
+              {saving ? 'Saving…' : 'Save milestone'}
+            </button>
+          </div>
+        </div>
+
+        {onHold && <div className="onhold-banner">⏸ This job is currently On Hold.</div>}
+
+        <div className="pay-form-title">Phase progress</div>
+        {events === null ? (
+          <div className="placeholder-note">Loading timeline…</div>
+        ) : (
+          <ol className="timeline">
+            {LADDER.map((p, i) => {
+              const reached = reachedByPhase[p];
+              const status = onHold
+                ? (reached ? 'done' : 'upcoming')
+                : i < currentIdx ? 'done' : i === currentIdx ? 'current' : 'upcoming';
+              return (
+                <li key={p} className={`tl-step ${status}`}>
+                  <span className="tl-dot" aria-hidden="true" />
+                  <span className="tl-body">
+                    <span className="tl-phase">{PHASE_LABELS[p]}</span>
+                    <span className="tl-date">
+                      {status === 'current' ? `in this phase since ${shortDate(reached)}`
+                        : reached ? `reached ${shortDate(reached)}`
+                        : status === 'done' ? 'reached —'
+                        : 'upcoming'}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
         )}
       </div>
     </>

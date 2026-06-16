@@ -69,6 +69,8 @@ The heart of everything. One row per job.
 | `last_email_subject` | text | nullable |
 | `import_notes` | text | nullable — raw cell content the import script couldn't parse |
 | `import_needs_review` | boolean | default `false` — Phase 2 cleanup queue flag |
+| `next_milestone_label` | text | nullable — the one "date to follow" label (e.g. "CDs due") |
+| `next_milestone_date` | date | nullable — target date for the next milestone; surfaced in dashboard "Coming up" |
 | `created_at` | timestamptz | |
 | `updated_at` | timestamptz | |
 | *(computed)* `outstanding` | numeric | NOT stored — `job_total - sum(payments.amount)` |
@@ -77,6 +79,20 @@ The heart of everything. One row per job.
 > from the list above). "Potential," "On Hold," and "Completed" are phase values, not a separate
 > status axis. A job that goes on hold does not retain which phase it paused at — use `notes` or
 > `phase_override` if that ever matters.
+
+### `job_phase_events`
+Append-only log of when each job *reached* a phase — powers the internal Progress timeline
+(staff-only; this is the lightweight, no-auth alternative to a client portal). A row is stamped
+automatically by `api/jobs/update.js` whenever a job's `phase` changes. Existing jobs were
+seeded one baseline row (current phase at `created_at`).
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `job_id` | text FK → jobs.job_id (on delete cascade) | |
+| `phase` | text | the phase reached |
+| `entered_at` | timestamptz | default `now()` — when the phase was reached |
+| `note` | text | nullable — e.g. `baseline (phase at import)` for seeded rows |
+| `created_at` | timestamptz | |
 
 ### `payments`
 Every payment event. Replaces the narrative financial text in the Sheet and drives the
