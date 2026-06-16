@@ -1,5 +1,5 @@
 # RM117 BMS — Master Build Checklist
-**Last updated:** 2026-06-15 (visual refresh + mobile responsive shipped)
+**Last updated:** 2026-06-16 (JobEditor verified · client-link · payment-safety · Progress Timeline shipped)
 **Working folder:** `RM117 App` (renamed 2026-06-16; was `RM117-App-handoff copy`)
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
 
@@ -122,7 +122,7 @@
 - [x] Clients typed: 2 contractor, 8 investor (incl. Monita Sun), rest homeowner
 - [ ] **Reconcile 12 unmatched QBO customers** → see `CLIENT-RECON.md`, then re-run `import-clients.js`
 - [ ] Merge duplicate no-email client rows (Gabe DaSilva ×2, Josh Russo ×2)
-- [ ] Commit the inbox + client work to git (currently deployed but uncommitted)
+- [x] Commit the inbox + client work to git — repo now matches prod (through 2026-06-16)
 
 ### Google Calendar widget — DONE (personal); shared cal pending Ang
 - [x] `calendar.readonly` scope added (Google + Clerk), Google Calendar API enabled in rm117-bms
@@ -161,15 +161,51 @@
 
 ---
 
+## JobEditor + Client-link + Payment-safety + Progress Timeline — 2026-06-16
+> Goal: make jobs fully editable in-app, tie jobs to the client backbone, keep payments safe
+> alongside QBO, and track per-job progress without standing up external client logins.
+
+### JobEditor — verified end-to-end (commit `e98877f` chain)
+- [x] `api/jobs/update.js` saves whitelisted job edits to Supabase; rejects invalid phase (400)
+- [x] `api/payments.js` GET payment history per job + POST log-payment (validated)
+- [x] JobEditor drawer: Details edit/save (optimistic + rollback), Payments tab (history + log)
+- [x] Verified vs live Supabase (edit persists, payment inserts, outstanding recomputes) — test rows cleaned up
+
+### Client-link Details tab (client-portal foundation) — DONE (commit `e98877f`, deployed)
+- [x] `GET /api/clients` — list for the picker; `GET /api/jobs` joins each job's `client` record
+- [x] `client_id` added to update whitelist (`''` → null = unlink)
+- [x] Details tab: client picker bound to `jobs.client_id` + read-only contact card (type/email/phone/company)
+- [x] Portal-visibility field tags — 👁 client (client/address/phase) vs 🔒 internal (notes)
+
+### Payment safety (QBO double-entry guard) — DONE (commit `e98877f`, deployed)
+- [x] Webhook dedups on `qbo_invoice_id` — Zapier retry/double-fire → `duplicate:true`, no second row
+- [x] Manual "Log payment" drops the `qb` method (QBO auto-syncs) + explanatory note
+- [x] Payments list badges **QuickBooks** vs received-outside method; shows `INV …`
+- Architecture: QBO = system of record for invoices/AR; app = control surface; `qbo_invoice_id` = idempotency key
+
+### Progress Timeline (internal, no client logins) — DONE (commit `8a21050`, deployed)
+- [x] `job_phase_events` table — append-only phase-reached log; auto-stamped on phase change (idempotent on no-op)
+- [x] 133 jobs seeded a baseline event at `created_at`; history accrues real dates going forward
+- [x] `jobs.next_milestone_label` + `next_milestone_date` — the one "date to follow"
+- [x] `GET /api/phase-events` — a job's timeline
+- [x] JobEditor **Progress tab**: phase ladder (done/current/upcoming w/ reached dates) + editable next-milestone
+- [x] Dashboard **"Coming up"** strip (soonest milestones, overdue in red) + milestone badge on job cards
+- [x] Verified vs live Supabase; `npm run build` passes; deployed prod
+- [ ] (Optional) Pre-seed milestones from `last_correspondence` notes, or leave to Ang
+- **Decision (Ray, 2026-06-16):** full Client Portal DEFERRED — login-management overhead; built the
+  internal Progress Timeline as the no-auth alternative. Revisit the portal later.
+
+---
+
 ## Phase 3 — App Re-point + Core Job Management
 > Goal: staff can create, edit, search all jobs in the app; Sheet archived.
 
 - [x] Re-point `api/jobs.js` to read live Supabase data — confirmed working 2026-06-13
-- [ ] Confirm `api/jobs/update.js` saves job edits to Supabase
+- [x] Confirm `api/jobs/update.js` saves job edits to Supabase — verified 2026-06-16
 - [ ] Confirm `api/jobs/create.js` creates new jobs in Supabase
-- [ ] `JobEditor` drawer: edit + save all fields, optimistic UI, error rollback
+- [x] `JobEditor` drawer: edit + save all fields, optimistic UI, error rollback — verified 2026-06-16
 - [x] Dashboard stat tiles reflect live Supabase data — outstanding computed from payments table
-- [ ] Job filters work: by phase, Forefront flag, client name
+- [x] Job filters work: by phase, Forefront flag, client name — live in toolbar
 - [ ] Set up Clerk auth (if not done in Phase 0): admin roles for Ray + Ang
 - [ ] Run app in parallel with Sheet for 1–2 weeks; Ang confirms data matches
 - [ ] **Archive the master Sheet** (move to read-only; remove service account Viewer access)
@@ -188,8 +224,9 @@
 > Goal: every payment logged in app; outstanding always accurate; QBO paid invoices sync back.
 
 - [x] `api/payments/webhook.js` — POST endpoint with secret auth, job lookup, payment insert — 2026-06-14
-- [ ] `api/payments.js` — GET payment history per job (for JobEditor Payments tab)
-- [ ] `JobEditor` Payments tab: full payment history + inline "log a payment"
+  (+ `qbo_invoice_id` dedup guard added 2026-06-16)
+- [x] `api/payments.js` — GET payment history per job (for JobEditor Payments tab) — verified 2026-06-16
+- [x] `JobEditor` Payments tab: full payment history + inline "log a payment" — verified 2026-06-16
 - [x] `outstanding` computed from real payment records — live in `api/jobs.js` — 2026-06-13
 - [ ] Billing view: quarterly breakdown by job, outstanding highlighted
 - [x] **Zapier webhook live**: QBO "New Paid Invoice" → POST to `rm117-bms.vercel.app/api/payments/webhook` → `payments` row — 2026-06-14
@@ -251,6 +288,9 @@
 > Goal: a client can log in, view their job, download PDFs, and message the firm.
 > **Prereq DONE (2026-06-15):** `clients` table seeded from QBO (64 clients, emails on file,
 > jobs linked via `client_id`) — the login/identity backbone now exists.
+> **DEFERRED (2026-06-16):** Ray opted to hold the portal (external-login management overhead) and
+> shipped the internal **Progress Timeline** as the no-auth alternative for job-progress visibility.
+> All five Phase-7 tables exist; `clients.clerk_user_id` + the Details client-link are ready when revisited.
 
 - [ ] Clerk `client` role: magic-link login with email on file (no password)
 - [ ] Portal landing: client sees only their own job(s) — phase, outstanding balance
