@@ -6,7 +6,7 @@
 ## ✅ Shipped & live (2026-06-15, latest)
 
 **Visual refresh — "Architectural" direction (desktop + mobile).** Recreated the design handoff
-(`~/Desktop/design_handoff_rm117_visual_refresh/`) in the live codebase: warm-paper palette,
+(`design/visual-refresh-2026-06/`) in the live codebase: warm-paper palette,
 JetBrains Mono for all data, title-block stat strip, grouped/brass sidebar, eyebrow+greeting headers,
 recolored phase bars, refreshed editor drawer. **Functionality unchanged.** Then made it responsive:
 sidebar hidden on phones, slim dark top bar (keeps Clerk `UserButton` → sign-out / Connect Google),

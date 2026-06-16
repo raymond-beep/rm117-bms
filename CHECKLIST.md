@@ -135,7 +135,7 @@
 
 ## Visual Refresh ("Architectural" direction) + Mobile — 2026-06-15
 > Goal: recreate the design-handoff look in the live codebase, and make it usable on a phone.
-> Source: `~/Desktop/design_handoff_rm117_visual_refresh/` (README + `RM117 Mockup.dc.html` + screenshots).
+> Source: `design/visual-refresh-2026-06/` (README + `RM117 Mockup.dc.html` + screenshots).
 
 ### Desktop refresh — DONE
 - [x] JetBrains Mono loaded (`index.html`); used for ALL data (IDs, money, dates, stat values, micro-labels)
