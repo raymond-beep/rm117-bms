@@ -34,7 +34,9 @@ export async function resolvePortalIdentity(req) {
     }
   }
 
-  if (!client || client.is_active === false) return { role: isStaffEmail(email) ? 'staff' : 'none' };
+  // db is returned for staff too, so staff-only actions (portal preview, file
+  // access for any job) can query without re-resolving.
+  if (!client || client.is_active === false) return { role: isStaffEmail(email) ? 'staff' : 'none', db, email };
   return { role: 'client', client, db };
 }
 
@@ -49,4 +51,16 @@ export async function getClientJob(db, clientId, jobId, columns = 'job_id, drive
     .eq('job_id', jobId)
     .maybeSingle();
   return data || null;
+}
+
+// Resolve a job for the caller: a client may only reach their own jobs; staff
+// may reach any job (used by the staff-side portal preview / file viewing).
+export async function getJobForIdentity(identity, jobId, columns = 'job_id, drive_files_sent_folder_id') {
+  if (!jobId || !identity?.db) return null;
+  if (identity.role === 'client') return getClientJob(identity.db, identity.client.id, jobId, columns);
+  if (identity.role === 'staff') {
+    const { data } = await identity.db.from('jobs').select(columns).eq('job_id', jobId).maybeSingle();
+    return data || null;
+  }
+  return null;
 }

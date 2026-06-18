@@ -19,6 +19,7 @@ const routes = {
   // Portal routes are one consolidated function; the dispatcher reads the
   // trailing path segment (Vercel passes it as the [action] dynamic segment).
   '/api/portal/me': () => import('./api/portal/[action].js'),
+  '/api/portal/preview': () => import('./api/portal/[action].js'),
   '/api/portal/files': () => import('./api/portal/[action].js'),
   '/api/portal/download': () => import('./api/portal/[action].js'),
   '/api/forefront': () => import('./api/forefront.js'),

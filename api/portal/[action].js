@@ -5,7 +5,7 @@
 //
 // Every action goes through resolvePortalIdentity first, so client isolation is
 // enforced uniformly. The portal is deliberately money-free.
-import { resolvePortalIdentity, getClientJob } from '../_lib/portal-auth.js';
+import { resolvePortalIdentity, getJobForIdentity } from '../_lib/portal-auth.js';
 import { hasDrive, listFolderFiles, getFileMeta, streamFileTo } from '../_lib/google-drive.js';
 
 function group(rows, key) {
@@ -30,6 +30,8 @@ export default async function handler(req, res) {
   switch (action) {
     case 'me':
       return handleMe(req, res, identity);
+    case 'preview':
+      return handlePreview(req, res, identity);
     case 'files':
       return handleFiles(req, res, identity);
     case 'download':
@@ -39,18 +41,14 @@ export default async function handler(req, res) {
   }
 }
 
-// GET /api/portal/me — the authenticated client's own jobs (status only, no money).
-async function handleMe(req, res, identity) {
-  res.setHeader('Cache-Control', 'no-store, max-age=0');
-  if (identity.role !== 'client') return res.status(200).json({ role: identity.role });
-  const { client, db } = identity;
-
-  const { data: jobs = [], error: jobsErr } = await db
+// Build the portal payload (status only, no money) for one client id.
+async function buildPortalJobs(db, clientId) {
+  const { data: jobs = [], error } = await db
     .from('jobs')
     .select('job_id, client_name, address, phase, phase_override, next_milestone_label, next_milestone_date, created_at, updated_at')
-    .eq('client_id', client.id)
+    .eq('client_id', clientId)
     .order('created_at', { ascending: false });
-  if (jobsErr) return res.status(500).json({ error: jobsErr.message });
+  if (error) throw new Error(error.message);
 
   const jobIds = jobs.map((j) => j.job_id);
   const { data: events = [] } = jobIds.length
@@ -58,7 +56,7 @@ async function handleMe(req, res, identity) {
     : { data: [] };
   const evByJob = group(events, 'job_id');
 
-  const portalJobs = jobs.map((j) => {
+  return jobs.map((j) => {
     const timeline = (evByJob.get(j.job_id) || []).map((e) => ({ phase: e.phase, at: e.entered_at }));
     const lastEventAt = timeline.length ? timeline[timeline.length - 1].at : null;
     return {
@@ -73,22 +71,55 @@ async function handleMe(req, res, identity) {
       timeline,
     };
   });
+}
 
+// GET /api/portal/me — the authenticated client's own jobs.
+async function handleMe(req, res, identity) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  if (identity.role !== 'client') return res.status(200).json({ role: identity.role });
+  const { client, db } = identity;
+  const jobs = await buildPortalJobs(db, client.id);
   return res.status(200).json({
     role: 'client',
     client: { name: client.name, email: client.email, type: client.type, company: client.company || null },
-    jobs: portalJobs,
+    jobs,
+  });
+}
+
+// GET /api/portal/preview?client_id=... — STAFF ONLY. Render any client's portal
+// exactly as they'd see it (staff visibility into the client experience).
+async function handlePreview(req, res, identity) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  if (identity.role !== 'staff') return res.status(403).json({ error: 'staff_only' });
+  const { db } = identity;
+
+  const clientId = new URL(req.url, 'http://localhost').searchParams.get('client_id');
+  if (!clientId) return res.status(400).json({ error: 'client_id required' });
+
+  const { data: client } = await db
+    .from('clients')
+    .select('id, name, email, type, company')
+    .eq('id', clientId)
+    .maybeSingle();
+  if (!client) return res.status(404).json({ error: 'client_not_found' });
+
+  const jobs = await buildPortalJobs(db, client.id);
+  return res.status(200).json({
+    role: 'staff',
+    preview: true,
+    client: { name: client.name, email: client.email, type: client.type, company: client.company || null },
+    jobs,
   });
 }
 
 // GET /api/portal/files?job_id=... — list the job's "Files Sent" Drive folder.
+// Clients: their own jobs only. Staff: any job (for the portal preview).
 async function handleFiles(req, res, identity) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
-  if (identity.role !== 'client') return res.status(403).json({ error: 'forbidden' });
-  const { client, db } = identity;
+  if (identity.role !== 'client' && identity.role !== 'staff') return res.status(403).json({ error: 'forbidden' });
 
   const url = new URL(req.url, 'http://localhost');
-  const job = await getClientJob(db, client.id, url.searchParams.get('job_id'));
+  const job = await getJobForIdentity(identity, url.searchParams.get('job_id'));
   if (!job) return res.status(404).json({ error: 'job_not_found' });
 
   if (!job.drive_files_sent_folder_id || !hasDrive()) {
@@ -114,14 +145,13 @@ async function handleFiles(req, res, identity) {
 
 // GET /api/portal/download?job_id=...&file_id=... — stream a file to the client.
 async function handleDownload(req, res, identity) {
-  if (identity.role !== 'client') return res.status(403).json({ error: 'forbidden' });
-  const { client, db } = identity;
+  if (identity.role !== 'client' && identity.role !== 'staff') return res.status(403).json({ error: 'forbidden' });
 
   const url = new URL(req.url, 'http://localhost');
   const fileId = url.searchParams.get('file_id');
   if (!fileId) return res.status(400).json({ error: 'file_id required' });
 
-  const job = await getClientJob(db, client.id, url.searchParams.get('job_id'));
+  const job = await getJobForIdentity(identity, url.searchParams.get('job_id'));
   if (!job || !job.drive_files_sent_folder_id) return res.status(404).json({ error: 'not_found' });
   if (!hasDrive()) return res.status(503).json({ error: 'drive_not_configured' });
 

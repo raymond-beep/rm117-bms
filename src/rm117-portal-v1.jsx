@@ -37,7 +37,7 @@ const splitAddr = (addr) => {
 const pickDefault = (jobs) =>
   (jobs.find((j) => j.phase !== 'completed' && j.phase !== 'on_hold') || jobs[0])?.job_id;
 
-export default function ClientPortal({ client, jobs = [] }) {
+export default function ClientPortal({ client, jobs = [], preview = false }) {
   const clerk = useClerk();
   const [selectedId, setSelectedId] = useState(() => pickDefault(jobs));
   const selected = jobs.find((j) => j.job_id === selectedId) || jobs[0] || null;
@@ -45,7 +45,12 @@ export default function ClientPortal({ client, jobs = [] }) {
   const displayName = client?.company || client?.name || 'Client';
 
   return (
-    <div className="cp">
+    <div className={`cp${preview ? ' cp-embedded' : ''}`}>
+      {preview && (
+        <div className="cp-preview-bar">
+          Staff preview — viewing the portal as <strong>{displayName}</strong> ({client?.email || 'no email on file'})
+        </div>
+      )}
       <header className="cp-header">
         <div className="cp-head-left">
           <span className="cp-logo">RM117</span>
@@ -55,7 +60,9 @@ export default function ClientPortal({ client, jobs = [] }) {
         <div className="cp-head-right">
           <span className="cp-head-client">{displayName}</span>
           <span className="cp-avatar">{initials(displayName)}</span>
-          <button className="cp-signout" onClick={() => clerk.signOut({ redirectUrl: '/' })}>Sign out</button>
+          {preview
+            ? <span className="cp-preview-tag">PREVIEW</span>
+            : <button className="cp-signout" onClick={() => clerk.signOut({ redirectUrl: '/' })}>Sign out</button>}
         </div>
       </header>
 
