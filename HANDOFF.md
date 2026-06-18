@@ -8,8 +8,12 @@ moved well past that. For current state, read these files in order:
 3. **`CHECKLIST.md`** — full phase-by-phase build checklist with completion status
 4. **`SCHEMA.md`** — Supabase table definitions
 
-## Current status (as of 2026-06-16)
+## Current status (as of 2026-06-17)
 
+- **2026-06-17 (docs):** Clarified that the future client portal authenticates via Clerk by email
+  only — separate from the staff Google OAuth app — so it can't consume the 100 test-user cap or
+  affect staff. Recorded as an invariant in `CLAUDE.md` + across the planning docs (commit `f2ba7dd`,
+  pushed). Git identity set globally to `raymond@rm117.com`.
 - App live at **rm117-bms.vercel.app**; **134 jobs** in Supabase, financials accurate from QBO.
 - Phases 0–4 (core) complete. Priority Inbox (Gmail), `clients` backbone, Google Calendar widget all live.
 - **NEW 2026-06-16:** JobEditor verified · client-link Details tab · payment-safety (QBO dedup) ·

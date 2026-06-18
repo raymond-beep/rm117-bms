@@ -1,9 +1,24 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-16 (full session: JobEditor verified · client-link · payment-safety · Progress Timeline + editable phase dates · data cleanup)
+**Last updated:** 2026-06-17 (short session: clarified client-portal auth is separate from staff Google OAuth · set global git identity)
 
 ---
 
-## ▶ RESUME HERE — state as of 2026-06-16 (end of session)
+## ▶ RESUME HERE — latest: 2026-06-17 (short session)
+
+**Done tonight (committed `f2ba7dd`, pushed to `origin/main`):**
+- **Resolved the client-portal concern:** clients authenticate through Clerk by **email only**
+  (magic link / email code) — **never "Sign in with Google."** They never enter the Google OAuth
+  app, so the portal can **not** consume the Google "test users" (100) cap — that cap is **staff-only**
+  (Gmail/Calendar Priority Inbox). The portal therefore does **not** affect staff Google access, and
+  Clerk's free tier (10,000 MAU) means clients add **$0** auth cost. Recorded as an invariant in
+  `CLAUDE.md` and across `VISION.md`, `PLAN.md`, `CHECKLIST.md`, `ADR-001`, `GMAIL-SETUP.md`.
+- **Reference doc:** `RM117 Client Portal - Auth Notes.docx` saved on the **Desktop** (outside the repo).
+- **Git identity** set globally to `Raymond Arocha <raymond@rm117.com>` — future commits attribute correctly.
+- No code or config changes; docs only. Prior priorities below are unchanged.
+
+---
+
+## ▶ RESUME HERE — state as of 2026-06-16 (end of prior session)
 
 App is live at **rm117-bms.vercel.app**, Supabase-backed, all of today's work **committed to `main`
 and deployed to prod**. Latest commit: `b8fb41e`.
@@ -35,8 +50,11 @@ and deployed to prod**. Latest commit: `b8fb41e`.
 6. **Stage B — outbound QBO + DocuSign** (the "create/send milestone invoices from the app" goal):
    `QBO_*` env vars are set but unused. Needs a quick word with Ang on the milestone schedule.
 7. **Shared RM117 company calendar** — blocked on Ang (she owns the iCloud one); see item A below.
-8. **Client Portal** — deferred by Ray (external-login overhead); the Progress Timeline covers the
-   core need for now. All Phase-7 tables + `clients.clerk_user_id` exist if/when revisited.
+8. **Client Portal** — deferred by Ray; the Progress Timeline covers the core need for now. The
+   **staff-impact worry is now resolved** (2026-06-17): clients use Clerk email login, separate from
+   the Google OAuth app, so the portal can't touch the 100 test-user cap or affect staff. The only
+   remaining reason to defer is onboarding/login-management effort — not any limit or cost. All
+   Phase-7 tables + `clients.clerk_user_id` exist if/when revisited.
 
 **Today's commits (on `main`):** `e98877f` client-link + payment-safety · `8a21050` Progress Timeline
 · `74673c8` cleanup (inbox/logs/linker) · `766d2b6` bulk client creation · `b8fb41e` editable phase dates
