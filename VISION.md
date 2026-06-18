@@ -14,8 +14,13 @@ so keep IDs/config in env vars; never hardcode firm-specific values in component
 
 ## Users & Access
 Staff (Ang, Tom, Nicole, Danielle, Ray) = full edit, no per-row perms yet.
-Clients = a scoped `client` role in Clerk; log in with the email on file and see ONLY
-their own job(s). Clients are real estate investors/contractors, often with multiple jobs.
+Clients = a scoped `client` role in Clerk; log in with the email on file (magic link / email
+code — **never "Sign in with Google"**) and see ONLY their own job(s). Clients are real estate
+investors/contractors, often with multiple jobs.
+- **The client portal does not affect staff.** Client logins go through Clerk (free tier covers
+  10,000 monthly active users), not the Google OAuth app. The Google "test users" (100) limit
+  only ever applies to **staff** who connect Gmail/Calendar for the Priority Inbox — clients
+  never enter that app and so can never use up a staff slot.
 
 ## Client Portal + Document Vault
 - One portal per client, showing all their jobs. Account created **at contract signing**

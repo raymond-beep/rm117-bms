@@ -14,7 +14,9 @@ QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
 - **Data (seed/fallback):** Google Sheets API, service account **Viewer-only**, through Phase 3
   (read for the import; never written by the app)
 - **Files:** Google Drive (per-job *Files Sent* / *Files Received*); backend brokers all access
-- **Auth:** Clerk (staff today; `client` role in Phase 7)
+- **Auth:** Clerk (staff today; `client` role in Phase 7). **Clients authenticate by email
+  (magic link / email code) — never "Sign in with Google."** Client auth is entirely separate
+  from the Google OAuth app, so the portal does **not** touch the Google "test users" (100) cap.
 - **Email:** Resend (portal notifications + inbound reply bridge; Postmark fallback)
 - **E-sign / invoicing:** DocuSign (proposals); QuickBooks Online API (outbound invoices)
 - **Deployment:** Vercel (auto-deploys from `main`)
@@ -65,6 +67,9 @@ Ray opted to hold the external client portal (login-management overhead) and ins
 progress to staff: the JobEditor **Progress tab** shows a phase ladder (reached dates, editable) +
 a "Next milestone" date; the dashboard shows a **"Coming up"** strip. Portal tables still exist for
 a future revisit.
+> **Clarified (2026-06-17):** the portal will **not** affect staff use. Clients log in via Clerk
+> by email only and never touch the Google OAuth app, so they can't consume the 100 test-user cap.
+> The remaining reason to defer is onboarding/login-management effort, not any staff-side limit.
 
 ## Job phases (single `phase` field, in order — no separate status)
 Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold → Completed
@@ -86,6 +91,10 @@ Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold
   the app reads from Supabase and never writes back to the Sheet.
 - Clients never receive Google Drive permissions; the backend brokers every file access.
 - A client must never access another client's jobs, files, or messages.
+- **Clients authenticate by email only (Clerk magic link / email code) — never via Google.**
+  The Google OAuth app (Gmail/Calendar, "Testing" mode, 100 test-user cap) is **staff-only**;
+  clients never enter it, so the client portal can never consume a test-user slot or affect staff
+  Google access. Do **not** offer "Sign in with Google" on the client portal.
 > Superseded first-gen rules: "Sheet is the source of truth," "never write the Outstanding
 > column," "never touch the Zapier Lookup tab," "dashboard behavior is frozen." Supabase is now
 > truth; Zapier writes to a webhook; the dashboard data layer is intentionally swapped in Phase 3.

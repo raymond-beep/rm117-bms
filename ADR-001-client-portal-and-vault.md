@@ -32,6 +32,14 @@ Google Drive and the backend service account brokers all client access (Option 2
 approach all stand. The Job-ID-as-universal-key discipline and the client-isolation invariant
 are unchanged. **Phase numbering changed** (billing automation moved from Phase 6 → Phase 8).
 
+**Clarified (2026-06-17) — the portal does not affect staff Google access.** Clients authenticate
+through the Clerk `client` role by **email only (magic link / email code), never "Sign in with
+Google."** The Google OAuth app and its "Testing"-mode **100 test-user cap are staff-only** — that
+cap is consumed solely by staff who connect Gmail/Calendar for the Priority Inbox. Clients never
+enter the Google OAuth app, so the portal can never use up a test-user slot or reduce staff Google
+access. Clerk's free tier (10,000 monthly active users) means clients add **$0** in auth cost,
+consistent with the cost table below ("Clients pay nothing — they log in with the email on file").
+
 Everything below is preserved as the original decision record and its reasoning.
 
 ---

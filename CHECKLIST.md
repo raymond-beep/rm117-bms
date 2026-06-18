@@ -306,8 +306,11 @@
 > **DEFERRED (2026-06-16):** Ray opted to hold the portal (external-login management overhead) and
 > shipped the internal **Progress Timeline** as the no-auth alternative for job-progress visibility.
 > All five Phase-7 tables exist; `clients.clerk_user_id` + the Details client-link are ready when revisited.
+> **No staff impact (clarified 2026-06-17):** clients log in via Clerk by email only — never the
+> Google OAuth app — so the portal can't consume the Google 100 test-user cap (that's staff-only,
+> for Gmail/Calendar). Clerk free tier = 10,000 MAU, so clients add $0 auth cost.
 
-- [ ] Clerk `client` role: magic-link login with email on file (no password)
+- [ ] Clerk `client` role: magic-link login with email on file (no password) — **email only, no "Sign in with Google"**
 - [ ] Portal landing: client sees only their own job(s) — phase, outstanding balance
 - [ ] Document vault: per-job file list from Drive *Files Sent* folder; clients can download
 - [ ] Per-job messaging: one thread per job; firm message → client email notification

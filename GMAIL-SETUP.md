@@ -24,6 +24,10 @@ nothing breaks.
      (later also `https://www.googleapis.com/auth/calendar.readonly`)
    - **Test users** → add `raymond@rm117.com` and `angelena@rm117.com`
      (External apps in "Testing" only work for listed test users — that's fine for 2 people.)
+     > **This 100 test-user cap is STAFF-ONLY.** It applies only to people who connect Gmail/Calendar
+     > through this Google OAuth app (i.e. staff using the Priority Inbox). **Future portal clients
+     > never enter this app** — they log into the portal via Clerk by email — so they can never use
+     > up a test-user slot. The client portal does not affect staff Google access. See CLAUDE.md / VISION.md.
 4. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
    - Type: **Web application**
    - Authorized redirect URI: **paste the one Clerk gives you in Part B step 2** (do Part B first

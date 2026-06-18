@@ -156,7 +156,11 @@ The full second-generation data model. Design it right once. See **SCHEMA.md** f
 - **Done when:** Forefront tracking is fully in the app and the Sheet tab is redundant.
 
 ## Phase 7 — Client portal
+> **Does not affect staff:** clients authenticate through Clerk by email only — never the Google
+> OAuth app — so the portal never consumes a Google "test user" slot (that 100 cap is staff-only,
+> for Gmail/Calendar). Clerk's free tier covers 10,000 monthly active users, so clients add $0 auth cost.
 - [ ] Clerk `client` role — clients sign in with the email on file (magic link, no password).
+      **Email auth only; do not enable "Sign in with Google" for the `client` role.**
 - [ ] Portal landing: client sees only their own job(s) — details, current phase, outstanding.
 - [ ] Document vault: per-job file list from the Drive *Files Sent* folder (service account);
       clients download. Upload into *Files Received* is the stretch goal (hide button for view-only).
