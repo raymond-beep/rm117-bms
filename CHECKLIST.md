@@ -1,5 +1,5 @@
 # RM117 BMS — Master Build Checklist
-**Last updated:** 2026-06-16 (JobEditor verified · client-link · payment-safety · Progress Timeline shipped)
+**Last updated:** 2026-06-18 (Phase 7 portal + document vault + staff preview shipped; portal data-refinement list opened)
 **Working folder:** `RM117 App` (renamed 2026-06-16; was `RM117-App-handoff copy`)
 **Status key:** `[ ]` not started · `[~]` in progress · `[x]` done · `[!]` blocked
 
@@ -310,14 +310,36 @@
 > Google OAuth app — so the portal can't consume the Google 100 test-user cap (that's staff-only,
 > for Gmail/Calendar). Clerk free tier = 10,000 MAU, so clients add $0 auth cost.
 
-- [ ] Clerk `client` role: magic-link login with email on file (no password) — **email only, no "Sign in with Google"**
-- [ ] Portal landing: client sees only their own job(s) — phase, outstanding balance
-- [ ] Document vault: per-job file list from Drive *Files Sent* folder; clients can download
-- [ ] Per-job messaging: one thread per job; firm message → client email notification
+> **SHIPPED 2026-06-18** (commits `a0f5e2f` → `629f518`, deployed prod): portal redesigned to the
+> Architectural mockup, document vault live via the Drive service-account broker, staff-side preview.
+> Built money-free by design (no totals/payments reach the client). Messaging is the remaining slice.
+
+- [x] Clerk `client` role: email-code login (no password) — **email only, no "Sign in with Google"**
+- [x] Portal landing: client sees only their own job(s) — switcher + horizontal phase stepper + next milestone (no money, by design)
+- [x] Document vault: per-job file list from Drive *Files Sent* folder; clients can download (backend broker; `jobs.drive_files_sent_folder_id`)
+- [x] Staff-side **portal preview** — view any client's portal from the staff `/portal` route
+- [ ] Per-job messaging: one thread per job; firm message → client email notification *(in-portal first; email later)*
 - [ ] Inbound email reply → appended to portal thread (validate Resend inbound parsing first)
 - [ ] Onboarding flow: intake → proposal → DocuSign → on signing → Supabase creates client account + sends login invite
-- [ ] Every API call verifies caller owns that Job ID — no cross-client data leakage
-- [ ] Clients never get Google Drive permissions — backend brokers all file access
+- [x] Every API call verifies caller owns that Job ID — no cross-client data leakage (`api/_lib/portal-auth.js`)
+- [x] Clients never get Google Drive permissions — backend brokers all file access
+
+### Portal data refinement — small fixes (opened 2026-06-18)
+> Surfaced by `scripts/audit-drive-mappings.js` (folder↔job name check) and portal previewing.
+> 75/85 mapped folders confirmed correct; the items below are the long tail.
+
+- [ ] **`23_047_FF_Jones`** — was mis-mapped to Drive folder `23_047_Needle_Ripley` (number conflict);
+  **UNLINKED 2026-06-18** pending the correct Jones folder. Get the right folder link → set + re-audit.
+- [ ] **`25_026_Anutnes_…`** — Job ID is misspelled (folder is correctly `Antunes`). Renaming the Job ID
+  is sensitive — it must match the **QBO Customer Display Name** — so fix in both places together.
+- [ ] **`25_054_McCalla`** — folder corrected to `25_055_McCalla` (2026-06-18 — Drive↔app number offset).
+  Client email is `katie.cowan@rate.com` (a mortgage contact, not the homeowner) → fix the client email.
+- [ ] **37 jobs** have a project folder but **no "Files Sent" subfolder** — create it in Drive, then
+  `node scripts/map-drive-folders.js --apply` (idempotent) auto-links them.
+- [ ] **7 linked-but-empty** *Files Sent* folders — will populate as files are added (no action needed).
+- [ ] **~120 Drive folders have no app job** (mostly 2023–24) — import those jobs if old clients ever need portal access.
+- [ ] **Client email data pass** — some `clients.email` values are referrers/brokers, not the client.
+- [ ] **`25_044` Luebenow/Lubenow** spelling variant — folder is correct; cosmetic only.
 
 ### Phase 7 done when:
 - Client logs in, views job, downloads files, sends/receives messages through portal
