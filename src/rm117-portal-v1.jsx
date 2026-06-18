@@ -42,6 +42,9 @@ export default function ClientPortal({ client, jobs = [], preview = false }) {
   const [selectedId, setSelectedId] = useState(() => pickDefault(jobs));
   const selected = jobs.find((j) => j.job_id === selectedId) || jobs[0] || null;
   const activeCount = jobs.filter((j) => j.phase !== 'completed').length;
+  // Avoid "0 projects" for a client whose work is all completed.
+  const projectCount = activeCount || jobs.length;
+  const projectWord = `${activeCount ? 'active ' : ''}project${projectCount === 1 ? '' : 's'}`;
   const displayName = client?.company || client?.name || 'Client';
 
   return (
@@ -69,7 +72,7 @@ export default function ClientPortal({ client, jobs = [], preview = false }) {
       <div className="cp-body">
         <h1 className="cp-welcome">Welcome back, {firstName(client?.name) || displayName}.</h1>
         <p className="cp-sub">
-          You have {activeCount} {activeCount === 1 ? 'project' : 'projects'} with Room 117 Architecture &amp; Design.
+          You have {projectCount} {projectWord} with Room 117 Architecture &amp; Design.
         </p>
 
         {jobs.length === 0 ? (

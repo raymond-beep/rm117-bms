@@ -16,11 +16,23 @@ export function hasDrive() {
   return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY);
 }
 
+// Normalize the service-account private key across environments. Locally dotenv
+// strips the surrounding quotes from .env; Vercel does NOT, so the runtime value
+// can arrive wrapped in quotes with literal "\n" — which makes OpenSSL reject it
+// (error:1E08010C DECODER unsupported). Strip quotes, then unescape newlines.
+function privateKey() {
+  let k = (process.env.GOOGLE_PRIVATE_KEY || '').trim();
+  if (k.length >= 2 && (k[0] === '"' || k[0] === "'") && k[k.length - 1] === k[0]) {
+    k = k.slice(1, -1);
+  }
+  return k.replace(/\\n/g, '\n');
+}
+
 function drive() {
   if (_drive) return _drive;
   const auth = new google.auth.JWT({
     email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    key: (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n'),
+    key: privateKey(),
     scopes: SCOPES,
   });
   _drive = google.drive({ version: 'v3', auth });
