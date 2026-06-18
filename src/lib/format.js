@@ -2,26 +2,36 @@
 
 export const PHASE_LABELS = {
   potential: 'Potential',
-  survey_zoning: 'Survey/Zoning',
+  survey_zoning: 'Survey + Zoning Analysis + Schematics',
   design_phase: 'Design Phase',
   cd_phase: 'CD Phase',
-  active: 'Active',
+  active: 'Outgoing',
   on_hold: 'On Hold',
   completed: 'Completed',
 };
 
+// Grouping/display order, top → bottom (Ang's BMS sections):
+// Outgoing, CD Phase, Design Phase, Survey + Zoning + Schematics, Potential,
+// then On Hold and Completed. The internal phase keys are unchanged — only the
+// display order and labels above. (The chronological lifecycle order — used by
+// the Progress ladder — runs the other way: Potential → … → Outgoing → Completed.)
 export const PHASE_ORDER = [
-  'potential',
-  'survey_zoning',
-  'design_phase',
-  'cd_phase',
   'active',
+  'cd_phase',
+  'design_phase',
+  'survey_zoning',
+  'potential',
   'on_hold',
   'completed',
 ];
 
 // Pipeline = everything not completed and not on hold.
-export const PIPELINE_PHASES = ['potential', 'survey_zoning', 'design_phase', 'cd_phase', 'active'];
+export const PIPELINE_PHASES = ['active', 'cd_phase', 'design_phase', 'survey_zoning', 'potential'];
+
+// Chronological lifecycle a job moves through (the Progress ladder / portal
+// timeline) — runs forward, opposite the grouping order above. On-hold sits
+// outside the ladder (it's a pause, not a stage).
+export const PHASE_LADDER = ['potential', 'survey_zoning', 'design_phase', 'cd_phase', 'active', 'completed'];
 
 export function phaseLabel(job) {
   if (job.phase_override) return job.phase_override; // manual label wins

@@ -32,6 +32,22 @@ export async function getUserId(req) {
   }
 }
 
+// Fetch the signed-in user's primary verified email from Clerk.
+// Used by the client portal to resolve a Clerk user to a `clients` record.
+// Returns a lowercased email string, or null if it can't be determined.
+export async function getUserEmail(userId) {
+  try {
+    const user = await clerk().users.getUser(userId);
+    const list = user?.emailAddresses || [];
+    const primary =
+      list.find((e) => e.id === user.primaryEmailAddressId) || list[0] || null;
+    const email = primary?.emailAddress || null;
+    return email ? email.toLowerCase().trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 // Fetch the user's Google OAuth access token from Clerk.
 // Clerk v5 provider id is "oauth_google"; older instances used "google".
 // Returns { token } or { error: 'google_not_connected' }.

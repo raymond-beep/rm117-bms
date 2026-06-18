@@ -19,6 +19,17 @@ const STOP = new Set([
 
 const JOBID_PREFIX = /^\d{2}_\d{3}_/;
 
+// Email aliases: alternate addresses that belong to an existing client, mapped to
+// that client's canonical `clients.email`. Resolved before any matching, so mail
+// from these addresses tags to the same client + jobs as the canonical address —
+// even when the local-part/domain/display-name wouldn't otherwise match.
+// The DaSilva Group is one client (Gabe DaSilva, investor); these are its people.
+const EMAIL_ALIASES = new Map([
+  // → Gabe DaSilva (canonical client email = clientcare@amandanadiagroup.com)
+  ['peter@dasilvagroupinc.com', 'clientcare@amandanadiagroup.com'], // Peter
+  ['gabe.dasilva@gmail.com', 'clientcare@amandanadiagroup.com'],    // Gabe (personal)
+]);
+
 // Automated / role / bulk senders that must NEVER be tagged as a client via the
 // surname fallback (e.g. "ClickUp Team", "no-reply@…"). Exact-email match against
 // the clients table still wins — a real client emailing from their own address is
@@ -107,7 +118,9 @@ export function buildMatcher(jobs, clients = []) {
 
   return {
     match(sender) {
-      const email = (sender.email || '').toLowerCase().trim();
+      const raw = (sender.email || '').toLowerCase().trim();
+      // Resolve known alias addresses to the client's canonical email first.
+      const email = EMAIL_ALIASES.get(raw) || raw;
       if (email && emailToClient.has(email)) {
         const hit = emailToClient.get(email);
         return { isClient: true, label: hit.label, via: 'email', jobs: hit.jobs };
