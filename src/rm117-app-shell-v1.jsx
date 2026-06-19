@@ -71,11 +71,12 @@ function NoAccess() {
   );
 }
 
-// Bottom tab bar (mobile) — the live workspace surfaces only.
+// Bottom tab bar (mobile) — the live workspace surfaces.
 const MOBILE_TABS = [
   { to: '/', label: 'Home', icon: '⌂', end: true },
   { to: '/bms', label: 'Jobs', icon: '▤' },
   { to: '/forefront', label: 'Forefront', icon: '◈' },
+  { to: '/portal', label: 'Portal', icon: '◱' },
 ];
 
 // "Drafting + data" nav: Templates and Client Portal are first-class items
@@ -94,6 +95,7 @@ const NAV_GROUPS = [
 ];
 
 export default function AppShell() {
+  const [themeSheet, setThemeSheet] = useState(false);
   return (
     <>
       <SignedOut>
@@ -133,7 +135,17 @@ export default function AppShell() {
           </aside>
           <header className="mobile-topbar">
             <div className="brand">RM117<small>Architecture &amp; Design</small></div>
-            <UserButton />
+            <div className="mobile-topbar-actions">
+              <button className="mobile-appearance" onClick={() => setThemeSheet(true)} aria-label="Appearance">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="9" />
+                  <circle cx="8.5" cy="10" r="1.2" fill="currentColor" stroke="none" />
+                  <circle cx="12" cy="8" r="1.2" fill="currentColor" stroke="none" />
+                  <circle cx="15.5" cy="10" r="1.2" fill="currentColor" stroke="none" />
+                </svg>
+              </button>
+              <UserButton />
+            </div>
           </header>
           <div className="content">
             <TopBar />
@@ -157,10 +169,51 @@ export default function AppShell() {
               </NavLink>
             ))}
           </nav>
+          {themeSheet && <MobileThemeSheet onClose={() => setThemeSheet(false)} />}
         </div>
         </RoleGate>
       </SignedIn>
     </>
+  );
+}
+
+// Mobile "Appearance" bottom sheet — the only way to switch themes on a phone
+// (the sidebar/Settings nav is hidden there). Reuses the Settings theme cards.
+function MobileThemeSheet({ onClose }) {
+  const { theme, setTheme } = useTheme();
+  return (
+    <div className="sheet-overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Appearance">
+        <div className="sheet-grip" />
+        <div className="sheet-head">
+          <div>
+            <h2 className="sheet-title">Appearance</h2>
+            <div className="sheet-sub">Type stays IBM Plex</div>
+          </div>
+          <button className="drawer-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        <div className="set-theme-grid">
+          {THEMES.map((t) => {
+            const active = t.key === theme;
+            return (
+              <button key={t.key} className={`set-theme-card${active ? ' active' : ''}`} onClick={() => { setTheme(t.key); onClose(); }}>
+                <div className="set-theme-preview" style={{ background: t.bg }}>
+                  <div className="pv-bar" style={{ background: t.swatch, width: '42%' }} />
+                  <div className="pv-row">
+                    <div className="pv-dot" style={{ background: t.swatch }} />
+                    <div className="pv-line" style={{ background: t.mode === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)' }} />
+                  </div>
+                </div>
+                <div className="set-theme-foot">
+                  <span className="set-theme-name">{t.label}</span>
+                  {active ? <span className="check">✓</span> : <span className="set-theme-mode">{t.mode}</span>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 

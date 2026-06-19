@@ -1,17 +1,34 @@
-// RM117 Forefront Commissions view — Phase 6.
-// Lists all FF jobs with commission totals, amount paid, outstanding.
-// Drawer for logging commission payments per job.
+// RM117 Forefront — commission tracker for referred / co-brokered jobs.
+// Stat strip (booked / paid / owed) + a status-grouped ledger. Each row opens a
+// drawer to log a commission payout to the partner.
 import React, { useEffect, useState, useMemo } from 'react';
 import { money, shortDate, PHASE_LABELS } from './lib/format.js';
 
-const PAY_METHODS = ['check', 'venmo', 'zelle', 'qb', 'cash', 'other'];
+const PAY_METHODS = ['check', 'venmo', 'zelle', 'cash', 'other'];
+
+// Derive the per-row commission figures + which ledger group it belongs to.
+// booked = total_commission; owed = booked − paid. A row with no commission
+// amount yet is "accruing" (job has no billable contract value set).
+function derive(c) {
+  const booked = Number(c.total_commission || 0);
+  const paid = Number(c.amount_paid || 0);
+  const owed = Math.max(0, booked - paid);
+  const group = booked <= 0 ? 'accruing' : owed > 0 ? 'outstanding' : 'paid';
+  return { booked, paid, owed, group };
+}
+
+// Ledger groups, in display order. label + status-dot tone.
+const GROUPS = [
+  { key: 'outstanding', label: 'Outstanding commission', tone: 'warn' },
+  { key: 'paid', label: 'Paid out', tone: 'success' },
+  { key: 'accruing', label: 'Accruing — not yet billable', tone: 'muted' },
+];
 
 export default function ForefrountView() {
   const [commissions, setCommissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [drawer, setDrawer] = useState(null); // commission row
-  const [statusFilter, setStatusFilter] = useState('active');
 
   async function load() {
     setLoading(true);
@@ -30,144 +47,130 @@ export default function ForefrountView() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = useMemo(() => {
-    if (statusFilter === 'all') return commissions;
-    return commissions.filter((c) => c.status === statusFilter);
-  }, [commissions, statusFilter]);
+  const rows = useMemo(() => commissions.map((c) => ({ ...c, ...derive(c) })), [commissions]);
 
   const stats = useMemo(() => {
-    const active = commissions.filter((c) => c.status !== 'closed');
-    const totalOwed = active.reduce((s, c) => s + Number(c.total_commission || 0), 0);
-    const totalPaid = active.reduce((s, c) => s + Number(c.amount_paid || 0), 0);
+    const booked = rows.reduce((s, r) => s + r.booked, 0);
+    const paid = rows.reduce((s, r) => s + r.paid, 0);
+    const owed = rows.reduce((s, r) => s + r.owed, 0);
     return {
-      count: active.length,
-      totalOwed,
-      totalPaid,
-      outstanding: totalOwed - totalPaid,
+      booked,
+      paid,
+      owed,
+      paidPct: booked > 0 ? Math.round((paid / booked) * 100) : 0,
+      activeReferrals: rows.filter((r) => r.booked > 0).length,
+      flaggedTotal: rows.length,
+      owedCount: rows.filter((r) => r.owed > 0).length,
     };
-  }, [commissions]);
+  }, [rows]);
+
+  const byGroup = useMemo(() => {
+    const m = { outstanding: [], paid: [], accruing: [] };
+    for (const r of rows) m[r.group].push(r);
+    return m;
+  }, [rows]);
 
   return (
     <div className="page">
       <div className="page-head">
         <div>
-          <div className="eyebrow">Forefront</div>
-          <h1 className="greeting">Commissions</h1>
+          <div className="eyebrow">Commission tracker</div>
+          <h1 className="greeting">Forefront</h1>
+        </div>
+        <div className="page-meta">
+          Commission tracking<br />
+          Referred &amp; co-brokered work
         </div>
       </div>
 
       <div className="stat-strip">
+        {/* Active referrals */}
         <div className="stat-cell">
-          <div className="label">Active FF jobs</div>
-          <div className="value">{stats.count}</div>
-          <div className="hint">with commission tracking</div>
+          <div className="stat-top"><div className="label">Active<br />referrals</div></div>
+          <div className="value">{stats.activeReferrals}<span className="unit">live</span></div>
+          <div className="hint">{stats.flaggedTotal} flagged total</div>
         </div>
+
+        {/* Commission booked */}
         <div className="stat-cell">
-          <div className="label">Total owed</div>
-          <div className="value">{money(stats.totalOwed)}</div>
-          <div className="hint">sum of all commissions</div>
+          <div className="stat-top"><div className="label">Commission<br />booked</div></div>
+          <div className="value">{money(stats.booked)}</div>
+          <div className="hint">total commission booked</div>
         </div>
+
+        {/* Paid out */}
         <div className="stat-cell">
-          <div className="label">Total paid</div>
-          <div className="value">{money(stats.totalPaid)}</div>
-          <div className="hint">commission payments logged</div>
-        </div>
-        <div className="stat-cell">
-          <div className="label">Outstanding</div>
-          <div className="value" style={{ color: stats.outstanding > 0 ? 'var(--warn)' : 'var(--success)' }}>
-            {money(stats.outstanding)}
+          <div className="stat-top">
+            <div className="label">Paid out</div>
+            <span className="stat-delta up">{stats.paidPct}%</span>
           </div>
-          <div className="hint">commissions still owed</div>
+          <div className="value">{money(stats.paid)}</div>
+          <div className="stat-visual">
+            <div className="progbar"><div className="progbar-fill ok" style={{ width: `${Math.min(100, stats.paidPct)}%` }} /></div>
+          </div>
+          <div className="hint">of {money(stats.booked)} booked</div>
+        </div>
+
+        {/* Outstanding */}
+        <div className="stat-cell">
+          <div className="stat-top">
+            <div className="label">Outstanding</div>
+            {stats.owedCount > 0 && <span className="stat-delta warn">{stats.owedCount}</span>}
+          </div>
+          <div className="value warn">{money(stats.owed)}</div>
+          <div className="hint">commission owed to partners</div>
         </div>
       </div>
 
-      <div className="toolbar">
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['active', 'completed', 'all'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={'view-btn' + (statusFilter === s ? ' active' : '')}
-              style={{ textTransform: 'capitalize' }}
-            >
-              {s === 'all' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
-            </button>
-          ))}
+      {loading ? (
+        <div className="card"><div className="empty">Loading commissions…</div></div>
+      ) : error ? (
+        <div className="card"><div className="empty">Error: {error}</div></div>
+      ) : rows.length === 0 ? (
+        <div className="card"><div className="empty">No Forefront commission records yet.</div></div>
+      ) : (
+        <div className="ff-ledger">
+          <div className="ff-colhead">
+            <span>Job</span>
+            <span>Partner</span>
+            <span className="r">Commission</span>
+            <span className="r">Owed</span>
+            <span>Status</span>
+          </div>
+          {GROUPS.map(({ key, label, tone }) => {
+            const groupRows = byGroup[key];
+            if (groupRows.length === 0) return null;
+            return (
+              <div key={key} className="ff-group">
+                <div className="ff-group-head">
+                  <span className={`ff-dot ${tone}`} />
+                  {label}
+                  <span className="ff-count">{groupRows.length}</span>
+                </div>
+                {groupRows.map((r) => {
+                  const job = r.jobs || {};
+                  return (
+                    <div key={r.id} className="ff-row" onClick={() => setDrawer(r)}>
+                      <div className="ff-job">
+                        <div className="ff-client">{job.client_name || r.job_id}</div>
+                        <div className="ff-phase">{PHASE_LABELS[job.phase] || job.phase || '—'}</div>
+                      </div>
+                      <div className="ff-partner">Forefront</div>
+                      <div className="ff-comm r">{r.booked > 0 ? money(r.booked) : '—'}</div>
+                      <div className="ff-owed r">{r.owed > 0 ? money(r.owed) : '—'}</div>
+                      <div>
+                        {r.group === 'paid' && <span className="ff-pill success"><span className="ff-dot success" />Paid</span>}
+                        {r.group === 'outstanding' && <span className="ff-pill warn"><span className="ff-dot warn" />Commission due</span>}
+                        {r.group === 'accruing' && <span className="ff-pill muted"><span className="ff-dot muted" />Accruing</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
-      </div>
-
-      <div className="card">
-        {loading ? (
-          <div className="empty">Loading commissions…</div>
-        ) : error ? (
-          <div className="empty">Error: {error}</div>
-        ) : filtered.length === 0 ? (
-          <div className="empty">No {statusFilter !== 'all' ? statusFilter : ''} commission records found.</div>
-        ) : (
-          <table className="jobs-table">
-            <thead>
-              <tr>
-                <th>Job / Client</th>
-                <th>Phase</th>
-                <th className="num">Commission</th>
-                <th className="num">Paid</th>
-                <th className="num">Outstanding</th>
-                <th>Last payment</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => {
-                const outstanding = Number(c.total_commission || 0) - Number(c.amount_paid || 0);
-                const history = Array.isArray(c.payment_history) ? c.payment_history : [];
-                const lastPayment = history.length > 0 ? history[history.length - 1] : null;
-                const job = c.jobs || {};
-                return (
-                  <tr key={c.id} onClick={() => setDrawer(c)} style={{ cursor: 'pointer' }}>
-                    <td>
-                      <div style={{ fontWeight: 600 }}>{job.client_name || '—'}</div>
-                      <div className="muted" style={{ fontSize: 12 }}>{c.job_id}</div>
-                      {job.address && <div className="muted" style={{ fontSize: 12 }}>{job.address}</div>}
-                    </td>
-                    <td>
-                      <span className={'badge badge-' + (job.phase || 'potential')}>
-                        {PHASE_LABELS[job.phase] || job.phase || '—'}
-                      </span>
-                    </td>
-                    <td className="num">{money(c.total_commission)}</td>
-                    <td className="num">{money(c.amount_paid)}</td>
-                    <td className={'num ' + (outstanding > 0 ? 'outstanding-pos' : 'outstanding-zero')}>
-                      {money(outstanding)}
-                    </td>
-                    <td className="muted">
-                      {lastPayment ? (
-                        <>
-                          {money(lastPayment.amount)} · {lastPayment.method}
-                          <div style={{ fontSize: 12 }}>{shortDate(lastPayment.date)}</div>
-                        </>
-                      ) : '—'}
-                    </td>
-                    <td>
-                      {c.status === 'active' && (
-                        <button
-                          className="btn btn-primary"
-                          style={{ fontSize: 12, padding: '4px 10px' }}
-                          onClick={(e) => { e.stopPropagation(); setDrawer(c); }}
-                        >
-                          Log payment
-                        </button>
-                      )}
-                      {c.status === 'completed' && (
-                        <span className="badge" style={{ background: '#e6f4ed', color: 'var(--success)', fontSize: 11 }}>Paid in full</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+      )}
 
       {drawer && (
         <CommissionDrawer
@@ -258,9 +261,9 @@ function CommissionDrawer({ commission, onClose, onLogged }) {
             </>
           )}
 
-          {commission.status === 'active' && (
+          {outstanding > 0 ? (
             <>
-              <h3 style={{ fontSize: 13, marginBottom: 10 }}>Log a payment</h3>
+              <h3 style={{ fontSize: 13, marginBottom: 10 }}>Log a commission payout</h3>
               <div className="field-row">
                 <div className="field">
                   <label>Amount ($)</label>
@@ -275,9 +278,15 @@ function CommissionDrawer({ commission, onClose, onLogged }) {
               </div>
               <div className="field">
                 <label>Method</label>
-                <select value={form.method} onChange={(e) => setForm((f) => ({ ...f, method: e.target.value }))}>
-                  {PAY_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
+                <div className="chip-row">
+                  {PAY_METHODS.map((m) => (
+                    <button key={m} type="button"
+                      className={`chip${form.method === m ? ' active' : ''}`}
+                      onClick={() => setForm((f) => ({ ...f, method: m }))}>
+                      {m}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="field">
                 <label>Notes</label>
@@ -285,15 +294,21 @@ function CommissionDrawer({ commission, onClose, onLogged }) {
                   onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
               </div>
             </>
+          ) : (
+            <div className="placeholder-note">
+              {Number(commission.total_commission || 0) > 0
+                ? 'This commission is paid in full.'
+                : 'No commission amount set yet — add a contract value / commission on the job first.'}
+            </div>
           )}
         </div>
 
-        {commission.status === 'active' && (
+        {outstanding > 0 && (
           <div className="drawer-foot">
             {error && <span className="error">{error}</span>}
             <button className="btn" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary" onClick={logPayment} disabled={saving || !form.amount}>
-              {saving ? 'Saving…' : 'Log payment'}
+              {saving ? 'Saving…' : `Log ${form.amount ? money(Number(form.amount)) + ' ' : ''}payout`}
             </button>
           </div>
         )}
