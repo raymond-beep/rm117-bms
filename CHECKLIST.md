@@ -319,8 +319,11 @@
 - [x] Portal landing: client sees only their own job(s) — switcher + horizontal phase stepper + next milestone (no money, by design)
 - [x] Document vault: per-job file list from Drive *Files Sent* folder; clients can download (backend broker; `jobs.drive_files_sent_folder_id`)
 - [x] Staff-side **portal preview** — view any client's portal from the staff `/portal` route
-- [~] Per-job messaging: **in-portal DONE** (commit `c3de2e5`) — client panel + staff JobEditor Messages tab, one thread per job in Supabase. **Email notification still TODO** (needs Resend).
-- [ ] Inbound email reply → appended to portal thread (validate Resend inbound parsing first)
+- [~] Per-job messaging: **in-portal DONE** (commit `c3de2e5`) — client panel + staff JobEditor Messages tab, one thread per job in Supabase. **Email notification DEFERRED** (see below).
+- [!] **Email bridge DEFERRED (2026-06-18):** `RESEND_API_KEY` stored (`.env` + Vercel). Blocked — rm117.com
+  DNS lives on **Wix under a different account** than Ray's. Low priority: outbound mostly duplicates the
+  firm's existing Gmail client comms. Enable later by accessing that Wix account + verifying `send.rm117.com`.
+- [ ] Inbound email reply → appended to portal thread (validate Resend inbound parsing first) — after email bridge
 - [ ] Onboarding flow: intake → proposal → DocuSign → on signing → Supabase creates client account + sends login invite
 - [x] Every API call verifies caller owns that Job ID — no cross-client data leakage (`api/_lib/portal-auth.js`)
 - [x] Clients never get Google Drive permissions — backend brokers all file access

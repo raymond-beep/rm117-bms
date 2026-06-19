@@ -18,13 +18,19 @@ rules; still one function). Client scoped to own job, staff any job. **Email bri
 (needs Resend; `notifications` table ready). Demo thread seeded on test job `00_999_PortalTest`.
 
 ### ⏭ What's left for the portal
-- **Email bridge** (outbound notify on new message + inbound reply parsing) — needs a Resend account
-  + rm117.com DNS. Then add a notify call in `send` and an inbound webhook action.
+- **Email bridge — DEFERRED (2026-06-18, Ray's call).** `RESEND_API_KEY` is stored in `.env` + Vercel
+  (sending-only key, on `raymond@rm117.com`). **Blocker:** rm117.com DNS is hosted on **Wix** but under a
+  **different Wix account** than Ray's (his Wix account doesn't list the domain). Decided not worth it now —
+  outbound mostly powers messaging, which overlaps the firm's existing Gmail client comms + Priority Inbox.
+  To enable later: get into the Wix account that holds rm117.com → add `send.rm117.com` in Resend → paste its
+  3 DNS records into Wix → add a Resend notify call in the `send` action. Inbound replies = separate (needs MX).
 - **Document uploads** (Files Received) — currently "coming soon"; needs a Drive write-scope + upload action.
-- **Delete portal test data** when done (see below).
 - **Portal data refinement** — see CHECKLIST "Portal data refinement" (23_047 Jones correct folder,
   Anutnes→Antunes Job ID typo, McCalla client email, 37 jobs needing a Files Sent subfolder, etc.).
 - **Staff data APIs still unauthenticated** (`/api/jobs` etc.) — gate before the portal is truly public.
+
+> **Portal test data DELETED 2026-06-18** (client + `00_99x_PortalTest` jobs + thread). The Clerk login
+> `raymond+portaltest@rm117.com` still exists in Clerk (unused) — delete in Clerk dashboard if desired.
 
 ### ✅ Shipped today (Phase 7 Client Portal)
 - **Portal redesigned to the approved mockup** (`design/visual-refresh-2026-06/`): dark header,
@@ -77,9 +83,8 @@ created_at). One thread per job. Build plan:
 staff can post to any job; build passes (`npm run build`). Test via the **staff preview** + the test client
 `raymond+portaltest@rm117.com` (jobs `00_99{7,8,9}_PortalTest`).
 
-### ⚠️ Test data to DELETE when done with portal testing (prod Supabase)
-Client **"Portal Test Client"** (`raymond+portaltest@rm117.com`, id `9f42f299-…`) + jobs
-`00_999/00_998/00_997_PortalTest` + their phase events. `00_999` is mapped to the real Kuhn Files-Sent folder.
+### ✅ Test data cleanup — DONE (2026-06-18)
+The "Portal Test Client" + `00_99x_PortalTest` jobs/payments/phase-events/thread were deleted from prod.
 
 ---
 
