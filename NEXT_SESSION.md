@@ -1,21 +1,30 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-18 (Phase 7 SHIPPED: portal + document vault + staff preview + **in-portal messaging**)
+**Last updated:** 2026-06-18 (Phase 7 portal COMPLETE: portal + vault + preview + messaging + calendar + finance fix)
 
 ---
 
 ## ▶ RESUME HERE — latest: 2026-06-18 — Phase 7 portal essentially COMPLETE
 
-App live at **rm117-bms.vercel.app**. Everything below is committed to `main` and deployed to prod.
-Latest commit: `c3de2e5`. Today's commits: `a0f5e2f` (portal redesign + vault + phase reorder + DaSilva
-aliases) · `0568c98` (staff preview) · `629f518` (Vercel key fix) · `dfe44ad` (audit + checklist) ·
-`c2b6871` (docs) · `c3de2e5` (**messaging**). **Not yet pushed to origin** — `git push origin main` for backup.
+App live at **rm117-bms.vercel.app**. Everything is committed to `main`, **pushed to `origin/main`**, and
+deployed to prod. Latest commit: `74eed0a`. Today's commits: `a0f5e2f` (portal redesign + vault + phase
+reorder + DaSilva) · `0568c98` (staff preview) · `629f518` (Vercel key fix) · `dfe44ad` (audit) ·
+`c3de2e5` (messaging) · `b1ca623` (company calendar) · `5d6810a` (email deferred + test data deleted) ·
+`74eed0a` (Outstanding display fix) + doc commits.
+
+### ✅ Also shipped late today
+- **Company Google Calendar LIVE** — `COMPANY_CALENDAR_ID` set in `.env`+Vercel, deployed (`company_calendar:true`).
+- **Outstanding display fix** (`74eed0a`) — dashboard headline now counts ACTIVE-pipeline balance (~$128K)
+  not all jobs ($454K); completed ($190K) + on-hold ($136K) phantom QBO A/R shown as a separate hint.
+  Non-destructive. The real reconciliation (needs Ang) is logged in memory + `CLIENT-RECON.md`.
+- **Reusable design brief** for Claude Design at `~/Desktop/RM117-Design-Brief.md` (Ray's tool, outside repo).
 
 ### ✅ Messaging SHIPPED (commit `c3de2e5`)
 In-portal, one thread per job (Supabase `threads`/`messages`). Client composes/reads in the portal
 Messages panel; staff read/reply from a **Messages tab in the JobEditor** (replies post as RM117).
 New dispatcher actions `messages` (GET) + `send` (POST) in `api/portal/[action].js` (per-action method
-rules; still one function). Client scoped to own job, staff any job. **Email bridge = still deferred**
-(needs Resend; `notifications` table ready). Demo thread seeded on test job `00_999_PortalTest`.
+rules; still one function). Client scoped to own job, staff any job. **Email bridge = deferred**
+(Resend key stored; blocked on Wix domain access — see "What's left" below). Verified end-to-end then
+the test data was deleted, so threads/messages tables are back to empty.
 
 ### ⏭ What's left for the portal
 - **Email bridge — DEFERRED (2026-06-18, Ray's call).** `RESEND_API_KEY` is stored in `.env` + Vercel

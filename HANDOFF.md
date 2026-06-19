@@ -10,12 +10,14 @@ moved well past that. For current state, read these files in order:
 
 ## Current status (as of 2026-06-18)
 
-- **2026-06-18 — Phase 7 Client Portal SHIPPED (commits `a0f5e2f`→`dfe44ad`, deployed):** portal
-  redesigned to the Architectural mockup (switcher + horizontal stepper, money-free), **document
-  vault live** via the Drive service-account broker (**85 jobs mapped + audited**), **staff-side
-  portal preview**. Fixed a Vercel `GOOGLE_PRIVATE_KEY` quoting bug that broke all prod Drive calls.
-  Data fixes: merged Russo duplicate, corrected McCalla folder, unlinked the bad `23_047` map.
-  **NEXT = build the Messages tab** — full spec at the top of `NEXT_SESSION.md`. Not yet pushed to origin.
+- **2026-06-18 — Phase 7 Client Portal COMPLETE (commits `a0f5e2f`→`74eed0a`, deployed + pushed to origin):**
+  portal redesigned to the Architectural mockup (switcher + horizontal stepper, money-free), **document
+  vault live** via the Drive service-account broker (**85 jobs mapped + audited**), **staff-side portal
+  preview**, and **in-portal messaging** (client panel + staff JobEditor Messages tab). Also: **company
+  Google Calendar live** and an **Outstanding display fix** (active ~$128K vs $454K all-jobs). Fixed a
+  Vercel `GOOGLE_PRIVATE_KEY` quoting bug; data fixes (Russo merge, McCalla folder, `23_047` unlinked,
+  portal test data deleted). **Deferred:** email bridge (Wix domain access), document uploads, staff-API
+  auth, QBO reconciliation. Resume details at the top of `NEXT_SESSION.md`.
 - **2026-06-17 (docs):** Clarified client portal auth = Clerk email only, separate from staff Google
   OAuth (can't touch the 100 test-user cap). Git identity set globally to `raymond@rm117.com`.
 - App live at **rm117-bms.vercel.app**; **134 jobs** in Supabase, financials accurate from QBO.
