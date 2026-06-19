@@ -112,36 +112,17 @@ export default function BmsDashboard() {
 
   return (
     <div className="page">
-      <div className="section-eyebrow">
-        <span className="eyebrow" style={{ marginBottom: 0 }}>Jobs</span>
-        {source && (
-          <span className={source === 'supabase' ? 'pill-live' : 'pill-mock'}>
-            {source === 'supabase' ? 'SUPABASE LIVE' : 'MOCK DATA'}
-          </span>
-        )}
-      </div>
-      <h1 className="section-h1">Job log</h1>
-
-      <div className="stat-strip">
-        <div className="stat-cell">
-          <div className="label">Active pipeline</div>
-          <div className="value">{stats.pipelineCount} jobs</div>
-          <div className="hint">{money(stats.pipelineValue)} contracted</div>
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">The spine</div>
+          <h1 className="greeting">BMS — Job Log</h1>
         </div>
-        <div className="stat-cell">
-          <div className="label">Outstanding</div>
-          <div className="value">{money(stats.outstanding)}</div>
-          <div className="hint">active jobs · {money(stats.legacyOutstanding)} completed/on-hold</div>
-        </div>
-        <div className="stat-cell">
-          <div className="label">Ready to bill</div>
-          <div className="value">{stats.billFlags}</div>
-          <div className="hint">bill flags set</div>
-        </div>
-        <div className="stat-cell">
-          <div className="label">Forefront</div>
-          <div className="value">{stats.ffActive} active</div>
-          <div className="hint">{money(stats.ffOwed)} commission unpaid</div>
+        <div className="page-head-actions">
+          <div className="view-toggle">
+            <button className={'view-btn' + (viewMode === 'grouped' ? ' active' : '')} onClick={() => setViewMode('grouped')}>Grouped</button>
+            <button className={'view-btn' + (viewMode === 'table' ? ' active' : '')} onClick={() => setViewMode('table')}>Table</button>
+          </div>
+          <button className="btn btn-primary" onClick={() => setDrawer({ mode: 'create' })}>+ New Job</button>
         </div>
       </div>
 
@@ -184,11 +165,6 @@ export default function BmsDashboard() {
         <label className="toggle">
           <input type="checkbox" checked={billOnly} onChange={(e) => setBillOnly(e.target.checked)} /> Bill flag
         </label>
-        <div className="view-toggle">
-          <button className={'view-btn' + (viewMode === 'grouped' ? ' active' : '')} onClick={() => setViewMode('grouped')}>Grouped</button>
-          <button className={'view-btn' + (viewMode === 'table' ? ' active' : '')} onClick={() => setViewMode('table')}>Table</button>
-        </div>
-        <button className="btn btn-primary" onClick={() => setDrawer({ mode: 'create' })}>+ New Job</button>
       </div>
 
       {loading ? (
@@ -212,12 +188,12 @@ export default function BmsDashboard() {
                   {phaseJobs.map((job) => (
                     <div key={job.job_id} className="job-card" onClick={() => setDrawer({ mode: 'edit', job })}>
                       <div className="job-card-left">
-                        <div className="job-card-client">
-                          {job.client_name || <span className="muted">—</span>}
+                        <div className="job-card-id">
+                          {job.job_id}
                           {job.is_forefront && <span className="badge badge-ff">FF</span>}
                           {job.bill_flag && <span className="badge badge-bill">BILL</span>}
                         </div>
-                        <div className="job-card-id">{job.job_id}</div>
+                        <div className="job-card-client">{job.client_name || <span className="muted">—</span>}</div>
                         {job.address && <div className="job-card-sub">{job.address}</div>}
                         {job.next_milestone_date && (
                           <div className={`job-card-milestone${String(job.next_milestone_date).slice(0, 10) < todayStr ? ' overdue' : ''}`}>
@@ -817,18 +793,34 @@ function PaymentsTab({ job, onLogged }) {
               onChange={(e) => setForm((f) => ({ ...f, paid_date: e.target.value }))} />
           </div>
         </div>
-        <div className="field-row">
-          <div className="field">
-            <label>Type</label>
-            <select value={form.payment_type} onChange={(e) => setForm((f) => ({ ...f, payment_type: e.target.value }))}>
-              {PAY_TYPES.map((t) => <option key={t} value={t}>{t.toUpperCase()}</option>)}
-            </select>
+        <div className="field">
+          <label>Type</label>
+          <div className="chip-row">
+            {PAY_TYPES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                className={`chip${form.payment_type === t ? ' active' : ''}`}
+                onClick={() => setForm((f) => ({ ...f, payment_type: t }))}
+              >
+                {t.toUpperCase()}
+              </button>
+            ))}
           </div>
-          <div className="field">
-            <label>Method</label>
-            <select value={form.payment_method} onChange={(e) => setForm((f) => ({ ...f, payment_method: e.target.value }))}>
-              {MANUAL_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
+        </div>
+        <div className="field">
+          <label>Method</label>
+          <div className="chip-row">
+            {MANUAL_METHODS.map((m) => (
+              <button
+                key={m}
+                type="button"
+                className={`chip${form.payment_method === m ? ' active' : ''}`}
+                onClick={() => setForm((f) => ({ ...f, payment_method: m }))}
+              >
+                {m}
+              </button>
+            ))}
           </div>
         </div>
         <div className="field">
@@ -839,7 +831,9 @@ function PaymentsTab({ job, onLogged }) {
       <div className="drawer-foot">
         {error && <span className="error">{error}</span>}
         <button className="btn btn-primary" onClick={logPayment} disabled={saving || !form.amount}>
-          {saving ? 'Logging…' : 'Log payment'}
+          {saving
+            ? 'Logging…'
+            : `Log ${form.amount ? money(Number(form.amount)) + ' ' : ''}payment`}
         </button>
       </div>
     </>

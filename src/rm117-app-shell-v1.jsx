@@ -2,13 +2,14 @@
 // Layout inspired by Steward (steward.cc) — layout only.
 // Calendar/inbox widgets are placeholders until Phase 0 creds exist
 // (COMPANY_CALENDAR_ID, Clerk Google OAuth). Job stats are live via /api/jobs.
-import React, { useEffect, useState } from 'react';
-import { Routes, Route, NavLink } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { SignedIn, SignedOut, SignIn, UserButton, useAuth, useClerk, useUser } from '@clerk/clerk-react';
 import BmsDashboard from './rm117-dashboard-v1.jsx';
 import ForefrountView from './rm117-forefront-v1.jsx';
 import ClientPortal from './rm117-portal-v1.jsx';
 import { money, PIPELINE_PHASES } from './lib/format.js';
+import { useTheme, THEMES } from './lib/theme.jsx';
 
 // Resolve the signed-in user's role via /api/portal/me (authed + isolated).
 // Clients see the portal; staff see the workspace shell; nobody else gets in.
@@ -77,7 +78,8 @@ const MOBILE_TABS = [
   { to: '/forefront', label: 'Forefront', icon: '◈' },
 ];
 
-// Nav grouped into mono-captioned sections (matches the Architectural shell).
+// "Drafting + data" nav: Templates and Client Portal are first-class items
+// alongside Dashboard / BMS / Forefront. Settings is pinned to the bottom.
 const NAV_GROUPS = [
   {
     caption: 'Workspace',
@@ -85,13 +87,8 @@ const NAV_GROUPS = [
       { to: '/', label: 'Dashboard', end: true },
       { to: '/bms', label: 'BMS' },
       { to: '/forefront', label: 'Forefront' },
-    ],
-  },
-  {
-    caption: 'Upcoming',
-    items: [
-      { to: '/templates', label: 'Templates', soon: 'P5' },
-      { to: '/portal', label: 'Client Portal', soon: 'P7' },
+      { to: '/templates', label: 'Templates' },
+      { to: '/portal', label: 'Client Portal' },
     ],
   },
 ];
@@ -109,21 +106,25 @@ export default function AppShell() {
         <div className="shell">
           <aside className="sidebar">
             <div className="sidebar-logo">
-              <div className="logo-mark">RM117</div>
-              <small>Architecture &amp; Design</small>
+              <div className="logo-badge">R</div>
+              <div className="logo-text">
+                <div className="logo-mark">RM117</div>
+                <small>Architecture &amp; Design</small>
+              </div>
             </div>
             <nav>
               {NAV_GROUPS.map((group) => (
                 <React.Fragment key={group.caption}>
-                  <div className={`nav-cap${group.caption === 'Upcoming' ? ' upcoming' : ''}`}>{group.caption}</div>
+                  <div className="nav-cap">{group.caption}</div>
                   {group.items.map((item) => (
-                    <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}${item.soon ? ' soon-item' : ''}`}>
+                    <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>
                       {item.label}
-                      {item.soon && <span className="soon">{item.soon}</span>}
                     </NavLink>
                   ))}
                 </React.Fragment>
               ))}
+              <div className="nav-spacer" />
+              <NavLink to="/settings" className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}>Settings</NavLink>
             </nav>
             <div className="sidebar-footer">
               <div className="cl-userbutton"><UserButton /></div>
@@ -134,16 +135,20 @@ export default function AppShell() {
             <div className="brand">RM117<small>Architecture &amp; Design</small></div>
             <UserButton />
           </header>
-          <main className="main">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/bms" element={<BmsDashboard />} />
-              <Route path="/forefront" element={<ForefrountView />} />
-              <Route path="/templates" element={<ComingSoon title="Templates" phase="Phase 5" detail="Proposal, invoice, and email templates — stored in the database and iterated without code changes. Proposals send via DocuSign; invoices create in QuickBooks via the QBO API." />} />
-              <Route path="/portal" element={<StaffPortalPreview />} />
-              <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />
-            </Routes>
-          </main>
+          <div className="content">
+            <TopBar />
+            <main className="main">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/bms" element={<BmsDashboard />} />
+                <Route path="/forefront" element={<ForefrountView />} />
+                <Route path="/templates" element={<ComingSoon title="Templates" phase="Document library" detail="Proposal, agreement, CD-set, and client-letter templates — grouped by category. Coming in the redesign build." />} />
+                <Route path="/portal" element={<StaffPortalPreview />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />
+              </Routes>
+            </main>
+          </div>
           <nav className="mobile-tabbar">
             {MOBILE_TABS.map((tab) => (
               <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => `tab-item${isActive ? ' active' : ''}`}>
@@ -159,6 +164,58 @@ export default function AppShell() {
   );
 }
 
+// Initials for an avatar (up to 2 letters from a sender/display name).
+function initials(name) {
+  const parts = String(name || '').replace(/<.*>/, '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Pipeline shape: job counts per phase, ordered earliest → latest stage
+// (Potential → Outgoing). A real current snapshot — unlike created_at, which only
+// records the Sheet→Supabase import date and so can't drive a meaningful trend.
+const PIPELINE_SHAPE = ['potential', 'survey_zoning', 'design_phase', 'cd_phase', 'active'];
+const PIPELINE_SHAPE_LABELS = {
+  potential: 'Proposal Sent', survey_zoning: 'Survey/Zoning', design_phase: 'Design',
+  cd_phase: 'CD', active: 'Outgoing',
+};
+function pipelineShape(jobs) {
+  return PIPELINE_SHAPE.map((phase) => ({
+    phase,
+    count: jobs.filter((j) => j.phase === phase).length,
+  }));
+}
+
+// Mini bar chart; bars sized by count, the latest two stages solid-accent.
+function Sparkline({ data }) {
+  const max = Math.max(1, ...data.map((d) => d.count));
+  return (
+    <div className="spark">
+      {data.map((d, i) => (
+        <div
+          key={d.phase}
+          className={`spark-bar${i >= data.length - 2 ? ' full' : ''}`}
+          style={{ height: `${Math.max(12, (d.count / max) * 100)}%` }}
+          title={`${PIPELINE_SHAPE_LABELS[d.phase]}: ${d.count}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Pip bars for a small count (e.g. ready-to-bill). Always shows at least 3 slots.
+function Pips({ count }) {
+  const slots = Math.max(3, count);
+  return (
+    <div className="pips">
+      {Array.from({ length: slots }, (_, i) => (
+        <span key={i} className={`pip${i < count ? ' on' : ''}`} />
+      ))}
+    </div>
+  );
+}
+
 function Home() {
   const [stats, setStats] = useState(null);
   const [source, setSource] = useState(null);
@@ -169,20 +226,28 @@ function Home() {
       .then(({ source, jobs }) => {
         const pipeline = jobs.filter((j) => PIPELINE_PHASES.includes(j.phase));
         const outstandingOf = (rows) => rows.reduce((s, j) => s + Math.max(0, Number(j.outstanding || 0)), 0);
+        const ffActiveJobs = jobs.filter((j) => j.is_forefront && j.phase !== 'completed');
+        const pipelineValue = pipeline.reduce((s, j) => s + Number(j.job_total || 0), 0);
+        const outstanding = outstandingOf(pipeline);
+        const ffBooked = ffActiveJobs.reduce((s, j) => s + Number(j.ff_commission || 0), 0);
+        const ffOwed = jobs
+          .filter((j) => j.is_forefront && !j.ff_commission_paid)
+          .reduce((s, j) => s + Number(j.ff_commission || 0), 0);
         setSource(source);
         setStats({
           pipelineCount: pipeline.length,
-          pipelineValue: pipeline.reduce((s, j) => s + Number(j.job_total || 0), 0),
+          pipelineValue,
+          spark: pipelineShape(jobs),
           // Outstanding = collectible balance on ACTIVE work only. Completed/on-hold
           // balances are legacy QBO noise (disorganized) — surfaced separately, not
           // mixed into the headline. (Underlying records untouched; reconcile w/ Ang later.)
-          outstanding: outstandingOf(pipeline),
+          outstanding,
+          outstandingPct: pipelineValue > 0 ? Math.round((outstanding / pipelineValue) * 100) : 0,
           legacyOutstanding: outstandingOf(jobs.filter((j) => !PIPELINE_PHASES.includes(j.phase))),
           billFlags: jobs.filter((j) => j.bill_flag).length,
-          ffActive: jobs.filter((j) => j.is_forefront && j.phase !== 'completed').length,
-          ffOwed: jobs
-            .filter((j) => j.is_forefront && !j.ff_commission_paid)
-            .reduce((s, j) => s + Number(j.ff_commission || 0), 0),
+          ffActive: ffActiveJobs.length,
+          ffOwed,
+          ffPaidPct: ffBooked > 0 ? Math.round(((ffBooked - ffOwed) / ffBooked) * 100) : 0,
         });
       })
       .catch(() => setStats(null));
@@ -192,7 +257,8 @@ function Home() {
   const firstName = user?.firstName || 'there';
   const hour = new Date().getHours();
   const partOfDay = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
-  const dateLabel = new Date()
+  const now = new Date();
+  const dateLabel = now
     .toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
     .toUpperCase()
     .replace(',', '');
@@ -214,25 +280,57 @@ function Home() {
 
       {stats && (
         <div className="stat-strip">
+          {/* Active pipeline — count + pipeline-shape distribution by phase */}
           <div className="stat-cell">
-            <div className="label">Active pipeline</div>
-            <div className="value">{stats.pipelineCount} jobs</div>
+            <div className="stat-top">
+              <div className="label">Active<br />pipeline</div>
+            </div>
+            <div className="value">{stats.pipelineCount}<span className="unit">jobs</span></div>
+            <div className="stat-visual"><Sparkline data={stats.spark} /></div>
             <div className="hint">{money(stats.pipelineValue)} contracted</div>
           </div>
+
+          {/* Outstanding — pct delta + progress bar */}
           <div className="stat-cell">
-            <div className="label">Outstanding</div>
+            <div className="stat-top">
+              <div className="label">Outstanding</div>
+              <span className="stat-delta warn">{stats.outstandingPct}%</span>
+            </div>
             <div className="value">{money(stats.outstanding)}</div>
-            <div className="hint">active jobs · {money(stats.legacyOutstanding)} on completed/on-hold</div>
+            <div className="stat-visual">
+              <div className="progbar"><div className="progbar-fill" style={{ width: `${Math.min(100, stats.outstandingPct)}%` }} /></div>
+            </div>
+            <div className="hint">
+              of {money(stats.pipelineValue)} contracted
+              <small>{money(stats.legacyOutstanding)} on completed / on-hold</small>
+            </div>
           </div>
+
+          {/* Ready to bill — pip bars */}
           <div className="stat-cell">
-            <div className="label">Ready to bill</div>
-            <div className="value">{stats.billFlags}</div>
+            <div className="stat-top">
+              <div className="label">Ready to<br />bill</div>
+            </div>
+            <div className="value">{stats.billFlags}<span className="unit">flagged</span></div>
+            <div className="stat-visual"><Pips count={stats.billFlags} /></div>
             <div className="hint">bill flags set</div>
           </div>
+
+          {/* Forefront — completion ring (commission paid / booked) */}
           <div className="stat-cell">
-            <div className="label">Forefront</div>
-            <div className="value">{stats.ffActive} active</div>
-            <div className="hint">{money(stats.ffOwed)} commission unpaid</div>
+            <div className="stat-top">
+              <div className="label">Forefront</div>
+              <span className="stat-delta up">ACTIVE</span>
+            </div>
+            <div className="ring-wrap">
+              <div>
+                <div className="value">{stats.ffActive}<span className="unit">active</span></div>
+                <div className="hint">{money(stats.ffOwed)} commission unpaid</div>
+              </div>
+              <div className="ring" style={{ '--pct': stats.ffPaidPct }}>
+                <span className="ring-val">{stats.ffPaidPct}%</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -253,36 +351,64 @@ function UserChip() {
   );
 }
 
-// Upcoming events from the signed-in user's Google Calendar (read-only) via
-// /api/calendar — their primary calendar plus the shared company calendar
-// (COMPANY_CALENDAR_ID). Same Google OAuth as the inbox; needs calendar.readonly.
+const DOW = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+// 6-week (42-cell) matrix for `viewMonth`, starting on the Sunday on/before the 1st.
+function monthMatrix(viewMonth) {
+  const first = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+  const start = new Date(first);
+  start.setDate(1 - first.getDay());
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return d;
+  });
+}
+
+// Calendar widget — a real month grid (today highlighted, event days dotted) plus
+// an agenda of upcoming events. Reads the user's Google Calendar + the shared
+// company calendar (COMPANY_CALENDAR_ID) via /api/calendar. Needs calendar.readonly.
 function CalendarWidget() {
   const { getToken } = useAuth();
   const clerk = useClerk();
-  const [state, setState] = useState({ status: 'loading' });
+  const [state, setState] = useState({ status: 'loading', events: [] });
+  const [viewMonth, setViewMonth] = useState(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1);
+  });
 
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         const token = await getToken();
-        const r = await fetch('/api/calendar?days=14', {
+        const r = await fetch('/api/calendar?days=45', {
           cache: 'no-store',
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await r.json();
         if (!alive) return;
-        if (!data.connected) setState({ status: 'disconnected', reason: data.reason });
+        if (!data.connected) setState({ status: 'disconnected', reason: data.reason, events: [] });
         else setState({ status: 'ready', events: data.events || [] });
       } catch {
-        if (alive) setState({ status: 'error' });
+        if (alive) setState({ status: 'error', events: [] });
       }
     })();
     return () => { alive = false; };
   }, [getToken]);
 
-  const fmtDay = (iso) =>
-    new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const today = new Date();
+  const todayKey = dayKey(today);
+  const eventDays = new Set(state.events.map((e) => dayKey(new Date(e.start))));
+  const cells = monthMatrix(viewMonth);
+  const monthLabel = viewMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const shiftMonth = (n) => setViewMonth((m) => new Date(m.getFullYear(), m.getMonth() + n, 1));
+
+  const fmtChip = (iso) => {
+    const d = new Date(iso);
+    return { mon: d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(), day: d.getDate(), key: dayKey(d) };
+  };
   const fmtTime = (ev) =>
     ev.allDay ? 'All day'
       : new Date(ev.start).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -291,51 +417,71 @@ function CalendarWidget() {
     <div className="card">
       <div className="card-head">
         <h3>Calendar</h3>
-        <span className="head-meta">NEXT 14 DAYS</span>
+        <span className="head-meta">{state.status === 'ready' ? `${state.events.length} UPCOMING` : 'NEXT 45 DAYS'}</span>
       </div>
-      <div className="card-body">
-        {state.status === 'loading' && <div className="placeholder-note">Loading your calendar…</div>}
-
-        {state.status === 'error' && (
-          <div className="placeholder-note">Couldn’t load the calendar right now. Try refreshing.</div>
-        )}
-
-        {state.status === 'disconnected' && (
-          <div className="placeholder-note">
-            {state.reason === 'clerk_not_configured'
-              ? 'Google isn’t configured yet.'
-              : state.reason === 'google_reauth_needed'
-                ? 'Reconnect Google and grant calendar access to see your events here.'
-                : 'Connect your Google account (read-only) to see your calendar here.'}
-            {state.reason !== 'clerk_not_configured' && (
-              <div style={{ marginTop: 10 }}>
-                <button className="btn" onClick={() => clerk.openUserProfile()}>Connect Google</button>
-              </div>
-            )}
+      <div className="cal2">
+        <div className="cal-month">
+          <div className="cal-month-head">
+            <span className="cal-month-title">{monthLabel}</span>
+            <button className="cal-nav" onClick={() => shiftMonth(-1)} aria-label="Previous month">‹</button>
+            <button className="cal-nav" onClick={() => shiftMonth(1)} aria-label="Next month">›</button>
+            <button className="cal-today-btn" onClick={() => setViewMonth(new Date(today.getFullYear(), today.getMonth(), 1))}>Today</button>
           </div>
-        )}
+          <div className="cal-dow">{DOW.map((d) => <span key={d}>{d}</span>)}</div>
+          <div className="cal-days">
+            {cells.map((d, i) => {
+              const k = dayKey(d);
+              const inMonth = d.getMonth() === viewMonth.getMonth();
+              const cls = ['cal-day'];
+              if (!inMonth) cls.push('other');
+              if (k === todayKey) cls.push('today');
+              if (eventDays.has(k)) cls.push('has-event');
+              return <div key={i} className={cls.join(' ')}>{d.getDate()}</div>;
+            })}
+          </div>
+        </div>
 
-        {state.status === 'ready' && state.events.length === 0 && (
-          <div className="placeholder-note">Nothing scheduled in the next 14 days.</div>
-        )}
-
-        {state.status === 'ready' && state.events.length > 0 && (
-          <ul className="cal-list">
-            {state.events.map((ev) => (
-              <li key={`${ev.calendar}-${ev.id}`} className={`cal-item cal-${ev.calendar}`}>
-                <div className="cal-when">
-                  <span className="cal-day">{fmtDay(ev.start)}</span>
-                  <span className="cal-time">{fmtTime(ev)}</span>
+        <div className="cal-agenda">
+          {state.status === 'loading' && <div className="placeholder-note">Loading your calendar…</div>}
+          {state.status === 'error' && <div className="placeholder-note">Couldn’t load the calendar right now.</div>}
+          {state.status === 'disconnected' && (
+            <div className="placeholder-note">
+              {state.reason === 'clerk_not_configured'
+                ? 'Google isn’t configured yet.'
+                : state.reason === 'google_reauth_needed'
+                  ? 'Reconnect Google and grant calendar access to see your events here.'
+                  : 'Connect your Google account (read-only) to see your calendar here.'}
+              {state.reason !== 'clerk_not_configured' && (
+                <div style={{ marginTop: 10 }}>
+                  <button className="btn" onClick={() => clerk.openUserProfile()}>Connect Google</button>
                 </div>
-                <div className="cal-main">
-                  <span className="cal-title">{ev.title}</span>
-                  {ev.location && <span className="cal-loc">{ev.location}</span>}
-                </div>
-                {ev.calendar === 'company' && <span className="cal-tag">RM117</span>}
-              </li>
-            ))}
-          </ul>
-        )}
+              )}
+            </div>
+          )}
+          {state.status === 'ready' && state.events.length === 0 && (
+            <div className="placeholder-note">Nothing scheduled in the next 45 days.</div>
+          )}
+          {state.status === 'ready' && state.events.length > 0 && (
+            <ul className="cal-agenda-list">
+              {state.events.slice(0, 8).map((ev) => {
+                const chip = fmtChip(ev.start);
+                return (
+                  <li key={`${ev.calendar}-${ev.id}`} className="agenda-item">
+                    <div className={`agenda-chip${chip.key === todayKey ? ' today' : ''}`}>
+                      {chip.mon}<span className="d">{chip.day}</span>
+                    </div>
+                    <div className="agenda-main">
+                      <span className="agenda-title">{ev.title}</span>
+                      <span className="agenda-time">
+                        {fmtTime(ev)}{ev.calendar === 'company' && <span className="agenda-tag"> · RM117</span>}
+                      </span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -347,8 +493,8 @@ function CalendarWidget() {
 function InboxWidget() {
   const { getToken } = useAuth();
   const clerk = useClerk();
+  const { clientsOnly, setClientsOnly } = useTheme();
   const [state, setState] = useState({ status: 'loading' });
-  const [clientsOnly, setClientsOnly] = useState(true);
 
   useEffect(() => {
     let alive = true;
@@ -374,14 +520,10 @@ function InboxWidget() {
     <div className="card">
       <div className="card-head">
         <h3>Priority Inbox</h3>
-        {state.status === 'ready' ? (
-          <label className="inbox-toggle">
-            <input type="checkbox" checked={clientsOnly} onChange={(e) => setClientsOnly(e.target.checked)} />
-            Clients only
-          </label>
-        ) : (
-          <span className="head-meta">CLIENTS</span>
-        )}
+        <label className="inbox-toggle">
+          Clients only
+          <Toggle checked={clientsOnly} onChange={setClientsOnly} label="Clients only" />
+        </label>
       </div>
       <div className="card-body">
         {state.status === 'loading' && <div className="placeholder-note">Loading your inbox…</div>}
@@ -412,17 +554,20 @@ function InboxWidget() {
         {state.status === 'ready' && state.messages.length > 0 && (
           <ul className="inbox-list">
             {state.messages.map((m) => (
-              <li key={m.id} className={`inbox-item${m.isClient ? ' is-client' : ''}`}>
-                <div className="inbox-row">
-                  <span className="inbox-from">{m.from}</span>
-                  {m.isClient && (
-                    <span className="inbox-tag" title={m.jobs.join(', ')}>
-                      {m.jobs.length === 1 ? m.jobs[0] : (m.clientLabel || 'Client')}
-                    </span>
-                  )}
+              <li key={m.id} className={`inbox-item${m.isClient ? ' is-client' : ' dim'}`}>
+                <div className="inbox-ava">{initials(m.from)}</div>
+                <div className="inbox-main">
+                  <div className="inbox-row">
+                    <span className="inbox-from">{m.from}</span>
+                    {m.isClient && (
+                      <span className="inbox-tag" title={m.jobs.join(', ')}>
+                        {m.jobs.length === 1 ? m.jobs[0] : (m.clientLabel || 'Client')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="inbox-subj">{m.subject}</div>
+                  <div className="inbox-snip">{m.snippet}</div>
                 </div>
-                <div className="inbox-subj">{m.subject}</div>
-                <div className="inbox-snip">{m.snippet}</div>
               </li>
             ))}
           </ul>
@@ -499,6 +644,127 @@ function StaffPortalPreview() {
           : <div className="card placeholder-note" style={{ padding: 20 }}>{data.client.name} has no jobs linked yet — nothing to show in the portal.</div>
       )}
     </div>
+  );
+}
+
+// Top header bar (desktop): search, a data-driven "Supabase live" status chip,
+// and the primary "New job" action. The Mobile preview button arrives with the
+// mobile build; theme switching lives in Settings (and, later, the mobile sheet).
+function TopBar() {
+  const navigate = useNavigate();
+  const [source, setSource] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/jobs')
+      .then((r) => r.json())
+      .then((d) => { if (alive) setSource(d.source); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const live = source && source !== 'mock';
+  return (
+    <header className="topbar">
+      <div className="topbar-search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+        </svg>
+        <input type="search" placeholder="Search jobs, clients, invoices…" aria-label="Search" />
+      </div>
+      <div className="topbar-spacer" />
+      <span className={`status-chip${live ? '' : ' mock'}`}>
+        <span className="dot" />
+        {source == null ? 'Connecting…' : live ? 'Supabase live' : 'Sample data'}
+      </span>
+      <button className="topbar-btn primary" onClick={() => navigate('/bms')}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        New job
+      </button>
+    </header>
+  );
+}
+
+// Settings: the 5-theme picker (live, persisted) + shared defaults. Type stays
+// IBM Plex across every theme — only colour changes.
+function Settings() {
+  const { theme, setTheme, clientsOnly, setClientsOnly, reducedMotion, setReducedMotion } = useTheme();
+  return (
+    <div className="page">
+      <div className="page-head">
+        <div>
+          <div className="eyebrow">Preferences</div>
+          <h1 className="greeting">Settings</h1>
+        </div>
+      </div>
+
+      <div className="set-block">
+        <div className="set-section-cap">Theme</div>
+        <div className="set-theme-grid">
+          {THEMES.map((t) => {
+            const active = t.key === theme;
+            return (
+              <button
+                key={t.key}
+                className={`set-theme-card${active ? ' active' : ''}`}
+                onClick={() => setTheme(t.key)}
+                aria-pressed={active}
+              >
+                <div className="set-theme-preview" style={{ background: t.bg }}>
+                  <div className="pv-bar" style={{ background: t.swatch, width: '42%' }} />
+                  <div className="pv-row">
+                    <div className="pv-dot" style={{ background: t.swatch }} />
+                    <div className="pv-line" style={{ background: t.mode === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)' }} />
+                  </div>
+                  <div className="pv-row">
+                    <div className="pv-line" style={{ background: t.mode === 'dark' ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.07)' }} />
+                  </div>
+                </div>
+                <div className="set-theme-foot">
+                  <span className="set-theme-name">{t.label}</span>
+                  {active
+                    ? <span className="check">✓</span>
+                    : <span className="set-theme-mode">{t.mode}</span>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="set-note">Sets colour across every screen — type stays IBM Plex throughout.</div>
+      </div>
+
+      <div className="set-block">
+        <div className="set-section-cap">Defaults</div>
+        <div className="set-card">
+          <div className="set-toggle-row">
+            <div>
+              <div className="set-toggle-label">Priority Inbox — clients only</div>
+              <div className="set-toggle-desc">Dim non-client mail by default on the dashboard. Synced with the toggle on the inbox card.</div>
+            </div>
+            <Toggle checked={clientsOnly} onChange={setClientsOnly} label="Clients only" />
+          </div>
+          <div className="set-toggle-row">
+            <div>
+              <div className="set-toggle-label">Reduced motion</div>
+              <div className="set-toggle-desc">Minimise transitions on toggles, drawers, and sheets.</div>
+            </div>
+            <Toggle checked={reducedMotion} onChange={setReducedMotion} label="Reduced motion" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange, label }) {
+  return (
+    <label className="switch" aria-label={label}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="track" />
+      <span className="knob" />
+    </label>
   );
 }
 

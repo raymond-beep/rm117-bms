@@ -1,7 +1,7 @@
 // Shared display helpers — phase vocabulary and money formatting.
 
 export const PHASE_LABELS = {
-  potential: 'Potential',
+  potential: 'Proposal Sent',
   survey_zoning: 'Survey + Zoning Analysis + Schematics',
   design_phase: 'Design Phase',
   cd_phase: 'CD Phase',
