@@ -318,7 +318,7 @@
 - [x] Portal landing: client sees only their own job(s) — switcher + horizontal phase stepper + next milestone (no money, by design)
 - [x] Document vault: per-job file list from Drive *Files Sent* folder; clients can download (backend broker; `jobs.drive_files_sent_folder_id`)
 - [x] Staff-side **portal preview** — view any client's portal from the staff `/portal` route
-- [ ] Per-job messaging: one thread per job; firm message → client email notification *(in-portal first; email later)*
+- [~] Per-job messaging: **in-portal DONE** (commit `c3de2e5`) — client panel + staff JobEditor Messages tab, one thread per job in Supabase. **Email notification still TODO** (needs Resend).
 - [ ] Inbound email reply → appended to portal thread (validate Resend inbound parsing first)
 - [ ] Onboarding flow: intake → proposal → DocuSign → on signing → Supabase creates client account + sends login invite
 - [x] Every API call verifies caller owns that Job ID — no cross-client data leakage (`api/_lib/portal-auth.js`)

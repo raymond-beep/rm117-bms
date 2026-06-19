@@ -1,14 +1,30 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-18 (Phase 7 SHIPPED: portal redesign + document vault + staff preview; messaging is next)
+**Last updated:** 2026-06-18 (Phase 7 SHIPPED: portal + document vault + staff preview + **in-portal messaging**)
 
 ---
 
-## ▶ RESUME HERE — latest: 2026-06-18 — **BUILD THE MESSAGES TAB NEXT**
+## ▶ RESUME HERE — latest: 2026-06-18 — Phase 7 portal essentially COMPLETE
 
 App live at **rm117-bms.vercel.app**. Everything below is committed to `main` and deployed to prod.
-Latest commit: `dfe44ad`. Commits today: `a0f5e2f` (portal redesign + vault + phase reorder + DaSilva
-aliases) · `0568c98` (staff preview) · `629f518` (Vercel key fix + copy) · `dfe44ad` (audit + checklist).
-**Not yet pushed to origin** — `git push origin main` if you want the GitHub backup.
+Latest commit: `c3de2e5`. Today's commits: `a0f5e2f` (portal redesign + vault + phase reorder + DaSilva
+aliases) · `0568c98` (staff preview) · `629f518` (Vercel key fix) · `dfe44ad` (audit + checklist) ·
+`c2b6871` (docs) · `c3de2e5` (**messaging**). **Not yet pushed to origin** — `git push origin main` for backup.
+
+### ✅ Messaging SHIPPED (commit `c3de2e5`)
+In-portal, one thread per job (Supabase `threads`/`messages`). Client composes/reads in the portal
+Messages panel; staff read/reply from a **Messages tab in the JobEditor** (replies post as RM117).
+New dispatcher actions `messages` (GET) + `send` (POST) in `api/portal/[action].js` (per-action method
+rules; still one function). Client scoped to own job, staff any job. **Email bridge = still deferred**
+(needs Resend; `notifications` table ready). Demo thread seeded on test job `00_999_PortalTest`.
+
+### ⏭ What's left for the portal
+- **Email bridge** (outbound notify on new message + inbound reply parsing) — needs a Resend account
+  + rm117.com DNS. Then add a notify call in `send` and an inbound webhook action.
+- **Document uploads** (Files Received) — currently "coming soon"; needs a Drive write-scope + upload action.
+- **Delete portal test data** when done (see below).
+- **Portal data refinement** — see CHECKLIST "Portal data refinement" (23_047 Jones correct folder,
+  Anutnes→Antunes Job ID typo, McCalla client email, 37 jobs needing a Files Sent subfolder, etc.).
+- **Staff data APIs still unauthenticated** (`/api/jobs` etc.) — gate before the portal is truly public.
 
 ### ✅ Shipped today (Phase 7 Client Portal)
 - **Portal redesigned to the approved mockup** (`design/visual-refresh-2026-06/`): dark header,
