@@ -59,10 +59,13 @@ export default function BmsDashboard() {
 
   const stats = useMemo(() => {
     const pipeline = jobs.filter((j) => PIPELINE_PHASES.includes(j.phase));
+    const outstandingOf = (rows) => rows.reduce((s, j) => s + Math.max(0, Number(j.outstanding || 0)), 0);
     return {
       pipelineCount: pipeline.length,
       pipelineValue: pipeline.reduce((s, j) => s + Number(j.job_total || 0), 0),
-      outstanding: jobs.reduce((s, j) => s + Math.max(0, Number(j.outstanding || 0)), 0),
+      // Active-work balance only; legacy completed/on-hold balances kept separate.
+      outstanding: outstandingOf(pipeline),
+      legacyOutstanding: outstandingOf(jobs.filter((j) => !PIPELINE_PHASES.includes(j.phase))),
       billFlags: jobs.filter((j) => j.bill_flag).length,
       ffActive: jobs.filter((j) => j.is_forefront && j.phase !== 'completed').length,
       ffOwed: jobs
@@ -128,7 +131,7 @@ export default function BmsDashboard() {
         <div className="stat-cell">
           <div className="label">Outstanding</div>
           <div className="value">{money(stats.outstanding)}</div>
-          <div className="hint">job totals minus payments</div>
+          <div className="hint">active jobs · {money(stats.legacyOutstanding)} completed/on-hold</div>
         </div>
         <div className="stat-cell">
           <div className="label">Ready to bill</div>
