@@ -8,8 +8,17 @@ moved well past that. For current state, read these files in order:
 3. **`CHECKLIST.md`** — full phase-by-phase build checklist with completion status
 4. **`SCHEMA.md`** — Supabase table definitions
 
-## Current status (as of 2026-06-18)
+## Current status (as of 2026-06-19)
 
+- **2026-06-19 — UI redesign "Drafting + data" FRONTEND COMPLETE (branch `redesign-drafting-data`,
+  pushed to origin; NOT merged to main — prod untouched):** new direction supersedes the warm-paper
+  "Architectural" look — IBM Plex Sans/Mono, 5 live themes (`src/lib/theme.jsx` + `[data-theme]`),
+  light themed sidebar, top header bar. Done: Dashboard (rich stat cards + month-grid calendar),
+  BMS (Job ID as the bold primary line; `potential`→"Proposal Sent"), Job Editor drawer (payment
+  chips), Forefront commission tracker (status-grouped ledger), Settings (theme picker), Client
+  Portal (brand colors), Mobile (Portal tab + Appearance sheet). Source: `~/Desktop/design_handoff_rm117_app 2/`.
+  **Next session = backend** (Field Notes + Templates tables/APIs; Forefront rate pending Ang) —
+  see **`REDESIGN-BACKEND-NEXT.md`** (note: Vercel Hobby is at its 12-function cap).
 - **2026-06-18 — Phase 7 Client Portal COMPLETE (commits `a0f5e2f`→`74eed0a`, deployed + pushed to origin):**
   portal redesigned to the Architectural mockup (switcher + horizontal stepper, money-free), **document
   vault live** via the Drive service-account broker (**85 jobs mapped + audited**), **staff-side portal

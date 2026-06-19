@@ -1,9 +1,34 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-18 (Phase 7 portal COMPLETE: portal + vault + preview + messaging + calendar + finance fix)
+**Last updated:** 2026-06-19 (UI redesign "Drafting + data" frontend COMPLETE; next = backend)
 
 ---
 
-## ▶ RESUME HERE — latest: 2026-06-18 — Phase 7 portal essentially COMPLETE
+## ▶ RESUME HERE — 2026-06-19 — Next session = BACKEND for the new mobile feature
+
+The **"Drafting + data" UI redesign is frontend-complete.** Next session builds the backend
+for the two features that need new Supabase tables + APIs (**Field Notes** — the mobile capture
+sheet — and **Templates**), plus the Forefront commission decision (blocked on Ang).
+
+**👉 Full plan + schemas + the Vercel function-cap constraint: see `REDESIGN-BACKEND-NEXT.md`.**
+
+- **Branch:** `redesign-drafting-data` (pushed to `origin`). Commits: `c808a89` (P0–P3),
+  `1db0057` (P4/P7/P8), + a docs commit. **Not merged to `main`; prod untouched.**
+- **Frontend done:** P0 Foundation (IBM Plex + 5 themes via `src/lib/theme.jsx` + `[data-theme]`,
+  light themed sidebar, top header bar) · P1 Dashboard (stat cards w/ sparkline/ring/progress,
+  month-grid calendar, inbox avatars) · P2 BMS (header + phase groups; Job ID is the bold primary
+  line; `potential`→"Proposal Sent") · P3 Job Editor drawer (payment chips) · P4 Forefront
+  commission tracker (status-grouped ledger; "10%" copy neutralized) · P5 Settings (theme picker +
+  defaults) · P7 Client Portal (brand colors pinned) · P8 Mobile (Portal tab + Appearance sheet).
+- **⚠️ Vercel Hobby = 12 functions and we're AT 12** — adding Templates + Field Notes APIs needs
+  consolidation (dispatcher pattern) or a plan upgrade. Details in `REDESIGN-BACKEND-NEXT.md`.
+- **Deferred from the redesign:** Templates (table+API+UI), Field Notes (table+API+mobile FAB sheet),
+  Forefront rate/structure (Ang: % of contract vs flat fee per project).
+- **Local dev note:** `.env` has Clerk **dev** keys (`pk_test`) — a separate user pool/OAuth from
+  prod, so Calendar/Inbox may show "Connect Google" locally; not a bug. Redesign touched no auth/API code.
+
+---
+
+## ▶ Prior resume: 2026-06-18 — Phase 7 portal essentially COMPLETE
 
 App live at **rm117-bms.vercel.app**. Everything is committed to `main`, **pushed to `origin/main`**, and
 deployed to prod. Latest commit: `74eed0a`. Today's commits: `a0f5e2f` (portal redesign + vault + phase
