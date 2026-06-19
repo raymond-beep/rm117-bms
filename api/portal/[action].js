@@ -17,12 +17,17 @@ function group(rows, key) {
   return m;
 }
 
+// Allowed HTTP method per action (everything is GET except posting a message).
+const METHODS = { me: 'GET', preview: 'GET', files: 'GET', download: 'GET', messages: 'GET', send: 'POST' };
+
 export default async function handler(req, res) {
   // On Vercel the dynamic segment arrives as req.query.action; locally we derive
   // it from the URL so the same file serves both.
   const action = req.query?.action || new URL(req.url, 'http://localhost').pathname.split('/').filter(Boolean).pop();
 
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  const allowed = METHODS[action];
+  if (!allowed) return res.status(404).json({ error: 'unknown_action' });
+  if (req.method !== allowed) return res.status(405).json({ error: 'Method not allowed' });
 
   const identity = await resolvePortalIdentity(req);
   if (identity.unauthorized) return res.status(401).json({ error: 'unauthorized' });
@@ -36,6 +41,10 @@ export default async function handler(req, res) {
       return handleFiles(req, res, identity);
     case 'download':
       return handleDownload(req, res, identity);
+    case 'messages':
+      return handleMessages(req, res, identity);
+    case 'send':
+      return handleSend(req, res, identity);
     default:
       return res.status(404).json({ error: 'unknown_action' });
   }
@@ -174,4 +183,70 @@ async function handleDownload(req, res, identity) {
     console.error('[portal/download]', e?.message || e);
     if (!res.headersSent) res.status(500).json({ error: 'download_failed' });
   }
+}
+
+// One message thread per job. Find-or-create on demand. Clients reach only their
+// own job's thread; staff may reach any job's thread (read + reply).
+async function findOrCreateThread(db, jobId, create) {
+  const { data: existing } = await db.from('threads').select('id').eq('job_id', jobId).maybeSingle();
+  if (existing) return existing;
+  if (!create) return null;
+  const { data, error } = await db.from('threads').insert({ job_id: jobId }).select('id').single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+// GET /api/portal/messages?job_id=... — the job's thread messages (oldest first).
+async function handleMessages(req, res, identity) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  if (identity.role !== 'client' && identity.role !== 'staff') return res.status(403).json({ error: 'forbidden' });
+
+  const jobId = req.query?.job_id || new URL(req.url, 'http://localhost').searchParams.get('job_id');
+  const job = await getJobForIdentity(identity, jobId, 'job_id');
+  if (!job) return res.status(404).json({ error: 'job_not_found' });
+
+  const thread = await findOrCreateThread(identity.db, job.job_id, false);
+  let messages = [];
+  if (thread) {
+    const { data } = await identity.db
+      .from('messages')
+      .select('id, sender_type, body, via, created_at')
+      .eq('thread_id', thread.id)
+      .order('created_at', { ascending: true });
+    messages = data || [];
+  }
+  return res.status(200).json({ job_id: job.job_id, messages });
+}
+
+// POST /api/portal/send { job_id, body } — append a message as client or staff.
+async function handleSend(req, res, identity) {
+  if (identity.role !== 'client' && identity.role !== 'staff') return res.status(403).json({ error: 'forbidden' });
+
+  const payload = req.body || {};
+  const text = String(payload.body || '').trim();
+  if (!text) return res.status(400).json({ error: 'empty_message' });
+  if (text.length > 5000) return res.status(400).json({ error: 'message_too_long' });
+
+  const job = await getJobForIdentity(identity, payload.job_id, 'job_id');
+  if (!job) return res.status(404).json({ error: 'job_not_found' });
+
+  let thread;
+  try {
+    thread = await findOrCreateThread(identity.db, job.job_id, true);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+
+  const senderType = identity.role === 'client' ? 'client' : 'staff';
+  const senderId = identity.role === 'client' ? identity.client.id : null;
+  const { data: message, error } = await identity.db
+    .from('messages')
+    .insert({ thread_id: thread.id, sender_type: senderType, sender_id: senderId, body: text, via: 'portal' })
+    .select('id, sender_type, body, via, created_at')
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+
+  await identity.db.from('threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id);
+  // Email notification to the other party is a later slice (notifications table ready).
+  return res.status(200).json({ message });
 }

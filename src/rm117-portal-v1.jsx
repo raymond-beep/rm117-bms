@@ -7,9 +7,12 @@
 // Deliberately money-free: no totals, payments, or balances (see /api/portal/me).
 // Documents (Drive file broker) and Messages (thread + email bridge) need their
 // backends built — until then their panels render an on-brand empty state.
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth, useClerk } from '@clerk/clerk-react';
 import { shortDate } from './lib/format.js';
+
+const fmtMsgTime = (iso) =>
+  iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
 // Client-facing phase vocabulary (shorter/friendlier than the staff BMS labels).
 const LADDER = [
@@ -282,19 +285,87 @@ function DocumentsPanel({ job }) {
 }
 
 // Messaging — backend (thread + email bridge) not built yet. On-brand empty state.
+// One thread per job. Client messages render right ("You"), staff left ("RM117").
+// Same component powers the staff preview — there the caller is staff, so a sent
+// message posts as staff (a legitimate reply). Email bridge is a later slice.
 function MessagesPanel({ job }) {
+  const { getToken } = useAuth();
+  const [messages, setMessages] = useState([]);
+  const [status, setStatus] = useState('loading');
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const bodyRef = useRef(null);
+  const jobId = job?.job_id;
+
+  const load = useCallback(async () => {
+    if (!jobId) return;
+    try {
+      const token = await getToken();
+      const r = await fetch(`/api/portal/messages?job_id=${encodeURIComponent(jobId)}`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const d = await r.json();
+      setMessages(d.messages || []);
+      setStatus('ready');
+    } catch {
+      setStatus('error');
+    }
+  }, [jobId, getToken]);
+
+  useEffect(() => { setStatus('loading'); setMessages([]); load(); }, [load]);
+  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [messages]);
+
+  const send = async () => {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      const token = await getToken();
+      const r = await fetch('/api/portal/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ job_id: jobId, body: text }),
+      });
+      if (!r.ok) throw new Error('send failed');
+      const { message } = await r.json();
+      setMessages((m) => [...m, message]);
+      setDraft('');
+    } catch {
+      alert('Your message could not be sent. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="cp-card cp-panel cp-messages">
       <div className="cp-panel-head">
         <h3>Messages</h3>
         <span className="cp-panel-tag">{job ? job.job_id : ''}</span>
       </div>
-      <div className="cp-panel-body cp-msg-body">
-        <div className="cp-panel-empty">No messages yet. You'll be able to message your project team here — one thread per project, bridged to email.</div>
+      <div className="cp-panel-body cp-msg-body" ref={bodyRef}>
+        {status === 'loading' && <div className="cp-panel-empty">Loading messages…</div>}
+        {status === 'error' && <div className="cp-panel-empty">Couldn’t load messages. Try refreshing.</div>}
+        {status === 'ready' && messages.length === 0 && (
+          <div className="cp-panel-empty">No messages yet. Send a note to your project team below.</div>
+        )}
+        {status === 'ready' && messages.map((m) => (
+          <div key={m.id} className={`cp-msg ${m.sender_type === 'client' ? 'mine' : 'them'}`}>
+            <div className="cp-msg-meta">{m.sender_type === 'client' ? 'You' : 'RM117'} · {fmtMsgTime(m.created_at)}</div>
+            <div className="cp-msg-bubble">{m.body}</div>
+          </div>
+        ))}
       </div>
-      <div className="cp-composer is-soon">
-        <div className="cp-composer-input">Messaging coming soon…</div>
-        <button className="cp-composer-send" disabled>Send</button>
+      <div className="cp-composer">
+        <input
+          className="cp-composer-input"
+          placeholder="Write a message…"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+        />
+        <button className="cp-composer-send" onClick={send} disabled={sending || !draft.trim()}>Send</button>
       </div>
     </div>
   );
