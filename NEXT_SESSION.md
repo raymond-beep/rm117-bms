@@ -1,9 +1,73 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-17 (short session: clarified client-portal auth is separate from staff Google OAuth · set global git identity)
+**Last updated:** 2026-06-18 (Phase 7 SHIPPED: portal redesign + document vault + staff preview; messaging is next)
 
 ---
 
-## ▶ RESUME HERE — latest: 2026-06-17 (short session)
+## ▶ RESUME HERE — latest: 2026-06-18 — **BUILD THE MESSAGES TAB NEXT**
+
+App live at **rm117-bms.vercel.app**. Everything below is committed to `main` and deployed to prod.
+Latest commit: `dfe44ad`. Commits today: `a0f5e2f` (portal redesign + vault + phase reorder + DaSilva
+aliases) · `0568c98` (staff preview) · `629f518` (Vercel key fix + copy) · `dfe44ad` (audit + checklist).
+**Not yet pushed to origin** — `git push origin main` if you want the GitHub backup.
+
+### ✅ Shipped today (Phase 7 Client Portal)
+- **Portal redesigned to the approved mockup** (`design/visual-refresh-2026-06/`): dark header,
+  project switcher cards, **horizontal phase stepper**, two-panel Documents/Messages. `src/rm117-portal-v1.jsx`.
+  **Money-free by design** — no totals/payments reach the client (stripped from the API too).
+- **Auth/role gate** (`RoleGate` in `src/rm117-app-shell-v1.jsx`): client→portal, staff(@rm117.com)→shell,
+  else→no-access. Clients sign in **Clerk email-code only**. Isolation lives in `api/_lib/portal-auth.js`
+  (`resolvePortalIdentity`, `getJobForIdentity` — client sees own jobs, staff sees any).
+- **Document vault LIVE** — service account (`rm117-sheets-reader@…`, +`drive.readonly`) brokers each job's
+  **"Files Sent"** Drive folder. `api/_lib/google-drive.js`; `jobs.drive_files_sent_folder_id`.
+  **85 jobs mapped** via `scripts/map-drive-folders.js` (Shared Drive `0AI4YgRkGhLhCUk9PVA`, walks
+  "YYYY Jobs" archives, by Job ID, idempotent). Audited with `scripts/audit-drive-mappings.js` → 75 clean.
+- **Staff portal preview** — staff `/portal` route → pick a client → see their portal (`preview` action).
+- **Vercel key bug FIXED** — `GOOGLE_PRIVATE_KEY` arrived quoted on Vercel (dotenv strips quotes locally,
+  Vercel doesn't) → OpenSSL `DECODER unsupported` → every Drive call failed in prod. Fix: strip quotes in
+  `google-drive.js` `privateKey()`. **Lesson: SA key only ever ran in local scripts before; this was its
+  first runtime use on Vercel.**
+- **Vercel Hobby = 12 serverless functions max.** ALL portal routes are ONE function
+  `api/portal/[action].js` (dispatches `me`/`preview`/`files`/`download` by path segment). **Add new
+  portal actions HERE — do not create new `api/portal/*.js` files** or the deploy fails the cap.
+- **Data fixes:** merged duplicate client Josh/Joshua Russo → **Joshua Russo** (3 jobs). Corrected
+  `25_054_McCalla` to the right folder (`25_055` offset). **Unlinked `23_047_FF_Jones`** (was pointing at
+  `23_047_Needle_Ripley`). See CHECKLIST → "Portal data refinement" for the long-tail list.
+
+### ⏭ NEXT: build the Messages tab (in-portal; email bridge deferred)
+Tables already exist (empty): **`threads`** (id, job_id, subject, created_at, updated_at) and
+**`messages`** (id, thread_id, sender_type `staff|client`, sender_id uuid nullable, body, via `portal|email`,
+created_at). One thread per job. Build plan:
+
+1. **API — add to the dispatcher `api/portal/[action].js`** (keeps us at one function):
+   - The dispatcher currently rejects non-GET at the top (`if req.method !== 'GET' → 405`). **Refactor so
+     `send` allows POST** (move the method check per-action).
+   - `GET messages?job_id=X` → find-or-create the job's thread, return its messages ascending. Client: own
+     job only; staff: any job. Use `getJobForIdentity(identity, jobId)` for the ownership check.
+   - `POST send` (body `{job_id, body}`) → resolve identity, verify job ownership, find-or-create thread,
+     insert a message: `sender_type` = `client` if role client (sender_id = client.id) else `staff`
+     (sender_id null — staff table is empty), `via='portal'`. Bump `threads.updated_at`.
+   - **Register `/api/portal/messages` + `/api/portal/send` in `server.js`** (local dev only; Vercel’s
+     `[action]` catch-all handles prod automatically). Note: server.js parses JSON via express.json().
+2. **Client UI** — `MessagesPanel` in `src/rm117-portal-v1.jsx` is currently a "coming soon" placeholder.
+   Replace with: fetch `GET /api/portal/messages?job_id=<selected>` with the Clerk token; render the thread
+   as RM117 (left) vs You (right) bubbles (mockup styling: `.cp-msg-*` — see the mockup section in
+   `RM117 Mockup.dc.html` lines ~612-636); wire the composer to `POST /api/portal/send` then refetch.
+3. **Staff UI** — add a **"Messages" tab** to `JobEditor` in `src/rm117-dashboard-v1.jsx` (alongside
+   Details/Progress/Payments — the drawer-tab pattern is at lines ~373-375). Same endpoints with the staff
+   token (staff posts as `staff`). Lets the firm read/reply per job.
+4. **Email bridge = LATER** (needs Resend, `resend:false`). `notifications` table is ready for it.
+
+**Verify pattern:** all `/api/portal/*` return 401 without a token; client sees only own job's thread;
+staff can post to any job; build passes (`npm run build`). Test via the **staff preview** + the test client
+`raymond+portaltest@rm117.com` (jobs `00_99{7,8,9}_PortalTest`).
+
+### ⚠️ Test data to DELETE when done with portal testing (prod Supabase)
+Client **"Portal Test Client"** (`raymond+portaltest@rm117.com`, id `9f42f299-…`) + jobs
+`00_999/00_998/00_997_PortalTest` + their phase events. `00_999` is mapped to the real Kuhn Files-Sent folder.
+
+---
+
+## ▶ RESUME HERE — 2026-06-17 (short session)
 
 **Done tonight (committed `f2ba7dd`, pushed to `origin/main`):**
 - **Resolved the client-portal concern:** clients authenticate through Clerk by **email only**
