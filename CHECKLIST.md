@@ -124,12 +124,13 @@
 - [ ] Merge duplicate no-email client rows (Gabe DaSilva ×2, Josh Russo ×2)
 - [x] Commit the inbox + client work to git — repo now matches prod (through 2026-06-16)
 
-### Google Calendar widget — DONE (personal); shared cal pending Ang
+### Google Calendar widget — DONE (personal + shared company cal LIVE 2026-06-18)
 - [x] `calendar.readonly` scope added (Google + Clerk), Google Calendar API enabled in rm117-bms
 - [x] `api/calendar.js` + `CalendarWidget` live — reads user's primary Google cal + `COMPANY_CALENDAR_ID`
-- [ ] **Shared RM117 calendar (needs Ang — she owns the iCloud one):** create a Google calendar for
-  RM117, share with all staff, everyone adds it to Apple Calendar (add Google account) for native
-  two-way sync. Then give Ray the Calendar ID → set `COMPANY_CALENDAR_ID` in `.env` + Vercel → redeploy.
+- [x] **Shared RM117 company calendar LIVE:** Ray created the Google "RM117 Company" calendar, migrated
+  the iCloud events, shared with staff; `COMPANY_CALENDAR_ID` set in `.env` + Vercel prod, redeployed
+  (`company_calendar:true`). Shows in the dashboard tagged "RM117". (Staff add it to Apple Calendar via a
+  Google account for two-way sync.)
 
 ---
 
