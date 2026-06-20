@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@clerk/clerk-react';
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
-  useDraggable, useDroppable, closestCorners,
+  useDraggable, useDroppable, pointerWithin, closestCenter,
 } from '@dnd-kit/core';
 import { money, phaseLabel, shortDate, PHASE_LABELS, PHASE_ORDER, PIPELINE_PHASES } from './lib/format.js';
 import { NoteMedia } from './lib/note-media.jsx';
@@ -214,7 +214,7 @@ export default function BmsDashboard() {
       ) : filtered.length === 0 ? (
         <div className="card"><div className="empty">No jobs match the current filters.</div></div>
       ) : viewMode === 'grouped' ? (
-        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={phaseCollision} onDragStart={onDragStart} onDragEnd={onDragEnd}>
           {moveError && <div className="move-error">{moveError}</div>}
           <div className="phase-groups">
             {scopePhases.map((phase) => (
@@ -294,6 +294,14 @@ export default function BmsDashboard() {
 }
 
 /* ===================== Job card + drag-to-move-phase (grouped view) ===================== */
+
+// Drop on the phase section the pointer is over (header or anywhere inside), so
+// you never have to reach its middle. Falls back to the nearest section when the
+// pointer is in a gap, so there's always a sensible target.
+function phaseCollision(args) {
+  const within = pointerWithin(args);
+  return within.length > 0 ? within : closestCenter(args);
+}
 
 // Presentational card contents — shared by the in-list card and the drag overlay.
 function JobCardBody({ job, todayStr }) {
