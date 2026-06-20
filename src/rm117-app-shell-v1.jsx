@@ -224,11 +224,77 @@ function MobileThemeSheet({ onClose }) {
   );
 }
 
+// --- device-capture helpers (field notes) ---
+
+// Read a File/Blob as a base64 data URL.
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+}
+
+// Downscale a photo to a max dimension and re-encode as JPEG, so uploads stay
+// small/fast (phones shoot multi-MB images). Also normalizes iOS HEIC → JPEG.
+async function imageFileToDataUrl(file, maxDim = 1600, quality = 0.8) {
+  const src = await blobToDataUrl(file);
+  const img = await new Promise((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = src;
+  });
+  let { width, height } = img;
+  if (Math.max(width, height) > maxDim) {
+    const scale = maxDim / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+// First audio container the browser will actually record (iOS Safari → mp4).
+function pickAudioMime() {
+  if (typeof MediaRecorder === 'undefined') return '';
+  return ['audio/mp4', 'audio/webm', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
+}
+
+const mapsUrl = (loc) => `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
+
+// Render a note's attachments (signed photo/voice URLs) + a location map link.
+// Shared shape between the mobile sheet's "recent notes" and (later) the desktop
+// JobEditor list.
+function NoteMedia({ attachments, location }) {
+  const list = attachments || [];
+  if (list.length === 0 && !location) return null;
+  return (
+    <div className="fn-media">
+      {list.map((a, i) =>
+        a.type === 'photo' ? (
+          a.url ? <a key={i} href={a.url} target="_blank" rel="noreferrer"><img className="fn-media-thumb" src={a.url} alt="Field photo" /></a> : null
+        ) : (
+          a.url ? <audio key={i} className="fn-media-audio" controls src={a.url} /> : null
+        ),
+      )}
+      {location && (
+        <a className="fn-media-loc" href={mapsUrl(location)} target="_blank" rel="noreferrer">
+          📍 {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
+        </a>
+      )}
+    </div>
+  );
+}
+
 // Mobile "Field note" bottom sheet — capture an on-site note against a job.
-// The README's main mobile feature. Pick a job (on-site phases only), type the
-// note, save → POST /api/field-notes. Photo/Voice/Location are visual-only
-// affordances for now (device capture wires up later). Recent notes for the
-// selected job are shown so you can confirm the save landed.
+// The README's main mobile feature. Pick a job (on-site phases only), type a
+// note and/or attach a photo, voice memo, or GPS location, then save →
+// POST /api/field-notes. Recent notes for the job are shown to confirm the save.
 function FieldNoteSheet({ onClose }) {
   const { getToken } = useAuth();
   const [jobs, setJobs] = useState(null);          // null = loading
@@ -236,8 +302,15 @@ function FieldNoteSheet({ onClose }) {
   const [selected, setSelected] = useState(null);  // job_id
   const [body, setBody] = useState('');
   const [notes, setNotes] = useState([]);          // recent notes for selected job
+  const [attachments, setAttachments] = useState([]); // pending, unsaved: {type,path,name,preview}
+  const [location, setLocation] = useState(null);  // pending {lat,lng}
+  const [uploading, setUploading] = useState(null); // 'photo' | 'voice' | 'location' | null
+  const [recording, setRecording] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const fileInputRef = useRef(null);
+  const recorderRef = useRef(null);
+  const chunksRef = useRef([]);
 
   // On-site phases only — these are the jobs someone would be standing at.
   useEffect(() => {
@@ -270,14 +343,92 @@ function FieldNoteSheet({ onClose }) {
     }
   };
 
+  // Switching jobs resets pending capture — attachments are stored under the job.
   const pickJob = (jobId) => {
     setSelected(jobId);
     setError(null);
     setNotes([]);
+    setAttachments([]);
+    setLocation(null);
     loadNotes(jobId);
   };
 
-  const canSave = Boolean(selected) && body.trim().length > 0 && !saving;
+  // Push a captured photo/voice blob to Storage, keep a local preview for the chip.
+  const uploadAttachment = async (kind, dataUrl, name) => {
+    setUploading(kind);
+    setError(null);
+    try {
+      const token = await getToken();
+      const r = await fetch('/api/field-notes/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ job_id: selected, kind, dataUrl, name }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Upload failed');
+      setAttachments((p) => [...p, { type: d.type, path: d.path, name: d.name, preview: dataUrl }]);
+    } catch (e) {
+      setError(e.message || 'Upload failed');
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const onPhotoFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file || !selected) return;
+    try {
+      const dataUrl = await imageFileToDataUrl(file);
+      await uploadAttachment('photo', dataUrl, file.name);
+    } catch {
+      setError('Could not read that image');
+    }
+  };
+
+  const toggleVoice = async () => {
+    if (recording) { recorderRef.current?.stop(); return; }
+    if (!selected) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = pickAudioMime();
+      const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+      mr.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunksRef.current.push(ev.data); };
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/mp4' });
+        try {
+          const dataUrl = await blobToDataUrl(blob);
+          await uploadAttachment('voice', dataUrl, 'voice-note');
+        } catch {
+          setError('Could not save that recording');
+        }
+      };
+      recorderRef.current = mr;
+      mr.start();
+      setRecording(true);
+    } catch {
+      setError('Microphone unavailable or permission denied');
+    }
+  };
+
+  const captureLocation = () => {
+    if (!navigator.geolocation) { setError('Location is not available on this device'); return; }
+    setUploading('location');
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setUploading(null); },
+      () => { setError('Could not get your location (permission denied?)'); setUploading(null); },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  const removeAttachment = (idx) => setAttachments((p) => p.filter((_, i) => i !== idx));
+
+  const busy = saving || Boolean(uploading) || recording;
+  const canSave = Boolean(selected) && (body.trim().length > 0 || attachments.length > 0 || Boolean(location)) && !busy;
 
   const save = async () => {
     if (!canSave) return;
@@ -287,16 +438,20 @@ function FieldNoteSheet({ onClose }) {
       const token = await getToken();
       const r = await fetch('/api/field-notes', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ job_id: selected, body: body.trim() }),
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          job_id: selected,
+          body: body.trim(),
+          attachments: attachments.map(({ type, path, name }) => ({ type, path, name })),
+          location,
+        }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Could not save the note');
       if (d.note) setNotes((prev) => [d.note, ...prev]);
       setBody('');
+      setAttachments([]);
+      setLocation(null);
     } catch (e) {
       setError(e.message || 'Could not save the note');
     } finally {
@@ -308,6 +463,12 @@ function FieldNoteSheet({ onClose }) {
   const filtered = (jobs || []).filter(
     (j) => !q || (j.job_id || '').toLowerCase().includes(q) || (j.client_name || '').toLowerCase().includes(q),
   );
+
+  const TOOLS = [
+    { key: 'photo', label: uploading === 'photo' ? 'Uploading…' : 'Photo', icon: 'M4 7h3l1.5-2h7L17 7h3v12H4z M12 16a3 3 0 100-6 3 3 0 000 6z', onClick: () => fileInputRef.current?.click() },
+    { key: 'voice', label: recording ? 'Stop' : uploading === 'voice' ? 'Uploading…' : 'Voice', icon: 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3z M5 11a7 7 0 0014 0 M12 18v3', onClick: toggleVoice },
+    { key: 'location', label: uploading === 'location' ? 'Locating…' : location ? 'Pinned' : 'Location', icon: 'M12 21s7-6.4 7-11a7 7 0 10-14 0c0 4.6 7 11 7 11z M12 12a2.5 2.5 0 100-5 2.5 2.5 0 000 5z', onClick: captureLocation },
+  ];
 
   return (
     <div className="sheet-overlay" onClick={onClose}>
@@ -367,21 +528,50 @@ function FieldNoteSheet({ onClose }) {
           rows={4}
         />
 
-        {/* Attachment affordances — visual only for now (wire to device APIs later) */}
+        {/* Capture tools — camera, voice memo, GPS location */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={onPhotoFile}
+          style={{ display: 'none' }}
+        />
         <div className="fn-attach">
-          {[
-            { key: 'photo', label: 'Photo', icon: 'M4 7h3l1.5-2h7L17 7h3v12H4z M12 16a3 3 0 100-6 3 3 0 000 6z' },
-            { key: 'voice', label: 'Voice', icon: 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3z M5 11a7 7 0 0014 0 M12 18v3' },
-            { key: 'location', label: 'Location', icon: 'M12 21s7-6.4 7-11a7 7 0 10-14 0c0 4.6 7 11 7 11z M12 12a2.5 2.5 0 100-5 2.5 2.5 0 000 5z' },
-          ].map((a) => (
-            <button key={a.key} className="fn-attach-btn" disabled title="Coming soon">
+          {TOOLS.map((t) => (
+            <button
+              key={t.key}
+              className={`fn-attach-btn${(t.key === 'voice' && recording) ? ' recording' : ''}${(t.key === 'location' && location) ? ' done' : ''}`}
+              onClick={t.onClick}
+              disabled={!selected || (busy && !(t.key === 'voice' && recording))}
+            >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d={a.icon} />
+                <path d={t.icon} />
               </svg>
-              {a.label}
+              {t.label}
             </button>
           ))}
         </div>
+
+        {/* Pending capture preview (before save) */}
+        {(attachments.length > 0 || location) && (
+          <div className="fn-pending">
+            {attachments.map((a, i) => (
+              <div key={i} className="fn-pending-item">
+                {a.type === 'photo'
+                  ? <img className="fn-pending-thumb" src={a.preview} alt={a.name || 'photo'} />
+                  : <span className="fn-pending-voice">🎙 voice memo</span>}
+                <button className="fn-pending-x" onClick={() => removeAttachment(i)} aria-label="Remove">✕</button>
+              </div>
+            ))}
+            {location && (
+              <div className="fn-pending-item">
+                <span className="fn-pending-voice">📍 {location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
+                <button className="fn-pending-x" onClick={() => setLocation(null)} aria-label="Remove location">✕</button>
+              </div>
+            )}
+          </div>
+        )}
 
         {error && <div className="fn-error">{error}</div>}
 
@@ -395,7 +585,10 @@ function FieldNoteSheet({ onClose }) {
             <div className="fn-recent-cap">Recent notes</div>
             {notes.slice(0, 5).map((n) => (
               <div key={n.id} className="fn-recent-item">
-                <div className="fn-recent-body">{n.body}</div>
+                <div className="fn-recent-main">
+                  {n.body && <div className="fn-recent-body">{n.body}</div>}
+                  <NoteMedia attachments={n.attachments} location={n.location} />
+                </div>
                 <div className="fn-recent-date">{shortDate(n.created_at)}</div>
               </div>
             ))}

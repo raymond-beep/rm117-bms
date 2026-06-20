@@ -1087,7 +1087,42 @@ input, select, textarea { font: inherit; }
   padding: 10px 0; border: 1px dashed var(--border); border-radius: 10px;
   background: none; color: var(--ink3); font-size: 11px;
 }
-.fn-attach-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+.fn-attach-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.fn-attach-btn.done { border-style: solid; border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.fn-attach-btn.recording { border-style: solid; border-color: #d92d20; color: #d92d20; animation: fn-pulse 1s ease-in-out infinite; }
+@keyframes fn-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+[data-reduced-motion="on"] .fn-attach-btn.recording { animation: none; }
+
+/* pending (unsaved) capture chips */
+.fn-pending { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.fn-pending-item { position: relative; display: flex; align-items: center; }
+.fn-pending-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 9px; border: 1px solid var(--border); }
+.fn-pending-voice {
+  display: inline-flex; align-items: center; padding: 8px 12px; border-radius: 9px;
+  border: 1px solid var(--border); background: var(--inset); font-size: 12px; color: var(--ink2);
+}
+.fn-pending-x {
+  position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%;
+  border: none; background: var(--ink); color: var(--panel); font-size: 11px; line-height: 1; cursor: pointer;
+}
+
+/* saved-note media (photo thumbs, audio, location link) */
+.fn-media { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.fn-media-thumb { width: 64px; height: 64px; object-fit: cover; border-radius: 9px; border: 1px solid var(--border); display: block; }
+.fn-media-audio { height: 34px; max-width: 100%; }
+.fn-media-loc {
+  display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11px;
+  color: var(--accent-ink); text-decoration: none; padding: 5px 9px; border-radius: 8px; background: var(--accent-soft);
+}
+.fn-recent-main { min-width: 0; flex: 1; }
+
+/* desktop JobEditor → Progress tab → field notes list */
+.fnp { margin-top: 22px; border-top: 1px solid var(--divider, var(--border)); padding-top: 16px; }
+.fnp-item { padding: 12px 0; border-bottom: 1px solid var(--divider, var(--border)); }
+.fnp-item:last-child { border-bottom: none; }
+.fnp-item-head { display: flex; justify-content: flex-end; }
+.fnp-date { font-family: var(--mono); font-size: 10px; letter-spacing: 0.5px; color: var(--ink3); text-transform: uppercase; }
+.fnp-body { font-size: 13px; color: var(--ink); margin-top: 2px; white-space: pre-wrap; }
 .fn-error { color: var(--warn, #c2410c); font-size: 13px; margin-bottom: 10px; }
 .fn-save {
   width: 100%; padding: 13px; border: none; border-radius: 11px;

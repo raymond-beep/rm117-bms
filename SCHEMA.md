@@ -96,10 +96,13 @@ seeded one baseline row (current phase at `created_at`).
 
 ### `field_notes`
 On-site field notes captured against a job — the mobile FAB + capture-sheet feature
-(staff-only). Append-only; ordered newest-first per job. `attachments` and `location` are
-reserved for phase 2 (photo/voice/geo capture) and unused today. Served by `api/field-notes.js`
-(`GET ?job_id=…`, `POST {job_id, body}`); `author_id` comes from the verified Clerk token, never
-the request body.
+(staff-only). Append-only; ordered newest-first per job. Served by `api/field-notes.js`
+(`GET ?job_id=…`, `POST {job_id, body, attachments?, location?}`); `author_id` comes from the
+verified Clerk token, never the request body.
+**Attachments:** photos/voice memos are uploaded via `api/field-notes/upload.js` (base64 → the
+private **`field-notes` Storage bucket**, path `job_id/uuid.ext`) which returns the storage path;
+that path is stored in `attachments`. On read, `GET` swaps each path for a short-lived **signed
+URL** (1h) so the bucket is never public. `location` holds an optional `{lat,lng}` GPS pin.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | uuid PK | default `gen_random_uuid()` |

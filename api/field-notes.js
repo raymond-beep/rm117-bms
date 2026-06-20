@@ -8,6 +8,9 @@
 import { getDb, hasDb, JOB_ID_RE } from './_lib/db.js';
 import { hasClerk, getUserId } from './_lib/clerk.js';
 
+const BUCKET = 'field-notes';
+const SIGNED_URL_TTL = 3600; // 1h — long enough for a session, short enough to stay private
+
 export default async function handler(req, res) {
   // Per-user live data — never serve a stale cached copy.
   res.setHeader('Cache-Control', 'no-store, max-age=0');
@@ -45,7 +48,8 @@ async function getNotes(req, res) {
       .eq('job_id', jobId)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    res.status(200).json({ source: 'supabase', notes: data || [] });
+    const notes = await signAttachments(db, data || []);
+    res.status(200).json({ source: 'supabase', notes });
   } catch (err) {
     console.error('[api/field-notes GET]', err);
     res.status(500).json({ error: err.message });
@@ -58,7 +62,12 @@ async function createNote(req, res) {
     return res.status(400).json({ error: 'A valid job_id is required' });
   }
   const text = typeof body === 'string' ? body.trim() : '';
-  if (!text) return res.status(400).json({ error: 'body is required' });
+  const attachments = sanitizeAttachments(req.body?.attachments);
+  const location = sanitizeLocation(req.body?.location);
+  // A note must carry *something* — text, an attachment, or a pinned location.
+  if (!text && attachments.length === 0 && !location) {
+    return res.status(400).json({ error: 'A note needs text, an attachment, or a location' });
+  }
 
   const userId = await requireStaff(req, res);
   if (!userId) return; // 401 already sent
@@ -69,13 +78,52 @@ async function createNote(req, res) {
     const db = getDb();
     const { data, error } = await db
       .from('field_notes')
-      .insert({ job_id, body: text, author_id: userId })
+      .insert({ job_id, body: text, author_id: userId, attachments, location })
       .select('id, job_id, body, author_id, attachments, location, created_at')
       .single();
     if (error) throw error;
-    res.status(201).json({ source: 'supabase', persisted: true, note: data });
+    const [note] = await signAttachments(db, [data]);
+    res.status(201).json({ source: 'supabase', persisted: true, note });
   } catch (err) {
     console.error('[api/field-notes POST]', err);
     res.status(500).json({ error: err.message });
   }
+}
+
+// Keep only well-formed attachment refs: { type:'photo'|'voice', path, name }.
+function sanitizeAttachments(input) {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((a) => a && (a.type === 'photo' || a.type === 'voice') && typeof a.path === 'string' && a.path)
+    .slice(0, 10)
+    .map((a) => ({ type: a.type, path: a.path, name: typeof a.name === 'string' ? a.name : null }));
+}
+
+// Accept a finite {lat, lng} pair only; anything else → null (no location).
+function sanitizeLocation(input) {
+  if (!input || typeof input !== 'object') return null;
+  const lat = Number(input.lat);
+  const lng = Number(input.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
+}
+
+// Replace each stored attachment `path` with a short-lived signed download `url`
+// so the private bucket is never exposed directly. One batched call per request.
+async function signAttachments(db, notes) {
+  const paths = [];
+  for (const n of notes) for (const a of n.attachments || []) if (a?.path) paths.push(a.path);
+  if (paths.length === 0) return notes;
+
+  let signedByPath = {};
+  try {
+    const { data } = await db.storage.from(BUCKET).createSignedUrls(paths, SIGNED_URL_TTL);
+    for (const row of data || []) if (row.path && row.signedUrl) signedByPath[row.path] = row.signedUrl;
+  } catch (err) {
+    console.error('[api/field-notes signAttachments]', err);
+  }
+  return notes.map((n) => ({
+    ...n,
+    attachments: (n.attachments || []).map((a) => ({ ...a, url: signedByPath[a.path] || null })),
+  }));
 }

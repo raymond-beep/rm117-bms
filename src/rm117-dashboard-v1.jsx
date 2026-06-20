@@ -686,8 +686,69 @@ function ProgressTab({ job, onSave }) {
             </button>
           </div>
         </div>
+
+        <FieldNotesPanel job={job} />
       </div>
     </>
+  );
+}
+
+/* ---- Field notes (read-only, staff) — captured on-site via the mobile sheet ---- */
+function FieldNotesPanel({ job }) {
+  const { getToken } = useAuth();
+  const [notes, setNotes] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const token = await getToken();
+        const r = await fetch(`/api/field-notes?job_id=${encodeURIComponent(job.job_id)}`, {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const d = await r.json();
+        if (alive) setNotes(d.notes || []);
+      } catch {
+        if (alive) setNotes([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, [job.job_id, getToken]);
+
+  return (
+    <div className="fnp">
+      <div className="pay-form-title">Field notes</div>
+      <div className="placeholder-note" style={{ padding: '0 0 10px' }}>
+        Captured on-site from the mobile app (photo, voice, and location). Read-only here.
+      </div>
+      {notes === null && <div className="placeholder-note">Loading notes…</div>}
+      {notes !== null && notes.length === 0 && (
+        <div className="placeholder-note">No field notes yet for this job.</div>
+      )}
+      {notes && notes.map((n) => (
+        <div key={n.id} className="fnp-item">
+          <div className="fnp-item-head">
+            <span className="fnp-date">{shortDate(n.created_at)}</span>
+          </div>
+          {n.body && <div className="fnp-body">{n.body}</div>}
+          {(n.attachments?.length || n.location) && (
+            <div className="fn-media">
+              {(n.attachments || []).map((a, i) =>
+                a.type === 'photo'
+                  ? (a.url ? <a key={i} href={a.url} target="_blank" rel="noreferrer"><img className="fn-media-thumb" src={a.url} alt="Field photo" /></a> : null)
+                  : (a.url ? <audio key={i} className="fn-media-audio" controls src={a.url} /> : null),
+              )}
+              {n.location && (
+                <a className="fn-media-loc" href={`https://www.google.com/maps?q=${n.location.lat},${n.location.lng}`} target="_blank" rel="noreferrer">
+                  📍 {Number(n.location.lat).toFixed(5)}, {Number(n.location.lng).toFixed(5)}
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 

@@ -5,7 +5,9 @@ import 'dotenv/config';
 import express from 'express';
 
 const app = express();
-app.use(express.json());
+// 30mb to accommodate base64 photo/voice uploads (field notes). Vercel parses
+// bodies itself in prod; this limit only governs the local dev wrapper.
+app.use(express.json({ limit: '30mb' }));
 
 // Route table: URL path -> api/ module. Add a line here when adding an api/ file.
 const routes = {
@@ -17,6 +19,7 @@ const routes = {
   '/api/clients': () => import('./api/clients.js'),
   '/api/phase-events': () => import('./api/phase-events.js'),
   '/api/field-notes': () => import('./api/field-notes.js'),
+  '/api/field-notes/upload': () => import('./api/field-notes/upload.js'),
   // Portal routes are one consolidated function; the dispatcher reads the
   // trailing path segment (Vercel passes it as the [action] dynamic segment).
   '/api/portal/me': () => import('./api/portal/[action].js'),
