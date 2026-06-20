@@ -106,16 +106,8 @@ export default function BmsDashboard() {
     return m;
   }, [jobs]);
 
-  // Ordered job ids per in-scope phase, for the chosen sort mode.
-  const baseItems = useMemo(() => {
-    const map = {};
-    for (const phase of scopePhases) {
-      map[phase] = orderJobs(filtered.filter((j) => j.phase === phase), sortMode).map((j) => j.job_id);
-    }
-    return map;
-  }, [filtered, scopePhases.join(','), sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const items = dragItems || baseItems;
+  // NOTE: `baseItems` + `items` are declared lower, after `filtered`/`scopePhases`
+  // exist (they depend on them). The handlers below only read them at drag time.
 
   function onDragStart(event) {
     setMoveError(null);
@@ -242,6 +234,18 @@ export default function BmsDashboard() {
     : phaseFilter === 'pipeline'
       ? PHASE_ORDER.filter((p) => PIPELINE_PHASES.includes(p))
       : [phaseFilter];
+
+  // Ordered job ids per in-scope phase, for the chosen sort mode. (Declared here,
+  // after filtered/scopePhases exist; the drag handlers above read it at drag time.)
+  const baseItems = useMemo(() => {
+    const map = {};
+    for (const phase of scopePhases) {
+      map[phase] = orderJobs(filtered.filter((j) => j.phase === phase), sortMode).map((j) => j.job_id);
+    }
+    return map;
+  }, [filtered, scopePhases.join(','), sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const items = dragItems || baseItems;
 
   // Optimistic save: apply locally, POST, roll back on failure (Phase 3).
   async function saveJob(jobId, fields) {
