@@ -71,6 +71,7 @@ The heart of everything. One row per job.
 | `import_needs_review` | boolean | default `false` — Phase 2 cleanup queue flag |
 | `next_milestone_label` | text | nullable — the one "date to follow" label (e.g. "CDs due") |
 | `next_milestone_date` | date | nullable — target date for the next milestone; surfaced in dashboard "Coming up" |
+| `board_position` | double precision | nullable — manual within-phase ordering for the BMS grouped board (drag-to-reorder). Seeded ×1000 by job_id; reorders write a fractional midpoint between neighbors. Only used by the "Manual order" sort; field sorts ignore it. |
 | `created_at` | timestamptz | |
 | `updated_at` | timestamptz | |
 | *(computed)* `outstanding` | numeric | NOT stored — `job_total - sum(payments.amount)` |

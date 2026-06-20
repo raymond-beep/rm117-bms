@@ -160,6 +160,18 @@
 - [ ] Client Portal (Phase 7) — desktop + mobile (net-new surface; backbone ready)
 - [ ] Mobile field-specific screens (job detail w/ call/directions, bottom-sheet log-payment)
 
+## Field Notes (mobile feature) + BMS drag-to-organize — 2026-06-20 — DONE (deployed prod)
+- [x] Upgraded to **Vercel Pro** (12-function Hobby cap removed)
+- [x] `field_notes` table + `api/field-notes.js` (GET/POST/PATCH/DELETE, staff-only, author from Clerk token)
+- [x] `api/field-notes/upload.js` + private `field-notes` Storage bucket; GET returns 1h signed URLs
+- [x] Mobile `+` FAB capture sheet: any job; text + photo (camera **or** library/files, multi, downscaled) + voice (MediaRecorder) + location (GPS); edit/delete; swipeable photo lightbox (`src/lib/note-media.jsx`)
+- [x] Desktop: read/edit/delete Field Notes list in JobEditor → Progress tab (`FieldNotesPanel`)
+- [x] iOS fixes: voice mime parsing, recording-button label overlap, no zoom-on-focus (16px controls <760px)
+- [x] BMS drag-to-move between phases + within-phase reorder (`@dnd-kit`; `jobs.board_position`)
+- [x] BMS Sort dropdown: Manual / Most recent (job #) / Next milestone / Contract value / Outstanding / Client name
+- [x] App-level `ErrorBoundary` (render crashes show a Reload card, not a white screen)
+- [ ] Field Notes phase 2 (deferred): wire photo/voice/location to richer device flows; reverse-geocode location → address (Ang: low priority)
+
 ---
 
 ## JobEditor + Client-link + Payment-safety + Progress Timeline — 2026-06-16

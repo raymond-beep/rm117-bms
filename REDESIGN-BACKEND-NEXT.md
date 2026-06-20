@@ -1,10 +1,14 @@
-# Redesign — Backend Round (Next Session)
+# Redesign — Backend Round
 
-**Created:** 2026-06-19 · **Branch:** `redesign-drafting-data`
+**Created:** 2026-06-19 · Updated 2026-06-20 · merged to `main`, deployed prod.
 
-The "Drafting + data" UI redesign is **frontend-complete** (Phases 0–5, 7, 8). The next
-session is the **backend** for the two features that need new Supabase tables + APIs, plus
-one decision blocked on Ang. Everything below is what's left.
+> **Status 2026-06-20:** **Field Notes = ✅ DONE & shipped** (table + `api/field-notes.js` +
+> `api/field-notes/upload.js` + private Storage bucket + mobile capture sheet w/ photo/voice/location,
+> edit/delete, photo lightbox + desktop Progress-tab list). **Remaining: Templates (§2) + the
+> Forefront commission decision (§3, blocked on Ang).** §1 below is kept for history.
+
+The "Drafting + data" UI redesign is **frontend-complete** (Phases 0–5, 7, 8). The backend round
+covered the two features that needed new Supabase tables + APIs, plus one decision blocked on Ang.
 
 ---
 

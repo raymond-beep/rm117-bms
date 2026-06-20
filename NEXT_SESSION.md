@@ -1,9 +1,47 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-19 (UI redesign "Drafting + data" frontend COMPLETE; next = backend)
+**Last updated:** 2026-06-20 (Field Notes shipped + BMS drag/reorder/sort; next = Templates)
 
 ---
 
-## ▶ RESUME HERE — 2026-06-19 — Next session = BACKEND for the new mobile feature
+## ▶ RESUME HERE — 2026-06-20 — Next = Templates (then Forefront rate, blocked on Ang)
+
+Everything below is **committed to `main` and deployed to prod** (rm117-bms.vercel.app). Working
+tree clean. 14 commits today; latest `e50748f`.
+
+**Shipped today:**
+- **Vercel Pro** — upgraded; the old 12-function Hobby cap is gone. New APIs are clean standalone
+  files. (Watch billing: a "Speed Insights" add-on tried to tack on +$10 — should be $20 Pro only.)
+- **Field Notes (the README's mobile feature) — COMPLETE.** New `field_notes` table + standalone
+  `api/field-notes.js` (GET/POST/PATCH/DELETE, staff-only, author from Clerk token) +
+  `api/field-notes/upload.js` (base64 → private `field-notes` Storage bucket; GET signs 1h URLs).
+  Mobile `+` FAB → capture sheet (any job; text + **photo** [camera *or* library/files, multi-select,
+  client-downscaled] + **voice** [MediaRecorder] + **location** [GPS]); edit/delete; swipeable photo
+  lightbox (`src/lib/note-media.jsx`). Desktop: read/edit/delete list in JobEditor → Progress tab
+  (`FieldNotesPanel`). Ray tested photo/voice/location on iPhone — all good.
+- **BMS drag-to-organize** (Ang's Google-Sheets workflow). `@dnd-kit/core` + `/sortable` + `/utilities`.
+  Drag a card's **grip** to **move between phases** (updates `phase`, stamps a phase event) or
+  **reorder within a phase** (persisted via new `jobs.board_position`, fractional midpoint inserts).
+  New **Sort** dropdown per the grouped view: Manual / **Most recent (job #)** / Next milestone /
+  Contract value / Outstanding / Client name. Works desktop + mobile (press-hold to lift on touch).
+- **iOS fixes:** zoom-on-focus (16px form controls <760px), voice mime parsing, recording-button
+  label overlap. **App-level `ErrorBoundary`** added — render crashes show a Reload card, not white.
+
+**Next session — Templates (deferred):** the `templates` table already exists in Supabase (0 rows).
+Build `api/templates.js` (GET list + POST create) and replace the `/templates` placeholder in
+`rm117-app-shell-v1.jsx` with the category card grid. **Decide storage first:** Drive vs Supabase
+Storage for the files (we now have a private Storage bucket pattern from Field Notes to copy).
+Then the **Forefront commission structure** decision is still blocked on Ang (% of contract vs flat
+fee). Full Templates spec in `REDESIGN-BACKEND-NEXT.md`.
+
+**Watch-outs for next session:**
+- In `BmsDashboard`, anything computed **during render** (useMemo/derived consts like `baseItems`)
+  must be declared **after** the state/memos it depends on (`filtered`, `scopePhases`) — a forward
+  ref there throws a temporal-dead-zone error that the build won't catch but blanks the page.
+- `.env` has Clerk **dev** keys locally — Calendar/Inbox/field-note auth may differ from prod; not a bug.
+
+---
+
+## ▶ Prior resume — 2026-06-19 — BACKEND for the new mobile feature (DONE — see above)
 
 The **"Drafting + data" UI redesign is frontend-complete.** Next session builds the backend
 for the two features that need new Supabase tables + APIs (**Field Notes** — the mobile capture

@@ -8,8 +8,19 @@ moved well past that. For current state, read these files in order:
 3. **`CHECKLIST.md`** — full phase-by-phase build checklist with completion status
 4. **`SCHEMA.md`** — Supabase table definitions
 
-## Current status (as of 2026-06-19)
+## Current status (as of 2026-06-20)
 
+- **2026-06-20 — Field Notes shipped + BMS drag/reorder/sort (all on `main`, deployed prod):**
+  Upgraded to **Vercel Pro** (function cap gone). Built **Field Notes** end-to-end — the README's
+  mobile feature: `field_notes` table, `api/field-notes.js` (GET/POST/PATCH/DELETE) +
+  `api/field-notes/upload.js` (photos/voice → private `field-notes` Storage bucket, signed URLs),
+  a mobile `+`-FAB capture sheet (text + photo [camera/library, multi] + voice + location, edit/delete,
+  swipeable photo lightbox) and a read/edit/delete list in the desktop JobEditor Progress tab. Added
+  **drag-to-organize** in the BMS grouped view (`@dnd-kit`): drag a card to another phase or reorder
+  within a phase (persisted via `jobs.board_position`), plus a Sort dropdown (Manual / Most recent /
+  Next milestone / Contract value / Outstanding / Client name). iOS polish (no focus-zoom, voice mime,
+  button label) + an app-level `ErrorBoundary`. **Next: Templates** (table exists; see
+  `REDESIGN-BACKEND-NEXT.md`), then the Forefront commission-rate decision (blocked on Ang).
 - **2026-06-19 — UI redesign "Drafting + data" FRONTEND COMPLETE (branch `redesign-drafting-data`,
   pushed to origin; NOT merged to main — prod untouched):** new direction supersedes the warm-paper
   "Architectural" look — IBM Plex Sans/Mono, 5 live themes (`src/lib/theme.jsx` + `[data-theme]`),

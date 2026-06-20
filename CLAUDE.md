@@ -38,6 +38,9 @@ QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
 | `api/clients.js` | GET /api/clients — client list for the Details-tab picker |
 | `api/payments.js` | Payment records per job (Phase 4); webhook dedups on `qbo_invoice_id` |
 | `api/phase-events.js` | GET/POST/DELETE — per-job phase-reached timeline (Progress tab) |
+| `api/field-notes.js` | GET/POST/PATCH/DELETE — on-site field notes (staff-only; author from Clerk token); GET signs attachment URLs |
+| `api/field-notes/upload.js` | POST base64 photo/voice → private `field-notes` Storage bucket; returns the storage path |
+| `src/lib/note-media.jsx` | Shared field-note media render (photo thumbs + swipeable lightbox, voice players, location link) — used by the mobile sheet + desktop Progress tab |
 | `scripts/import-sheet.js` | One-time Sheet → Supabase migration (Phase 2) |
 | `scripts/link-jobs-to-clients.js` | Link unlinked jobs to existing clients (dry-run default) |
 | `scripts/create-clients-for-unlinked.js` | Create clients for unlinked jobs w/ real names (dry-run default) |
@@ -55,8 +58,12 @@ each `api/` file deploys directly as a function.
 
 ## Data model
 Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `proposals`,
-`templates`, `forefront_commissions`, `staff`, `job_phase_events`. Client tier (Phase 7): `clients`,
-`threads`, `messages`, `file_records`, `notifications`.
+`templates`, `forefront_commissions`, `staff`, `job_phase_events`, `field_notes`. Client tier
+(Phase 7): `clients`, `threads`, `messages`, `file_records`, `notifications`.
+- **`field_notes`** = on-site notes (the mobile feature); photo/voice files live in the private
+  `field-notes` Supabase **Storage** bucket (backend signs short-lived URLs on read).
+- **`jobs.board_position`** = manual within-phase ordering for the BMS drag-to-reorder board.
+- **Frontend DnD** uses `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities` (BMS grouped view).
 - **`jobs`** keyed by Job ID (`YY_NNN_[FF_]LastName`). `client_id` = who's billed;
   `referred_by_id` = who referred the work in (nullable; inbound referrals only — no outbound).
   `next_milestone_label` + `next_milestone_date` = the one upcoming "date to follow".
