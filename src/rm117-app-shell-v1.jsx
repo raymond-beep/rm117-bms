@@ -376,14 +376,17 @@ function FieldNoteSheet({ onClose }) {
   };
 
   const onPhotoFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = ''; // allow re-selecting the same file
-    if (!file || !selected) return;
-    try {
-      const dataUrl = await imageFileToDataUrl(file);
-      await uploadAttachment('photo', dataUrl, file.name);
-    } catch {
-      setError('Could not read that image');
+    const files = Array.from(e.target.files || []);
+    e.target.value = ''; // allow re-selecting the same file(s)
+    if (!files.length || !selected) return;
+    // Upload sequentially so each lands as its own attachment.
+    for (const file of files) {
+      try {
+        const dataUrl = await imageFileToDataUrl(file);
+        await uploadAttachment('photo', dataUrl, file.name);
+      } catch {
+        setError('Could not read that image');
+      }
     }
   };
 
@@ -566,11 +569,13 @@ function FieldNoteSheet({ onClose }) {
         />
 
         {/* Capture tools — camera, voice memo, GPS location */}
+        {/* No `capture` attr → iOS offers Take Photo / Photo Library / Choose File;
+            `multiple` allows selecting several from the library at once. */}
         <input
           ref={fileInputRef}
           type="file"
           accept="image/*"
-          capture="environment"
+          multiple
           onChange={onPhotoFile}
           style={{ display: 'none' }}
         />
