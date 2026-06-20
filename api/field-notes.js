@@ -16,6 +16,8 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   if (req.method === 'GET') return getNotes(req, res);
   if (req.method === 'POST') return createNote(req, res);
+  if (req.method === 'PATCH') return updateNote(req, res);
+  if (req.method === 'DELETE') return deleteNote(req, res);
   return res.status(405).json({ error: 'Method not allowed' });
 }
 
@@ -86,6 +88,72 @@ async function createNote(req, res) {
     res.status(201).json({ source: 'supabase', persisted: true, note });
   } catch (err) {
     console.error('[api/field-notes POST]', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// PATCH { id, body } — edit a note's text. Staff-only. Attachments/location are
+// not edited here (delete the note to remove media).
+async function updateNote(req, res) {
+  const { id, body } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'id is required' });
+  const text = typeof body === 'string' ? body.trim() : '';
+
+  const userId = await requireStaff(req, res);
+  if (!userId) return; // 401 already sent
+
+  if (!hasDb()) return res.status(200).json({ source: 'mock', persisted: false });
+
+  try {
+    const db = getDb();
+    const { data, error } = await db
+      .from('field_notes')
+      .update({ body: text })
+      .eq('id', id)
+      .select('id, job_id, body, author_id, attachments, location, created_at')
+      .single();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Note not found' });
+    const [note] = await signAttachments(db, [data]);
+    res.status(200).json({ source: 'supabase', persisted: true, note });
+  } catch (err) {
+    console.error('[api/field-notes PATCH]', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// DELETE { id } — remove a note and any attachment files from Storage. Staff-only.
+async function deleteNote(req, res) {
+  const { id } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'id is required' });
+
+  const userId = await requireStaff(req, res);
+  if (!userId) return; // 401 already sent
+
+  if (!hasDb()) return res.status(200).json({ source: 'mock', persisted: false });
+
+  try {
+    const db = getDb();
+    // Pull the row first so we can clean up its stored files.
+    const { data: existing, error: selErr } = await db
+      .from('field_notes')
+      .select('id, attachments')
+      .eq('id', id)
+      .single();
+    if (selErr && selErr.code !== 'PGRST116') throw selErr; // PGRST116 = no rows
+    if (!existing) return res.status(404).json({ error: 'Note not found' });
+
+    const paths = (existing.attachments || []).map((a) => a?.path).filter(Boolean);
+    if (paths.length) {
+      const { error: rmErr } = await db.storage.from(BUCKET).remove(paths);
+      if (rmErr) console.error('[api/field-notes DELETE storage]', rmErr); // non-fatal
+    }
+
+    const { error } = await db.from('field_notes').delete().eq('id', id);
+    if (error) throw error;
+    res.status(200).json({ source: 'supabase', persisted: true, id });
+  } catch (err) {
+    console.error('[api/field-notes DELETE]', err);
     res.status(500).json({ error: err.message });
   }
 }

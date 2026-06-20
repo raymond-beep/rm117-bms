@@ -1129,6 +1129,12 @@ input, select, textarea { font: inherit; }
 .fnp-item-head { display: flex; justify-content: flex-end; }
 .fnp-date { font-family: var(--mono); font-size: 10px; letter-spacing: 0.5px; color: var(--ink3); text-transform: uppercase; }
 .fnp-body { font-size: 13px; color: var(--ink); margin-top: 2px; white-space: pre-wrap; }
+
+/* edit/delete actions on a saved note (mobile sheet + desktop panel) */
+.fn-note-actions { display: flex; gap: 14px; margin-top: 8px; }
+.fn-link { background: none; border: none; padding: 0; font-size: 12px; font-weight: 600; color: var(--accent-ink); cursor: pointer; }
+.fn-link.muted { color: var(--ink3); font-weight: 500; }
+.fn-link.danger { color: #d92d20; }
 .fn-error { color: var(--warn, #c2410c); font-size: 13px; margin-bottom: 10px; }
 .fn-save {
   width: 100%; padding: 13px; border: none; border-radius: 11px;

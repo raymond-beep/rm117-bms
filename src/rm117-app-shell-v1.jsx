@@ -308,21 +308,22 @@ function FieldNoteSheet({ onClose }) {
   const [recording, setRecording] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [editingId, setEditingId] = useState(null); // note being edited
+  const [editText, setEditText] = useState('');
   const fileInputRef = useRef(null);
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
 
-  // On-site phases only — these are the jobs someone would be standing at.
+  // All jobs — site visits happen on completed/on-hold work too (inspectors,
+  // construction issues), so don't restrict by phase.
   useEffect(() => {
     let alive = true;
     fetch('/api/jobs')
       .then((r) => r.json())
       .then(({ jobs }) => {
         if (!alive) return;
-        const onsite = (jobs || [])
-          .filter((j) => PIPELINE_PHASES.includes(j.phase))
-          .sort((a, b) => (a.job_id || '').localeCompare(b.job_id || ''));
-        setJobs(onsite);
+        const all = (jobs || []).sort((a, b) => (a.job_id || '').localeCompare(b.job_id || ''));
+        setJobs(all);
       })
       .catch(() => alive && setJobs([]));
     return () => { alive = false; };
@@ -459,6 +460,42 @@ function FieldNoteSheet({ onClose }) {
     }
   };
 
+  // Edit / delete an existing note.
+  const startEdit = (n) => { setEditingId(n.id); setEditText(n.body || ''); setError(null); };
+  const cancelEdit = () => { setEditingId(null); setEditText(''); };
+  const saveEdit = async (id) => {
+    try {
+      const token = await getToken();
+      const r = await fetch('/api/field-notes', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ id, body: editText.trim() }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not update the note');
+      setNotes((prev) => prev.map((n) => (n.id === id ? d.note : n)));
+      cancelEdit();
+    } catch (e) {
+      setError(e.message || 'Could not update the note');
+    }
+  };
+  const removeNote = async (id) => {
+    if (!window.confirm('Delete this field note? This cannot be undone.')) return;
+    try {
+      const token = await getToken();
+      const r = await fetch('/api/field-notes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ id }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not delete the note');
+      setNotes((prev) => prev.filter((n) => n.id !== id));
+    } catch (e) {
+      setError(e.message || 'Could not delete the note');
+    }
+  };
+
   const q = query.trim().toLowerCase();
   const filtered = (jobs || []).filter(
     (j) => !q || (j.job_id || '').toLowerCase().includes(q) || (j.client_name || '').toLowerCase().includes(q),
@@ -498,7 +535,7 @@ function FieldNoteSheet({ onClose }) {
         <div className="fn-joblist">
           {jobs == null && <div className="placeholder-note">Loading jobs…</div>}
           {jobs != null && filtered.length === 0 && (
-            <div className="placeholder-note">No on-site jobs match.</div>
+            <div className="placeholder-note">No jobs match.</div>
           )}
           {filtered.map((j) => {
             const active = j.job_id === selected;
@@ -586,8 +623,24 @@ function FieldNoteSheet({ onClose }) {
             {notes.slice(0, 5).map((n) => (
               <div key={n.id} className="fn-recent-item">
                 <div className="fn-recent-main">
-                  {n.body && <div className="fn-recent-body">{n.body}</div>}
-                  <NoteMedia attachments={n.attachments} location={n.location} />
+                  {editingId === n.id ? (
+                    <>
+                      <textarea className="fn-body" rows={3} value={editText} onChange={(e) => setEditText(e.target.value)} />
+                      <div className="fn-note-actions">
+                        <button className="fn-link" onClick={() => saveEdit(n.id)}>Save</button>
+                        <button className="fn-link muted" onClick={cancelEdit}>Cancel</button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {n.body && <div className="fn-recent-body">{n.body}</div>}
+                      <NoteMedia attachments={n.attachments} location={n.location} />
+                      <div className="fn-note-actions">
+                        <button className="fn-link" onClick={() => startEdit(n)}>Edit</button>
+                        <button className="fn-link danger" onClick={() => removeNote(n.id)}>Delete</button>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="fn-recent-date">{shortDate(n.created_at)}</div>
               </div>
