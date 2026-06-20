@@ -32,12 +32,15 @@ export default async function handler(req, res) {
   if (!job_id || !JOB_ID_RE.test(job_id)) return res.status(400).json({ error: 'A valid job_id is required' });
   if (kind !== 'photo' && kind !== 'voice') return res.status(400).json({ error: "kind must be 'photo' or 'voice'" });
 
-  // Parse "data:<mime>;base64,<payload>"
-  const m = typeof dataUrl === 'string' && dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
+  // Parse "data:<mediatype>;base64,<payload>". The mediatype itself can carry
+  // parameters — iOS records audio as `audio/mp4;codecs="mp4a.40.2"` — so match
+  // greedily up to the final `;base64,` (base64 payload never contains one), then
+  // take the base mime (before any `;param`).
+  const m = typeof dataUrl === 'string' && dataUrl.match(/^data:(.+);base64,(.+)$/s);
   if (!m) return res.status(400).json({ error: 'dataUrl must be a base64 data URL' });
-  const contentType = m[1];
-  const ext = EXT[contentType];
-  if (!ext) return res.status(400).json({ error: `Unsupported content type: ${contentType}` });
+  const mediaType = m[1].split(';')[0].trim().toLowerCase();
+  const ext = EXT[mediaType];
+  if (!ext) return res.status(400).json({ error: `Unsupported content type: ${mediaType}` });
 
   const buffer = Buffer.from(m[2], 'base64');
   if (!buffer.length) return res.status(400).json({ error: 'Empty file' });
@@ -48,7 +51,7 @@ export default async function handler(req, res) {
   try {
     const db = getDb();
     const { error } = await db.storage.from(BUCKET).upload(path, buffer, {
-      contentType,
+      contentType: mediaType,
       upsert: false,
     });
     if (error) throw error;
@@ -57,7 +60,7 @@ export default async function handler(req, res) {
       type: kind,
       path,
       name: typeof name === 'string' && name ? name : `${kind}.${ext}`,
-      content_type: contentType,
+      content_type: mediaType,
     });
   } catch (err) {
     console.error('[api/field-notes/upload]', err);
