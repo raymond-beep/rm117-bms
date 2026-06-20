@@ -12,6 +12,37 @@ import { money, PIPELINE_PHASES, phaseLabel, shortDate } from './lib/format.js';
 import { useTheme, THEMES } from './lib/theme.jsx';
 import { NoteMedia } from './lib/note-media.jsx';
 
+// Catches render-time crashes in any page so a bug shows a readable message +
+// reload, never a blank white screen. (React error boundaries must be classes.)
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary]', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="page">
+          <div className="card" style={{ maxWidth: 520, padding: 24 }}>
+            <h1 className="greeting" style={{ marginTop: 0 }}>Something went wrong</h1>
+            <div className="placeholder-note" style={{ padding: '6px 0 16px' }}>
+              This screen hit an error and couldn’t load. Reloading usually fixes it.
+            </div>
+            <button className="btn btn-primary" onClick={() => window.location.reload()}>Reload</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Resolve the signed-in user's role via /api/portal/me (authed + isolated).
 // Clients see the portal; staff see the workspace shell; nobody else gets in.
 function usePortalIdentity() {
@@ -152,15 +183,17 @@ export default function AppShell() {
           <div className="content">
             <TopBar />
             <main className="main">
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/bms" element={<BmsDashboard />} />
-                <Route path="/forefront" element={<ForefrountView />} />
-                <Route path="/templates" element={<ComingSoon title="Templates" phase="Document library" detail="Proposal, agreement, CD-set, and client-letter templates — grouped by category. Coming in the redesign build." />} />
-                <Route path="/portal" element={<StaffPortalPreview />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />
-              </Routes>
+              <ErrorBoundary>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/bms" element={<BmsDashboard />} />
+                  <Route path="/forefront" element={<ForefrountView />} />
+                  <Route path="/templates" element={<ComingSoon title="Templates" phase="Document library" detail="Proposal, agreement, CD-set, and client-letter templates — grouped by category. Coming in the redesign build." />} />
+                  <Route path="/portal" element={<StaffPortalPreview />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />
+                </Routes>
+              </ErrorBoundary>
             </main>
           </div>
           <button className="note-fab" onClick={() => setNoteSheet(true)} aria-label="New field note">
