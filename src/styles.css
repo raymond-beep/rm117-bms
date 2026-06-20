@@ -1088,9 +1088,15 @@ input, select, textarea { font: inherit; }
   background: none; color: var(--ink3); font-size: 11px;
 }
 .fn-attach-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.fn-attach-label { white-space: nowrap; line-height: 1; }
 .fn-attach-btn.done { border-style: solid; border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
-.fn-attach-btn.recording { border-style: solid; border-color: #d92d20; color: #d92d20; animation: fn-pulse 1s ease-in-out infinite; }
-@keyframes fn-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.fn-attach-btn.recording {
+  border-style: solid; border-color: #d92d20; color: #d92d20;
+  background: color-mix(in srgb, #d92d20 8%, var(--panel));
+  animation: fn-rec 1.2s ease-in-out infinite;
+}
+/* pulse the ring (box-shadow), never opacity — opacity ghosts text on iOS Safari */
+@keyframes fn-rec { 0%,100% { box-shadow: 0 0 0 0 rgba(217,45,32,0); } 50% { box-shadow: 0 0 0 3px rgba(217,45,32,0.18); } }
 [data-reduced-motion="on"] .fn-attach-btn.recording { animation: none; }
 
 /* pending (unsaved) capture chips */
