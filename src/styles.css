@@ -827,6 +827,14 @@ input, select, textarea { font: inherit; }
 }
 [data-reduced-motion="on"] .note-fab:active { transform: none; }
 
+/* iOS Safari auto-zooms when a focused field's font is < 16px. Keep every
+   text-entry control at 16px on phones so tapping a field never zooms the page.
+   (We intentionally leave the viewport zoomable — this fixes the cause, not the
+   symptom, so pinch-to-zoom still works for accessibility.) */
+@media (max-width: 760px) {
+  input, select, textarea { font-size: 16px !important; }
+}
+
 
 /* ===================== Client Portal (Phase 7) — mockup-matched ===================== */
 .cp { min-height: 100vh; background: var(--app-bg); color: var(--ink); }
