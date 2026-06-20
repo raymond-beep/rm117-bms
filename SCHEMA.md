@@ -94,6 +94,22 @@ seeded one baseline row (current phase at `created_at`).
 | `note` | text | nullable — e.g. `baseline (phase at import)` for seeded rows |
 | `created_at` | timestamptz | |
 
+### `field_notes`
+On-site field notes captured against a job — the mobile FAB + capture-sheet feature
+(staff-only). Append-only; ordered newest-first per job. `attachments` and `location` are
+reserved for phase 2 (photo/voice/geo capture) and unused today. Served by `api/field-notes.js`
+(`GET ?job_id=…`, `POST {job_id, body}`); `author_id` comes from the verified Clerk token, never
+the request body.
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | default `gen_random_uuid()` |
+| `job_id` | text FK → jobs.job_id (on delete cascade) | the on-site job |
+| `body` | text NOT NULL | the note text |
+| `author_id` | text | Clerk user id of the staff author (nullable for local-dev) |
+| `attachments` | jsonb | default `[]` — `[{type:'photo'|'voice', url, name}]` (phase 2) |
+| `location` | jsonb | nullable — `{lat, lng}` (phase 2) |
+| `created_at` | timestamptz | default `now()` |
+
 ### `payments`
 Every payment event. Replaces the narrative financial text in the Sheet and drives the
 quarterly billing view automatically.

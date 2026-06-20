@@ -16,6 +16,7 @@ const routes = {
   '/api/payments': () => import('./api/payments.js'),
   '/api/clients': () => import('./api/clients.js'),
   '/api/phase-events': () => import('./api/phase-events.js'),
+  '/api/field-notes': () => import('./api/field-notes.js'),
   // Portal routes are one consolidated function; the dispatcher reads the
   // trailing path segment (Vercel passes it as the [action] dynamic segment).
   '/api/portal/me': () => import('./api/portal/[action].js'),

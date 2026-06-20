@@ -8,7 +8,7 @@ import { SignedIn, SignedOut, SignIn, UserButton, useAuth, useClerk, useUser } f
 import BmsDashboard from './rm117-dashboard-v1.jsx';
 import ForefrountView from './rm117-forefront-v1.jsx';
 import ClientPortal from './rm117-portal-v1.jsx';
-import { money, PIPELINE_PHASES } from './lib/format.js';
+import { money, PIPELINE_PHASES, phaseLabel, shortDate } from './lib/format.js';
 import { useTheme, THEMES } from './lib/theme.jsx';
 
 // Resolve the signed-in user's role via /api/portal/me (authed + isolated).
@@ -96,6 +96,7 @@ const NAV_GROUPS = [
 
 export default function AppShell() {
   const [themeSheet, setThemeSheet] = useState(false);
+  const [noteSheet, setNoteSheet] = useState(false);
   return (
     <>
       <SignedOut>
@@ -161,6 +162,11 @@ export default function AppShell() {
               </Routes>
             </main>
           </div>
+          <button className="note-fab" onClick={() => setNoteSheet(true)} aria-label="New field note">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </button>
           <nav className="mobile-tabbar">
             {MOBILE_TABS.map((tab) => (
               <NavLink key={tab.to} to={tab.to} end={tab.end} className={({ isActive }) => `tab-item${isActive ? ' active' : ''}`}>
@@ -170,6 +176,7 @@ export default function AppShell() {
             ))}
           </nav>
           {themeSheet && <MobileThemeSheet onClose={() => setThemeSheet(false)} />}
+          {noteSheet && <FieldNoteSheet onClose={() => setNoteSheet(false)} />}
         </div>
         </RoleGate>
       </SignedIn>
@@ -212,6 +219,188 @@ function MobileThemeSheet({ onClose }) {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Mobile "Field note" bottom sheet — capture an on-site note against a job.
+// The README's main mobile feature. Pick a job (on-site phases only), type the
+// note, save → POST /api/field-notes. Photo/Voice/Location are visual-only
+// affordances for now (device capture wires up later). Recent notes for the
+// selected job are shown so you can confirm the save landed.
+function FieldNoteSheet({ onClose }) {
+  const { getToken } = useAuth();
+  const [jobs, setJobs] = useState(null);          // null = loading
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState(null);  // job_id
+  const [body, setBody] = useState('');
+  const [notes, setNotes] = useState([]);          // recent notes for selected job
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  // On-site phases only — these are the jobs someone would be standing at.
+  useEffect(() => {
+    let alive = true;
+    fetch('/api/jobs')
+      .then((r) => r.json())
+      .then(({ jobs }) => {
+        if (!alive) return;
+        const onsite = (jobs || [])
+          .filter((j) => PIPELINE_PHASES.includes(j.phase))
+          .sort((a, b) => (a.job_id || '').localeCompare(b.job_id || ''));
+        setJobs(onsite);
+      })
+      .catch(() => alive && setJobs([]));
+    return () => { alive = false; };
+  }, []);
+
+  // Load the selected job's recent notes (also confirms a save landed).
+  const loadNotes = async (jobId) => {
+    try {
+      const token = await getToken();
+      const r = await fetch(`/api/field-notes?job_id=${encodeURIComponent(jobId)}`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const d = await r.json();
+      setNotes(d.notes || []);
+    } catch {
+      setNotes([]);
+    }
+  };
+
+  const pickJob = (jobId) => {
+    setSelected(jobId);
+    setError(null);
+    setNotes([]);
+    loadNotes(jobId);
+  };
+
+  const canSave = Boolean(selected) && body.trim().length > 0 && !saving;
+
+  const save = async () => {
+    if (!canSave) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      const r = await fetch('/api/field-notes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ job_id: selected, body: body.trim() }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not save the note');
+      if (d.note) setNotes((prev) => [d.note, ...prev]);
+      setBody('');
+    } catch (e) {
+      setError(e.message || 'Could not save the note');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const q = query.trim().toLowerCase();
+  const filtered = (jobs || []).filter(
+    (j) => !q || (j.job_id || '').toLowerCase().includes(q) || (j.client_name || '').toLowerCase().includes(q),
+  );
+
+  return (
+    <div className="sheet-overlay" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="New field note">
+        <div className="sheet-grip" />
+        <div className="sheet-head">
+          <div>
+            <h2 className="sheet-title">Field note</h2>
+            <div className="sheet-sub">On-site capture</div>
+          </div>
+          <button className="drawer-close" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+
+        {/* Job picker */}
+        <div className="fn-search">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+          </svg>
+          <input
+            type="search"
+            placeholder="Find a job…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label="Find a job"
+          />
+        </div>
+        <div className="fn-joblist">
+          {jobs == null && <div className="placeholder-note">Loading jobs…</div>}
+          {jobs != null && filtered.length === 0 && (
+            <div className="placeholder-note">No on-site jobs match.</div>
+          )}
+          {filtered.map((j) => {
+            const active = j.job_id === selected;
+            return (
+              <button
+                key={j.job_id}
+                className={`fn-job${active ? ' active' : ''}`}
+                onClick={() => pickJob(j.job_id)}
+              >
+                <span className="fn-job-dot" />
+                <span className="fn-job-main">
+                  <span className="fn-job-id">{j.job_id}</span>
+                  <span className="fn-job-meta">{j.client_name || '—'} · {phaseLabel(j)}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Note body */}
+        <textarea
+          className="fn-body"
+          placeholder={selected ? 'What did you observe on site?' : 'Pick a job first…'}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          disabled={!selected}
+          rows={4}
+        />
+
+        {/* Attachment affordances — visual only for now (wire to device APIs later) */}
+        <div className="fn-attach">
+          {[
+            { key: 'photo', label: 'Photo', icon: 'M4 7h3l1.5-2h7L17 7h3v12H4z M12 16a3 3 0 100-6 3 3 0 000 6z' },
+            { key: 'voice', label: 'Voice', icon: 'M12 3a3 3 0 00-3 3v6a3 3 0 006 0V6a3 3 0 00-3-3z M5 11a7 7 0 0014 0 M12 18v3' },
+            { key: 'location', label: 'Location', icon: 'M12 21s7-6.4 7-11a7 7 0 10-14 0c0 4.6 7 11 7 11z M12 12a2.5 2.5 0 100-5 2.5 2.5 0 000 5z' },
+          ].map((a) => (
+            <button key={a.key} className="fn-attach-btn" disabled title="Coming soon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d={a.icon} />
+              </svg>
+              {a.label}
+            </button>
+          ))}
+        </div>
+
+        {error && <div className="fn-error">{error}</div>}
+
+        <button className="fn-save" onClick={save} disabled={!canSave}>
+          {saving ? 'Saving…' : 'Save field note'}
+        </button>
+
+        {/* Recent notes for the selected job */}
+        {selected && notes.length > 0 && (
+          <div className="fn-recent">
+            <div className="fn-recent-cap">Recent notes</div>
+            {notes.slice(0, 5).map((n) => (
+              <div key={n.id} className="fn-recent-item">
+                <div className="fn-recent-body">{n.body}</div>
+                <div className="fn-recent-date">{shortDate(n.created_at)}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
