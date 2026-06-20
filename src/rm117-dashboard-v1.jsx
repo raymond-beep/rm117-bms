@@ -6,10 +6,70 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@clerk/clerk-react';
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
-  useDraggable, useDroppable, pointerWithin, closestCenter,
+  useDroppable, pointerWithin, closestCenter,
 } from '@dnd-kit/core';
+import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { money, phaseLabel, shortDate, PHASE_LABELS, PHASE_ORDER, PIPELINE_PHASES } from './lib/format.js';
 import { NoteMedia } from './lib/note-media.jsx';
+
+// Sort options for jobs *within* a phase section. 'manual' = the saved custom
+// order (drag to reorder); the rest are computed views that ignore manual order.
+const SORT_MODES = [
+  { key: 'manual', label: 'Manual order' },
+  { key: 'milestone', label: 'Next milestone' },
+  { key: 'value', label: 'Contract value' },
+  { key: 'outstanding', label: 'Outstanding' },
+  { key: 'client', label: 'Client name' },
+];
+
+const byBoard = (a, b) =>
+  (Number.isFinite(a.board_position) ? a.board_position : 1e15) -
+  (Number.isFinite(b.board_position) ? b.board_position : 1e15) ||
+  String(a.job_id).localeCompare(String(b.job_id));
+
+// Order a phase's jobs for display per the chosen sort mode (manual falls back
+// to the saved board_position; field sorts tiebreak on it).
+function orderJobs(list, mode) {
+  const jobs = [...list];
+  switch (mode) {
+    case 'milestone':
+      return jobs.sort((a, b) => {
+        const da = a.next_milestone_date ? String(a.next_milestone_date).slice(0, 10) : '';
+        const db = b.next_milestone_date ? String(b.next_milestone_date).slice(0, 10) : '';
+        if (!da && !db) return byBoard(a, b);
+        if (!da) return 1;
+        if (!db) return -1;
+        return da.localeCompare(db) || byBoard(a, b);
+      });
+    case 'value':
+      return jobs.sort((a, b) => Number(b.job_total || 0) - Number(a.job_total || 0) || byBoard(a, b));
+    case 'outstanding':
+      return jobs.sort((a, b) => Number(b.outstanding || 0) - Number(a.outstanding || 0) || byBoard(a, b));
+    case 'client':
+      return jobs.sort((a, b) => (a.client_name || '').localeCompare(b.client_name || '') || byBoard(a, b));
+    default:
+      return jobs.sort(byBoard);
+  }
+}
+
+// Which phase (container) an id belongs to in an items map; an id that *is* a
+// phase key means the container itself (empty area / header).
+function findContainer(itemsMap, id) {
+  if (id in itemsMap) return id;
+  return Object.keys(itemsMap).find((phase) => itemsMap[phase].includes(id));
+}
+
+// A board_position that places a job between its new neighbors (fractional
+// midpoint), so only the moved job needs persisting.
+function positionBetween(prevJob, nextJob) {
+  const p = prevJob && Number.isFinite(prevJob.board_position) ? prevJob.board_position : null;
+  const n = nextJob && Number.isFinite(nextJob.board_position) ? nextJob.board_position : null;
+  if (p != null && n != null) return (p + n) / 2;
+  if (p != null) return p + 1000;
+  if (n != null) return n - 1000;
+  return Date.now(); // empty target / null neighbors — unique-ish fallback
+}
 
 export default function BmsDashboard() {
   const [jobs, setJobs] = useState([]);
@@ -29,30 +89,90 @@ export default function BmsDashboard() {
   // View mode: 'grouped' (phase sections) or 'table' (flat sortable)
   const [viewMode, setViewMode] = useState('grouped');
 
-  // Drag-to-move-phase (grouped view). Pointer for mouse; touch needs a short
-  // press so a tap still opens the card and a swipe still scrolls the list.
-  const [activeJob, setActiveJob] = useState(null);
+  // Drag-to-move-phase + within-phase reorder (grouped view). Pointer for mouse;
+  // touch needs a short press so a tap still opens the card and a swipe scrolls.
+  const [sortMode, setSortMode] = useState('manual');
+  const [activeId, setActiveId] = useState(null);
+  const [dragItems, setDragItems] = useState(null); // working {phase:[jobId]} during a drag
   const [moveError, setMoveError] = useState(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
   );
 
+  const jobById = useMemo(() => {
+    const m = new Map();
+    for (const j of jobs) m.set(j.job_id, j);
+    return m;
+  }, [jobs]);
+
+  // Ordered job ids per in-scope phase, for the chosen sort mode.
+  const baseItems = useMemo(() => {
+    const map = {};
+    for (const phase of scopePhases) {
+      map[phase] = orderJobs(filtered.filter((j) => j.phase === phase), sortMode).map((j) => j.job_id);
+    }
+    return map;
+  }, [filtered, scopePhases.join(','), sortMode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const items = dragItems || baseItems;
+
   function onDragStart(event) {
     setMoveError(null);
-    setActiveJob(jobs.find((j) => j.job_id === event.active.id) || null);
+    setActiveId(event.active.id);
+    setDragItems(structuredClone(baseItems));
   }
+
+  // Live cross-phase move: pull the card into the section under the pointer so
+  // the gap opens where it'll land. Intra-phase shuffle is handled by sortable.
+  function onDragOver(event) {
+    const { active, over } = event;
+    if (!over) return;
+    setDragItems((prev) => {
+      if (!prev) return prev;
+      const from = findContainer(prev, active.id);
+      const to = findContainer(prev, over.id);
+      if (!from || !to || from === to) return prev;
+      const next = { ...prev, [from]: prev[from].filter((id) => id !== active.id) };
+      const overItems = next[to];
+      const overIsContainer = over.id in prev;
+      const idx = overIsContainer ? overItems.length : Math.max(0, overItems.indexOf(over.id));
+      next[to] = [...overItems.slice(0, idx), active.id, ...overItems.slice(idx)];
+      return next;
+    });
+  }
+
   async function onDragEnd(event) {
     const { active, over } = event;
-    setActiveJob(null);
-    if (!over) return;
-    const newPhase = String(over.id);
-    const job = jobs.find((j) => j.job_id === active.id);
-    if (!job || job.phase === newPhase || !PHASE_ORDER.includes(newPhase)) return;
+    const snapshot = dragItems;
+    setActiveId(null);
+    setDragItems(null);
+    if (!over || !snapshot) return;
+
+    const job = jobById.get(active.id);
+    const targetPhase = findContainer(snapshot, active.id);
+    if (!job || !targetPhase) return;
+
+    // Final id order within the target phase (apply intra-phase reorder).
+    let ids = snapshot[targetPhase];
+    const overInSame = !(over.id in snapshot) && findContainer(snapshot, over.id) === targetPhase;
+    if (overInSame && over.id !== active.id) {
+      ids = arrayMove(ids, ids.indexOf(active.id), ids.indexOf(over.id));
+    }
+
+    const phaseChanged = job.phase !== targetPhase;
+    const reordered = ids.join(',') !== (baseItems[targetPhase] || []).join(',');
+    // Reordering within a phase only persists in manual mode (field sorts are views).
+    if (!phaseChanged && (!reordered || sortMode !== 'manual')) return;
+
+    const at = ids.indexOf(active.id);
+    const fields = { board_position: positionBetween(jobById.get(ids[at - 1]), jobById.get(ids[at + 1])) };
+    if (phaseChanged) fields.phase = targetPhase;
+
     try {
-      await saveJob(job.job_id, { phase: newPhase }); // optimistic; API stamps a phase event
+      await saveJob(active.id, fields); // optimistic; API stamps a phase event on a phase change
     } catch (e) {
-      setMoveError(`Couldn't move ${job.job_id} to ${PHASE_LABELS[newPhase]}: ${e.message}`);
+      setMoveError(`Couldn't move ${active.id}${phaseChanged ? ` to ${PHASE_LABELS[targetPhase]}` : ''}: ${e.message}`);
     }
   }
 
@@ -199,6 +319,13 @@ export default function BmsDashboard() {
             <option key={p} value={p}>{PHASE_LABELS[p]}</option>
           ))}
         </select>
+        {viewMode === 'grouped' && (
+          <select value={sortMode} onChange={(e) => setSortMode(e.target.value)} title="Order jobs within each phase">
+            {SORT_MODES.map((s) => (
+              <option key={s.key} value={s.key}>Sort: {s.label}</option>
+            ))}
+          </select>
+        )}
         <label className="toggle">
           <input type="checkbox" checked={ffOnly} onChange={(e) => setFfOnly(e.target.checked)} /> Forefront
         </label>
@@ -214,23 +341,27 @@ export default function BmsDashboard() {
       ) : filtered.length === 0 ? (
         <div className="card"><div className="empty">No jobs match the current filters.</div></div>
       ) : viewMode === 'grouped' ? (
-        <DndContext sensors={sensors} collisionDetection={phaseCollision} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <DndContext sensors={sensors} collisionDetection={phaseCollision} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd}>
           {moveError && <div className="move-error">{moveError}</div>}
+          {sortMode !== 'manual' && (
+            <div className="sort-note">Sorted by {SORT_MODES.find((s) => s.key === sortMode)?.label.toLowerCase()} — switch to “Manual order” to drag-reorder within a phase. (Moving between phases still works.)</div>
+          )}
           <div className="phase-groups">
             {scopePhases.map((phase) => (
-              <PhaseDropGroup
+              <PhaseColumn
                 key={phase}
                 phase={phase}
-                jobs={filtered.filter((j) => j.phase === phase)}
+                ids={items[phase] || []}
+                jobById={jobById}
                 todayStr={todayStr}
                 onOpen={(job) => setDrawer({ mode: 'edit', job })}
               />
             ))}
           </div>
           <DragOverlay>
-            {activeJob ? (
+            {activeId && jobById.get(activeId) ? (
               <div className="job-card job-card-overlay">
-                <JobCardBody job={activeJob} todayStr={todayStr} />
+                <JobCardBody job={jobById.get(activeId)} todayStr={todayStr} />
               </div>
             ) : null}
           </DragOverlay>
@@ -332,16 +463,17 @@ function JobCardBody({ job, todayStr }) {
   );
 }
 
-// A job card with a dedicated drag handle (grip). Tapping the card opens the
-// editor; dragging the grip moves the job to another phase. Separating the two
-// keeps tap-to-open and scroll working cleanly on touch.
-function DraggableJobCard({ job, todayStr, onOpen }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: job.job_id });
+// A sortable job card with a dedicated drag handle (grip). Tapping the card
+// opens the editor; dragging the grip reorders within / moves between phases.
+// Separating the two keeps tap-to-open and scroll working cleanly on touch.
+function SortableJobCard({ job, todayStr, onOpen }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: job.job_id });
+  const style = { transform: CSS.Translate.toString(transform), transition };
   return (
-    <div ref={setNodeRef} className={`job-card${isDragging ? ' is-dragging' : ''}`} onClick={() => onOpen(job)}>
+    <div ref={setNodeRef} style={style} className={`job-card${isDragging ? ' is-dragging' : ''}`} onClick={() => onOpen(job)}>
       <button
         className="job-card-grip"
-        aria-label={`Move ${job.job_id} to another phase`}
+        aria-label={`Reorder or move ${job.job_id}`}
         onClick={(e) => e.stopPropagation()}
         {...attributes}
         {...listeners}
@@ -357,25 +489,29 @@ function DraggableJobCard({ job, todayStr, onOpen }) {
   );
 }
 
-// A phase section that accepts dropped cards. Always rendered (even when empty)
-// so every phase is a valid drop target, like the sections in Ang's Sheet.
-function PhaseDropGroup({ phase, jobs, todayStr, onOpen }) {
+// A phase section: a sortable list of its cards that also accepts drops into its
+// empty area. Always rendered (even when empty) so every phase is a drop target,
+// like the sections in Ang's Sheet.
+function PhaseColumn({ phase, ids, jobById, todayStr, onOpen }) {
   const { setNodeRef, isOver } = useDroppable({ id: phase });
   return (
-    <div ref={setNodeRef} className={`phase-group${isOver ? ' drop-over' : ''}`}>
+    <div className={`phase-group${isOver ? ' drop-over' : ''}`}>
       <div className={`phase-group-header phase-header-${phase}`}>
         <span className="phase-group-name">{PHASE_LABELS[phase]}</span>
-        <span className="phase-group-count">{jobs.length}</span>
+        <span className="phase-group-count">{ids.length}</span>
       </div>
-      <div className="phase-group-jobs">
-        {jobs.length === 0 ? (
-          <div className="phase-group-empty">Drop a job here</div>
-        ) : (
-          jobs.map((job) => (
-            <DraggableJobCard key={job.job_id} job={job} todayStr={todayStr} onOpen={onOpen} />
-          ))
-        )}
-      </div>
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+        <div ref={setNodeRef} className="phase-group-jobs">
+          {ids.length === 0 ? (
+            <div className="phase-group-empty">Drop a job here</div>
+          ) : (
+            ids.map((id) => {
+              const job = jobById.get(id);
+              return job ? <SortableJobCard key={id} job={job} todayStr={todayStr} onOpen={onOpen} /> : null;
+            })
+          )}
+        </div>
+      </SortableContext>
     </div>
   );
 }

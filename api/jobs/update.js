@@ -22,6 +22,7 @@ const EDITABLE = new Set([
   'next_milestone_date',
   'import_needs_review',
   'import_notes',
+  'board_position', // manual within-phase ordering (BMS grouped view)
 ]);
 
 export default async function handler(req, res) {
