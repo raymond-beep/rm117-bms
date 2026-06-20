@@ -10,6 +10,7 @@ import ForefrountView from './rm117-forefront-v1.jsx';
 import ClientPortal from './rm117-portal-v1.jsx';
 import { money, PIPELINE_PHASES, phaseLabel, shortDate } from './lib/format.js';
 import { useTheme, THEMES } from './lib/theme.jsx';
+import { NoteMedia } from './lib/note-media.jsx';
 
 // Resolve the signed-in user's role via /api/portal/me (authed + isolated).
 // Clients see the portal; staff see the workspace shell; nobody else gets in.
@@ -263,32 +264,6 @@ async function imageFileToDataUrl(file, maxDim = 1600, quality = 0.8) {
 function pickAudioMime() {
   if (typeof MediaRecorder === 'undefined') return '';
   return ['audio/mp4', 'audio/webm', 'audio/ogg'].find((t) => MediaRecorder.isTypeSupported(t)) || '';
-}
-
-const mapsUrl = (loc) => `https://www.google.com/maps?q=${loc.lat},${loc.lng}`;
-
-// Render a note's attachments (signed photo/voice URLs) + a location map link.
-// Shared shape between the mobile sheet's "recent notes" and (later) the desktop
-// JobEditor list.
-function NoteMedia({ attachments, location }) {
-  const list = attachments || [];
-  if (list.length === 0 && !location) return null;
-  return (
-    <div className="fn-media">
-      {list.map((a, i) =>
-        a.type === 'photo' ? (
-          a.url ? <a key={i} href={a.url} target="_blank" rel="noreferrer"><img className="fn-media-thumb" src={a.url} alt="Field photo" /></a> : null
-        ) : (
-          a.url ? <audio key={i} className="fn-media-audio" controls src={a.url} /> : null
-        ),
-      )}
-      {location && (
-        <a className="fn-media-loc" href={mapsUrl(location)} target="_blank" rel="noreferrer">
-          📍 {location.lat.toFixed(5)}, {location.lng.toFixed(5)}
-        </a>
-      )}
-    </div>
-  );
 }
 
 // Mobile "Field note" bottom sheet — capture an on-site note against a job.

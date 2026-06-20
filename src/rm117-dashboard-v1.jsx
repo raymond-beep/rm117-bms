@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { money, phaseLabel, shortDate, PHASE_LABELS, PHASE_ORDER, PIPELINE_PHASES } from './lib/format.js';
+import { NoteMedia } from './lib/note-media.jsx';
 
 export default function BmsDashboard() {
   const [jobs, setJobs] = useState([]);
@@ -783,20 +784,7 @@ function FieldNotesPanel({ job }) {
           ) : (
             <>
               {n.body && <div className="fnp-body">{n.body}</div>}
-              {(n.attachments?.length || n.location) && (
-                <div className="fn-media">
-                  {(n.attachments || []).map((a, i) =>
-                    a.type === 'photo'
-                      ? (a.url ? <a key={i} href={a.url} target="_blank" rel="noreferrer"><img className="fn-media-thumb" src={a.url} alt="Field photo" /></a> : null)
-                      : (a.url ? <audio key={i} className="fn-media-audio" controls src={a.url} /> : null),
-                  )}
-                  {n.location && (
-                    <a className="fn-media-loc" href={`https://www.google.com/maps?q=${n.location.lat},${n.location.lng}`} target="_blank" rel="noreferrer">
-                      📍 {Number(n.location.lat).toFixed(5)}, {Number(n.location.lng).toFixed(5)}
-                    </a>
-                  )}
-                </div>
-              )}
+              <NoteMedia attachments={n.attachments} location={n.location} />
               <div className="fn-note-actions">
                 <button className="fn-link" onClick={() => startEdit(n)}>Edit</button>
                 <button className="fn-link danger" onClick={() => removeNote(n.id)}>Delete</button>
