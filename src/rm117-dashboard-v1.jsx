@@ -17,6 +17,7 @@ import { NoteMedia } from './lib/note-media.jsx';
 // order (drag to reorder); the rest are computed views that ignore manual order.
 const SORT_MODES = [
   { key: 'manual', label: 'Manual order' },
+  { key: 'recent', label: 'Most recent (job #)' },
   { key: 'milestone', label: 'Next milestone' },
   { key: 'value', label: 'Contract value' },
   { key: 'outstanding', label: 'Outstanding' },
@@ -33,6 +34,9 @@ const byBoard = (a, b) =>
 function orderJobs(list, mode) {
   const jobs = [...list];
   switch (mode) {
+    case 'recent':
+      // Job IDs are YY_NNN_… so descending = newest first.
+      return jobs.sort((a, b) => String(b.job_id).localeCompare(String(a.job_id)));
     case 'milestone':
       return jobs.sort((a, b) => {
         const da = a.next_milestone_date ? String(a.next_milestone_date).slice(0, 10) : '';
