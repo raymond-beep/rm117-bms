@@ -4,6 +4,10 @@
 // payment logging (Phase 4). `outstanding` always arrives computed from the API.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import {
+  DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
+  useDraggable, useDroppable, closestCorners,
+} from '@dnd-kit/core';
 import { money, phaseLabel, shortDate, PHASE_LABELS, PHASE_ORDER, PIPELINE_PHASES } from './lib/format.js';
 import { NoteMedia } from './lib/note-media.jsx';
 
@@ -24,6 +28,33 @@ export default function BmsDashboard() {
 
   // View mode: 'grouped' (phase sections) or 'table' (flat sortable)
   const [viewMode, setViewMode] = useState('grouped');
+
+  // Drag-to-move-phase (grouped view). Pointer for mouse; touch needs a short
+  // press so a tap still opens the card and a swipe still scrolls the list.
+  const [activeJob, setActiveJob] = useState(null);
+  const [moveError, setMoveError] = useState(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+  );
+
+  function onDragStart(event) {
+    setMoveError(null);
+    setActiveJob(jobs.find((j) => j.job_id === event.active.id) || null);
+  }
+  async function onDragEnd(event) {
+    const { active, over } = event;
+    setActiveJob(null);
+    if (!over) return;
+    const newPhase = String(over.id);
+    const job = jobs.find((j) => j.job_id === active.id);
+    if (!job || job.phase === newPhase || !PHASE_ORDER.includes(newPhase)) return;
+    try {
+      await saveJob(job.job_id, { phase: newPhase }); // optimistic; API stamps a phase event
+    } catch (e) {
+      setMoveError(`Couldn't move ${job.job_id} to ${PHASE_LABELS[newPhase]}: ${e.message}`);
+    }
+  }
 
   async function loadJobs() {
     setLoading(true);
@@ -83,6 +114,14 @@ export default function BmsDashboard() {
       .slice(0, 6)
   ), [jobs]);
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  // Phases to show as sections in grouped view. Show every in-scope phase (even
+  // empty ones) so each is always a valid drop target — like Ang's Sheet sections.
+  const scopePhases = phaseFilter === 'all'
+    ? PHASE_ORDER
+    : phaseFilter === 'pipeline'
+      ? PHASE_ORDER.filter((p) => PIPELINE_PHASES.includes(p))
+      : [phaseFilter];
 
   // Optimistic save: apply locally, POST, roll back on failure (Phase 3).
   async function saveJob(jobId, fields) {
@@ -175,47 +214,27 @@ export default function BmsDashboard() {
       ) : filtered.length === 0 ? (
         <div className="card"><div className="empty">No jobs match the current filters.</div></div>
       ) : viewMode === 'grouped' ? (
-        <div className="phase-groups">
-          {PHASE_ORDER.map((phase) => {
-            const phaseJobs = filtered.filter((j) => j.phase === phase);
-            if (phaseJobs.length === 0) return null;
-            return (
-              <div key={phase} className="phase-group">
-                <div className={`phase-group-header phase-header-${phase}`}>
-                  <span className="phase-group-name">{PHASE_LABELS[phase]}</span>
-                  <span className="phase-group-count">{phaseJobs.length}</span>
-                </div>
-                <div className="phase-group-jobs">
-                  {phaseJobs.map((job) => (
-                    <div key={job.job_id} className="job-card" onClick={() => setDrawer({ mode: 'edit', job })}>
-                      <div className="job-card-left">
-                        <div className="job-card-id">
-                          {job.job_id}
-                          {job.is_forefront && <span className="badge badge-ff">FF</span>}
-                          {job.bill_flag && <span className="badge badge-bill">BILL</span>}
-                        </div>
-                        <div className="job-card-client">{job.client_name || <span className="muted">—</span>}</div>
-                        {job.address && <div className="job-card-sub">{job.address}</div>}
-                        {job.next_milestone_date && (
-                          <div className={`job-card-milestone${String(job.next_milestone_date).slice(0, 10) < todayStr ? ' overdue' : ''}`}>
-                            ◆ {job.next_milestone_label || 'Next'} · {fmtDateOnly(job.next_milestone_date)}
-                          </div>
-                        )}
-                        {job.last_correspondence && <div className="job-card-corr">{job.last_correspondence}</div>}
-                      </div>
-                      <div className="job-card-right">
-                        <div className="job-card-total">{money(job.job_total)}</div>
-                        {Number(job.outstanding) > 0 && (
-                          <div className="job-card-outstanding">{money(job.outstanding)} left</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+        <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+          {moveError && <div className="move-error">{moveError}</div>}
+          <div className="phase-groups">
+            {scopePhases.map((phase) => (
+              <PhaseDropGroup
+                key={phase}
+                phase={phase}
+                jobs={filtered.filter((j) => j.phase === phase)}
+                todayStr={todayStr}
+                onOpen={(job) => setDrawer({ mode: 'edit', job })}
+              />
+            ))}
+          </div>
+          <DragOverlay>
+            {activeJob ? (
+              <div className="job-card job-card-overlay">
+                <JobCardBody job={activeJob} todayStr={todayStr} />
               </div>
-            );
-          })}
-        </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
       ) : (
         <div className="card">
           <table className="jobs-table">
@@ -270,6 +289,85 @@ export default function BmsDashboard() {
       {drawer?.mode === 'create' && (
         <NewJobDrawer onClose={() => setDrawer(null)} onCreate={createJob} />
       )}
+    </div>
+  );
+}
+
+/* ===================== Job card + drag-to-move-phase (grouped view) ===================== */
+
+// Presentational card contents — shared by the in-list card and the drag overlay.
+function JobCardBody({ job, todayStr }) {
+  return (
+    <>
+      <div className="job-card-left">
+        <div className="job-card-id">
+          {job.job_id}
+          {job.is_forefront && <span className="badge badge-ff">FF</span>}
+          {job.bill_flag && <span className="badge badge-bill">BILL</span>}
+        </div>
+        <div className="job-card-client">{job.client_name || <span className="muted">—</span>}</div>
+        {job.address && <div className="job-card-sub">{job.address}</div>}
+        {job.next_milestone_date && (
+          <div className={`job-card-milestone${String(job.next_milestone_date).slice(0, 10) < todayStr ? ' overdue' : ''}`}>
+            ◆ {job.next_milestone_label || 'Next'} · {fmtDateOnly(job.next_milestone_date)}
+          </div>
+        )}
+        {job.last_correspondence && <div className="job-card-corr">{job.last_correspondence}</div>}
+      </div>
+      <div className="job-card-right">
+        <div className="job-card-total">{money(job.job_total)}</div>
+        {Number(job.outstanding) > 0 && (
+          <div className="job-card-outstanding">{money(job.outstanding)} left</div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// A job card with a dedicated drag handle (grip). Tapping the card opens the
+// editor; dragging the grip moves the job to another phase. Separating the two
+// keeps tap-to-open and scroll working cleanly on touch.
+function DraggableJobCard({ job, todayStr, onOpen }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: job.job_id });
+  return (
+    <div ref={setNodeRef} className={`job-card${isDragging ? ' is-dragging' : ''}`} onClick={() => onOpen(job)}>
+      <button
+        className="job-card-grip"
+        aria-label={`Move ${job.job_id} to another phase`}
+        onClick={(e) => e.stopPropagation()}
+        {...attributes}
+        {...listeners}
+      >
+        <svg width="14" height="18" viewBox="0 0 14 18" fill="currentColor" aria-hidden="true">
+          <circle cx="4" cy="3" r="1.5" /><circle cx="10" cy="3" r="1.5" />
+          <circle cx="4" cy="9" r="1.5" /><circle cx="10" cy="9" r="1.5" />
+          <circle cx="4" cy="15" r="1.5" /><circle cx="10" cy="15" r="1.5" />
+        </svg>
+      </button>
+      <JobCardBody job={job} todayStr={todayStr} />
+    </div>
+  );
+}
+
+// A phase section that accepts dropped cards. Always rendered (even when empty)
+// so every phase is a valid drop target, like the sections in Ang's Sheet.
+function PhaseDropGroup({ phase, jobs, todayStr, onOpen }) {
+  const { setNodeRef, isOver } = useDroppable({ id: phase });
+  return (
+    <div ref={setNodeRef} className={`phase-group${isOver ? ' drop-over' : ''}`}>
+      <div className={`phase-group-header phase-header-${phase}`}>
+        <span className="phase-group-name">{PHASE_LABELS[phase]}</span>
+        <span className="phase-group-count">{jobs.length}</span>
+      </div>
+      <div className="phase-group-jobs">
+        {jobs.length === 0 ? (
+          <div className="phase-group-empty">Drop a job here</div>
+        ) : (
+          jobs.map((job) => (
+            <DraggableJobCard key={job.job_id} job={job} todayStr={todayStr} onOpen={onOpen} />
+          ))
+        )}
+      </div>
     </div>
   );
 }
