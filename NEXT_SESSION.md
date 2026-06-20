@@ -19,8 +19,9 @@ sheet — and **Templates**), plus the Forefront commission decision (blocked on
   line; `potential`→"Proposal Sent") · P3 Job Editor drawer (payment chips) · P4 Forefront
   commission tracker (status-grouped ledger; "10%" copy neutralized) · P5 Settings (theme picker +
   defaults) · P7 Client Portal (brand colors pinned) · P8 Mobile (Portal tab + Appearance sheet).
-- **⚠️ Vercel Hobby = 12 functions and we're AT 12** — adding Templates + Field Notes APIs needs
-  consolidation (dispatcher pattern) or a plan upgrade. Details in `REDESIGN-BACKEND-NEXT.md`.
+- **✅ Vercel Pro (upgraded 2026-06-20)** — the old 12-function Hobby cap is GONE. Build Templates +
+  Field Notes APIs as **clean standalone files** (`api/templates.js`, `api/field-notes.js`); no more
+  dispatcher gymnastics. Details in `REDESIGN-BACKEND-NEXT.md`.
 - **Deferred from the redesign:** Templates (table+API+UI), Field Notes (table+API+mobile FAB sheet),
   Forefront rate/structure (Ang: % of contract vs flat fee per project).
 - **Local dev note:** `.env` has Clerk **dev** keys (`pk_test`) — a separate user pool/OAuth from
@@ -82,9 +83,10 @@ the test data was deleted, so threads/messages tables are back to empty.
   Vercel doesn't) → OpenSSL `DECODER unsupported` → every Drive call failed in prod. Fix: strip quotes in
   `google-drive.js` `privateKey()`. **Lesson: SA key only ever ran in local scripts before; this was its
   first runtime use on Vercel.**
-- **Vercel Hobby = 12 serverless functions max.** ALL portal routes are ONE function
-  `api/portal/[action].js` (dispatches `me`/`preview`/`files`/`download` by path segment). **Add new
-  portal actions HERE — do not create new `api/portal/*.js` files** or the deploy fails the cap.
+- **Portal routes are ONE function** `api/portal/[action].js` (dispatches `me`/`preview`/`files`/
+  `download` by path segment). This was originally done to stay under the Hobby 12-function cap.
+  **Update (2026-06-20): now on Vercel Pro, the cap is lifted** — the dispatcher can stay (it's a
+  coherent group) but new endpoints no longer have to be jammed in; split them out when cleaner.
 - **Data fixes:** merged duplicate client Josh/Joshua Russo → **Joshua Russo** (3 jobs). Corrected
   `25_054_McCalla` to the right folder (`25_055` offset). **Unlinked `23_047_FF_Jones`** (was pointing at
   `23_047_Needle_Ripley`). See CHECKLIST → "Portal data refinement" for the long-tail list.

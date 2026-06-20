@@ -8,27 +8,24 @@ one decision blocked on Ang. Everything below is what's left.
 
 ---
 
-## ⚠️ Hard constraint — Vercel Hobby = 12 serverless functions, and we are AT 12
+## ✅ Function cap LIFTED — now on Vercel Pro (upgraded 2026-06-20)
 
-Current deployable functions (each `api/*.js`, excluding `_lib/`):
-`calendar · clients · forefront · health · inbox · jobs · jobs/create · jobs/update ·
-payments · payments/webhook · phase-events · portal/[action]` = **12 / 12**.
+Ray upgraded the `rm117-s-projects` team to **Vercel Pro**, so the old Hobby 12-function
+ceiling no longer applies (Pro allows up to 100 serverless functions per deployment). **The
+dispatcher-consolidation workaround is no longer needed.**
 
-**Adding standalone `api/templates.js` and `api/field-notes.js` would be 14 → over the cap.**
-Options, in order of preference:
-1. **Consolidate via the dispatcher pattern** (same as `api/portal/[action].js`): one new
-   `api/data/[resource].js` (or `api/app/[action].js`) that handles `templates` and
-   `field-notes` (and is room for future small resources). Net new functions: **+1 → 13**.
-   Still over by 1 — so also fold one low-traffic existing route into a dispatcher, OR:
-2. **Fold templates + field-notes into the existing `portal/[action].js`** dispatcher
-   (rename it to a general app dispatcher). Net new functions: **0**.
-3. **Upgrade Vercel** (Pro) to lift the cap — simplest but costs money; confirm with Ray.
+**New default: build each endpoint as its own clean standalone file** — the conventional,
+readable layout that matches `jobs.js`, `clients.js`, `payments.js`, etc.:
+- `api/field-notes.js` (or `api/field-notes/index.js` + `api/field-notes/create.js`)
+- `api/templates.js`
 
-Recommended: **option 2** — extend the existing dispatcher into a general
-`api/app/[action].js` with actions `templates`, `template-create`, `field-notes`,
-`field-note-create`, and migrate the portal actions into it (or keep portal separate and
-make ONE new dispatcher = option 1 + fold `health` into another route to get back to 12).
-Decide at the top of the session.
+No need to cram unrelated resources into `[action].js` catch-alls. (The existing
+`api/portal/[action].js` dispatcher can **stay as-is** — it works and its actions are a coherent
+group; there's no reason to refactor it. But new portal features no longer *have* to be jammed in
+to dodge a cap — split them out when it reads cleaner.)
+
+Pro side benefits now available: longer function timeouts (helps slower QBO/DocuSign/Drive calls),
+more bandwidth, deployment protection, analytics.
 
 ---
 
@@ -50,10 +47,11 @@ location     jsonb                -- {lat, lng} optional — phase 2
 RLS: staff-only (same posture as the other staff APIs — currently open; see "staff API auth"
 in `NEXT_SESSION.md`).
 
-### API (in the chosen dispatcher)
-- `GET  field-notes?job_id=…` → notes for a job, newest first
-- `POST field-note-create` → `{ job_id, body }` (author_id from the verified Clerk token via
-  `getUserId` in `api/_lib/clerk.js`)
+### API — standalone `api/field-notes.js`
+- `GET  /api/field-notes?job_id=…` → notes for a job, newest first
+- `POST /api/field-notes` → `{ job_id, body }` (author_id from the verified Clerk token via
+  `getUserId` in `api/_lib/clerk.js`); method-switch GET/POST in the one file
+- Register the route in `server.js` for local dev.
 
 ### Frontend (mobile)
 - A floating **`+` FAB** (56px, accent, above the bottom tab bar) → opens a **bottom sheet**
@@ -84,10 +82,11 @@ use_count   int default 0
 (CLAUDE.md lists a `templates` table in the schema — **verify it exists / matches** via
 `list_tables` before creating; extend if partial.)
 
-### API (in the chosen dispatcher)
-- `GET  templates` → all, grouped client-side by category
-- `POST template-create` → new template (file upload strategy TBD — Drive vs Supabase Storage)
+### API — standalone `api/templates.js`
+- `GET  /api/templates` → all, grouped client-side by category
+- `POST /api/templates` → new template (file upload strategy TBD — Drive vs Supabase Storage)
 - (later) increment `use_count` on "Use"
+- Register the route in `server.js` for local dev.
 
 ### Frontend
 - Replace the `/templates` placeholder with the category card grid (format badge: PDF=bill

@@ -8,7 +8,10 @@ QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
 
 ## Stack
 - **Frontend:** React 19 + Vite — app shell `src/rm117-app-shell-v1.jsx` hosting the BMS dashboard
-- **API:** Vercel Serverless Functions in `api/` (wrapped by `server.js` for local dev)
+- **API:** Vercel Serverless Functions in `api/` (wrapped by `server.js` for local dev). On
+  **Vercel Pro** (upgraded 2026-06-20) — no function-count cap concern; build each endpoint as its
+  own standalone file (e.g. `api/jobs.js`). The `api/portal/[action].js` dispatcher predates Pro and
+  stays as a coherent group, but new features no longer need to be consolidated to dodge a cap.
 - **Data (truth):** Supabase (Postgres) — all jobs, payments, invoices, proposals, Forefront,
   templates, staff, and portal data. See SCHEMA.md.
 - **Data (seed/fallback):** Google Sheets API, service account **Viewer-only**, through Phase 3

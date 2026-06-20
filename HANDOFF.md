@@ -18,7 +18,8 @@ moved well past that. For current state, read these files in order:
   chips), Forefront commission tracker (status-grouped ledger), Settings (theme picker), Client
   Portal (brand colors), Mobile (Portal tab + Appearance sheet). Source: `~/Desktop/design_handoff_rm117_app 2/`.
   **Next session = backend** (Field Notes + Templates tables/APIs; Forefront rate pending Ang) —
-  see **`REDESIGN-BACKEND-NEXT.md`** (note: Vercel Hobby is at its 12-function cap).
+  see **`REDESIGN-BACKEND-NEXT.md`** (note: now on Vercel Pro as of 2026-06-20 — 12-function cap
+  lifted, build new APIs as clean standalone files).
 - **2026-06-18 — Phase 7 Client Portal COMPLETE (commits `a0f5e2f`→`74eed0a`, deployed + pushed to origin):**
   portal redesigned to the Architectural mockup (switcher + horizontal stepper, money-free), **document
   vault live** via the Drive service-account broker (**85 jobs mapped + audited**), **staff-side portal
