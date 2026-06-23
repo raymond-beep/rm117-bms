@@ -22,11 +22,12 @@ export default async function handler(req, res) {
 }
 
 async function getNotes(req, res) {
+  // Authorize before touching input — no work (not even validation) for anon callers.
+  const userId = await requireStaff(req, res);
+  if (!userId) return; // 401/403 already sent
+
   const jobId = req.query.job_id;
   if (!jobId) return res.status(400).json({ error: 'job_id is required' });
-
-  const userId = await requireStaff(req, res);
-  if (!userId) return; // 401 already sent
 
   try {
     if (!hasDb()) return res.status(200).json({ source: 'mock', notes: [] });
@@ -46,6 +47,10 @@ async function getNotes(req, res) {
 }
 
 async function createNote(req, res) {
+  // Authorize before touching input — no work (not even validation) for anon callers.
+  const userId = await requireStaff(req, res);
+  if (!userId) return; // 401/403 already sent
+
   const { job_id, body } = req.body || {};
   if (!job_id || !JOB_ID_RE.test(job_id)) {
     return res.status(400).json({ error: 'A valid job_id is required' });
@@ -57,9 +62,6 @@ async function createNote(req, res) {
   if (!text && attachments.length === 0 && !location) {
     return res.status(400).json({ error: 'A note needs text, an attachment, or a location' });
   }
-
-  const userId = await requireStaff(req, res);
-  if (!userId) return; // 401 already sent
 
   if (!hasDb()) return res.status(200).json({ source: 'mock', persisted: false });
 
@@ -82,12 +84,13 @@ async function createNote(req, res) {
 // PATCH { id, body } — edit a note's text. Staff-only. Attachments/location are
 // not edited here (delete the note to remove media).
 async function updateNote(req, res) {
+  // Authorize before touching input — no work (not even validation) for anon callers.
+  const userId = await requireStaff(req, res);
+  if (!userId) return; // 401/403 already sent
+
   const { id, body } = req.body || {};
   if (!id) return res.status(400).json({ error: 'id is required' });
   const text = typeof body === 'string' ? body.trim() : '';
-
-  const userId = await requireStaff(req, res);
-  if (!userId) return; // 401 already sent
 
   if (!hasDb()) return res.status(200).json({ source: 'mock', persisted: false });
 
@@ -111,11 +114,12 @@ async function updateNote(req, res) {
 
 // DELETE { id } — remove a note and any attachment files from Storage. Staff-only.
 async function deleteNote(req, res) {
+  // Authorize before touching input — no work (not even validation) for anon callers.
+  const userId = await requireStaff(req, res);
+  if (!userId) return; // 401/403 already sent
+
   const { id } = req.body || {};
   if (!id) return res.status(400).json({ error: 'id is required' });
-
-  const userId = await requireStaff(req, res);
-  if (!userId) return; // 401 already sent
 
   if (!hasDb()) return res.status(200).json({ source: 'mock', persisted: false });
 
