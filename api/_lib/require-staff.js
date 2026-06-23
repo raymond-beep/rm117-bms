@@ -15,24 +15,33 @@
 //   403 — a valid session, but not an RM117 staff account
 // When Clerk isn't configured (pure local/offline mock), allows a 'local-dev'
 // user so the app still runs without auth wired up.
-import { hasClerk, getUserId, getUserEmail } from './clerk.js';
+//
+// Staff is decided by the session token's `role` claim when present (fast path —
+// no extra Clerk API call), falling back to the @rm117.com email check. This
+// keeps working through the role-claim rollout: tokens minted before the claim
+// existed, or users without publicMetadata.role yet, still pass via email.
+import { hasClerk, getAuthClaims, getUserEmail } from './clerk.js';
 
 const STAFF_DOMAIN = '@rm117.com';
 
 export async function requireStaff(req, res) {
   if (!hasClerk()) return 'local-dev';
 
-  const userId = await getUserId(req);
-  if (!userId) {
+  const claims = await getAuthClaims(req);
+  if (!claims?.userId) {
     res.status(401).json({ error: 'Not authenticated' });
     return null;
   }
 
-  const email = await getUserEmail(userId);
+  // Fast path: staff role baked into the verified token — no user fetch needed.
+  if (claims.role === 'staff') return claims.userId;
+
+  // Fallback: confirm staff by their primary @rm117.com email.
+  const email = await getUserEmail(claims.userId);
   if (!email || !email.endsWith(STAFF_DOMAIN)) {
     res.status(403).json({ error: 'Staff access required' });
     return null;
   }
 
-  return userId;
+  return claims.userId;
 }

@@ -32,6 +32,26 @@ export async function getUserId(req) {
   }
 }
 
+// Verify the Bearer token and return the useful auth claims in one shot:
+//   { userId, role }
+// `role` comes from a custom session-token claim — add
+//   "role": "{{user.public_metadata.role}}"
+// to the Clerk session-token template and set publicMetadata.role='staff' on
+// staff users. Until that's configured (or for a user without the metadata)
+// `role` is null and callers fall back to the email check. Returns null when
+// the token is missing/invalid (caller responds 401). One verify, no user fetch.
+export async function getAuthClaims(req) {
+  const auth = req.headers?.authorization || '';
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  if (!token) return null;
+  try {
+    const claims = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY });
+    return { userId: claims.sub || null, role: claims.role || null };
+  } catch {
+    return null;
+  }
+}
+
 // Fetch the signed-in user's primary verified email from Clerk.
 // Used by the client portal to resolve a Clerk user to a `clients` record.
 // Returns a lowercased email string, or null if it can't be determined.
