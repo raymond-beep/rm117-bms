@@ -1,9 +1,39 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-21 (Phase 1 security gate written locally — NOT committed, NOT deployed)
+**Last updated:** 2026-06-23 (Phase 1 security DONE + deployed + verified; next = product roadmap)
 
 ---
 
-## ▶ RESUME HERE — 2026-06-21 — Deploy the staff-API security gate (+ optional auth upgrade)
+## ▶ RESUME HERE — 2026-06-23 — Security done; pick the next build from ROADMAP.md
+
+**The security pass is fully CLOSED** — staff-API gate + the JWT role-claim upgrade, all committed,
+deployed, and verified (anonymous → 401, signed-in staff → token fast-path; Ray confirmed on phone +
+desktop). Commits `9ca8f2e`, `523b60c`, `3d7437a`. Full detail in the "(DONE — historical)" section
+below and in `User Test Results/RM117-Improvement-Plan.md` (Phase 1 ✅).
+
+### What's next — Ang + Luci product feedback → see **`ROADMAP.md`** (new, 2026-06-23)
+Pick ONE build to start a session (recommended: **Proposal template + AI auto-fill**):
+- **A. Proposal template + AI auto-fill** — populate the `templates` table + Claude-drafted variable
+  scope/fee sections, boilerplate fixed. High daily value for Ang. _(Read the `claude-api` skill first.)_
+- **B. Two-way QBO sync** — app→QBO customer/invoice create (`QBO_*` env already set, unused). Fixes
+  Ang's manual-invoicing AR mess. More OAuth-finicky; refresh token may need re-minting.
+- **Unblock in parallel (no code):** client portal *through* rm117.com — **blocked on DNS/Wix account
+  access** (domain is in a different Wix account; same wall as the email setup). Plan = "Client Login"
+  button → `portal.rm117.com` link-out (NOT an iframe — Clerk breaks in third-party iframes).
+- **Plan separately:** website redesign (stay on Wix vs rebuild on Vercel) + **productize/white-label**
+  (sell to other design firms — multi-tenant; build config-driven NOW so it's not a painful retrofit).
+
+### Hardening backlog (test plan — not urgent): Phases 2–4 in `RM117-Improvement-Plan.md`
+Split the two ~1,300-line components (Phase 2 — also de-risks the proposal UI work + seeds
+productization), route-level code splitting (Phase 3), smoke tests + deploy-from-git hygiene (Phase 4).
+Note: local `main` is ~21 commits ahead of `origin/main` — prod is current via CLI deploys, GitHub is stale.
+
+### ⚠️ Deferred side-finding: prod runs Clerk **DEV** keys (`pk_test`, `known-snake-38.accounts.dev`).
+Not a leak (gate works either way), but dev→prod Clerk is a real migration (separate user pool,
+custom-domain DNS, redo Google OAuth). Revisit before any public client launch. See project memory.
+
+---
+
+## ▶ (DONE — historical) 2026-06-21 — Deploy the staff-API security gate (+ optional auth upgrade)
 
 > Came out of an architect's "user test" of the whole app (graded 7/10). Full writeup +
 > improvement plan live on the Desktop in **`User Test Results/`** (`RM117-User-Test-Review.md`
