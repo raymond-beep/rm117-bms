@@ -10,12 +10,20 @@ deployed, and verified (anonymous → 401, signed-in staff → token fast-path; 
 desktop). Commits `9ca8f2e`, `523b60c`, `3d7437a`. Full detail in the "(DONE — historical)" section
 below and in `User Test Results/RM117-Improvement-Plan.md` (Phase 1 ✅).
 
-### What's next — Ang + Luci product feedback → see **`ROADMAP.md`** (new, 2026-06-23)
-Pick ONE build to start a session (recommended: **Proposal template + AI auto-fill**):
-- **A. Proposal template + AI auto-fill** — populate the `templates` table + Claude-drafted variable
-  scope/fee sections, boilerplate fixed. High daily value for Ang. _(Read the `claude-api` skill first.)_
-- **B. Two-way QBO sync** — app→QBO customer/invoice create (`QBO_*` env already set, unused). Fixes
-  Ang's manual-invoicing AR mess. More OAuth-finicky; refresh token may need re-minting.
+### What's next — Ray DECIDED the order (2026-06-23): **① QBO connection, then ② proposal template**
+Full detail in **`ROADMAP.md`**.
+
+**① Two-way QBO sync — START HERE.** App→QBO customer/invoice create. **Prep already done:**
+- All 4 creds (`QBO_CLIENT_ID/SECRET/REFRESH_TOKEN/REALM_ID`) are in **local `.env`** — but prod
+  `health`=`qbo:false`, so they're NOT in Vercel yet (add them when wiring).
+- **First task is almost certainly re-minting the refresh token** (likely expired — unused ~months) via
+  the Intuit OAuth playground, + confirm `QBO_REALM_ID` = real company vs sandbox.
+- **Use the connected Intuit QuickBooks MCP** for discovery first (confirm company + see real
+  invoice/customer shape) before building `api/_lib/qbo.js` + `api/qbo/create-*` endpoints.
+
+**② Proposal template + AI auto-fill.** Ray will **feed sample proposals** to base the new template on.
+Populate the `templates` table + Claude-drafted variable scope/fee sections, boilerplate fixed.
+_(Read the `claude-api` skill before writing the Anthropic call.)_
 - **Unblock in parallel (no code):** client portal *through* rm117.com — **blocked on DNS/Wix account
   access** (domain is in a different Wix account; same wall as the email setup). Plan = "Client Login"
   button → `portal.rm117.com` link-out (NOT an iframe — Clerk breaks in third-party iframes).

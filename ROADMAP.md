@@ -36,11 +36,21 @@ channel; proposals are meant to feed the milestone schedule (already wired in th
 **Effort:** medium. v1 (table + generate endpoint + basic UI) ≈ 1–2 sessions.
 **Build it config-driven** (firm_type, configurable section labels) → serves productization (§3).
 
-### B. Two-way QuickBooks sync  _(app → QBO; fixes Ang's manual-invoicing AR mess)_
+### B. Two-way QuickBooks sync  _(app → QBO; fixes Ang's manual-invoicing AR mess)_ ← **DECIDED: do this FIRST next session**
 **Goal:** create customers/invoices in QBO *from the app*, not just receive paid-invoice webhooks.
 
-**Why it's ready:** `QBO_CLIENT_ID / QBO_CLIENT_SECRET / QBO_REFRESH_TOKEN` are already in env (set,
-unused — this is the long-planned "Stage B outbound QBO").
+**Why it's ready:** `QBO_CLIENT_ID / QBO_CLIENT_SECRET / QBO_REFRESH_TOKEN / QBO_REALM_ID` are already
+in local `.env` (set, unused — the long-planned "Stage B outbound QBO").
+
+**PREP FINDINGS (2026-06-23):**
+- All 4 QBO creds present in **local `.env`** incl. `QBO_REALM_ID` (a specific company is targeted).
+- **Prod `health` = `qbo:false`** → the QBO vars are NOT in Vercel. Must add them to Vercel prod when wiring.
+- **Refresh token likely EXPIRED** (Intuit refresh tokens lapse ~100 days unused; these sat untouched)
+  → first task is almost certainly re-auth via the **Intuit OAuth 2.0 playground** to mint a fresh token.
+- **Confirm sandbox vs real company** from `QBO_REALM_ID` before any create call.
+- **Accelerator:** an **Intuit QuickBooks MCP** is connected to Claude's session (create-invoice/customer,
+  search-customer, get-invoices, company-info…). Can't run inside the deployed app, but ideal for
+  next-session DISCOVERY — confirm the company + inspect real invoice/customer structure before building.
 
 **First steps next session:**
 1. **Confirm the QBO connection:** which company (sandbox vs prod)? Is there a `QBO_REALM_ID`? The
