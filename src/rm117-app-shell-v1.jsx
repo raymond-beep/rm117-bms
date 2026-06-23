@@ -10,6 +10,7 @@ import ForefrountView from './rm117-forefront-v1.jsx';
 import ClientPortal from './rm117-portal-v1.jsx';
 import { money, PIPELINE_PHASES, phaseLabel, shortDate } from './lib/format.js';
 import { useTheme, THEMES } from './lib/theme.jsx';
+import { apiFetch } from './lib/api.js';
 import { NoteMedia } from './lib/note-media.jsx';
 
 // Catches render-time crashes in any page so a bug shows a readable message +
@@ -326,7 +327,7 @@ function FieldNoteSheet({ onClose }) {
   // construction issues), so don't restrict by phase.
   useEffect(() => {
     let alive = true;
-    fetch('/api/jobs')
+    apiFetch('/api/jobs')
       .then((r) => r.json())
       .then(({ jobs }) => {
         if (!alive) return;
@@ -722,7 +723,7 @@ function Home() {
   const [source, setSource] = useState(null);
 
   useEffect(() => {
-    fetch('/api/jobs')
+    apiFetch('/api/jobs')
       .then((r) => r.json())
       .then(({ source, jobs }) => {
         const pipeline = jobs.filter((j) => PIPELINE_PHASES.includes(j.phase));
@@ -1089,7 +1090,7 @@ function StaffPortalPreview() {
   const [status, setStatus] = useState('idle');
 
   useEffect(() => {
-    fetch('/api/clients')
+    apiFetch('/api/clients')
       .then((r) => r.json())
       .then((d) => setClients((d.clients || []).filter((c) => c && c.name)))
       .catch(() => {});
@@ -1157,7 +1158,7 @@ function TopBar() {
 
   useEffect(() => {
     let alive = true;
-    fetch('/api/jobs')
+    apiFetch('/api/jobs')
       .then((r) => r.json())
       .then((d) => { if (alive) setSource(d.source); })
       .catch(() => {});

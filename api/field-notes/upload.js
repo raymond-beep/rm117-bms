@@ -9,7 +9,7 @@
 // URLs are signed on read by GET /api/field-notes — the bucket stays private.
 import { randomUUID } from 'node:crypto';
 import { getDb, hasDb, JOB_ID_RE } from '../_lib/db.js';
-import { hasClerk, getUserId } from '../_lib/clerk.js';
+import { requireStaff } from '../_lib/require-staff.js';
 
 const BUCKET = 'field-notes';
 
@@ -22,11 +22,7 @@ const EXT = {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
-  // Staff gate — author identity also confirms a real session.
-  if (hasClerk() && !(await getUserId(req))) {
-    return res.status(401).json({ error: 'Not authenticated' });
-  }
+  if (!(await requireStaff(req, res))) return; // 401/403 already sent
 
   const { job_id, kind, dataUrl, name } = req.body || {};
   if (!job_id || !JOB_ID_RE.test(job_id)) return res.status(400).json({ error: 'A valid job_id is required' });

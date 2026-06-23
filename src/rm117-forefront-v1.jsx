@@ -3,6 +3,7 @@
 // drawer to log a commission payout to the partner.
 import React, { useEffect, useState, useMemo } from 'react';
 import { money, shortDate, PHASE_LABELS } from './lib/format.js';
+import { apiFetch } from './lib/api.js';
 
 const PAY_METHODS = ['check', 'venmo', 'zelle', 'cash', 'other'];
 
@@ -34,7 +35,7 @@ export default function ForefrountView() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/forefront');
+      const res = await apiFetch('/api/forefront');
       if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
       const data = await res.json();
       setCommissions(data.commissions || []);
@@ -201,7 +202,7 @@ function CommissionDrawer({ commission, onClose, onLogged }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch('/api/forefront', {
+      const res = await apiFetch('/api/forefront', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: commission.job_id, ...form, amount: Number(form.amount) }),

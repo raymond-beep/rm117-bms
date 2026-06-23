@@ -2,9 +2,11 @@
 // entering jobs in the Sheet). Job ID must match YY_NNN_[FF_]LastName — it is
 // the shared key across Drive, QBO, and Supabase.
 import { getDb, hasDb, JOB_ID_RE, PHASES } from '../_lib/db.js';
+import { requireStaff } from '../_lib/require-staff.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!(await requireStaff(req, res))) return; // 401/403 already sent
 
   const body = req.body || {};
   const { job_id, client_name } = body;

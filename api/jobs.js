@@ -3,9 +3,11 @@
 // outstanding = job_total - sum(payments.amount) — computed here, never stored.
 import { getDb, hasDb, computeOutstanding } from './_lib/db.js';
 import { MOCK_JOBS, MOCK_PAYMENTS } from './_lib/mock-data.js';
+import { requireStaff } from './_lib/require-staff.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!(await requireStaff(req, res))) return; // 401/403 already sent
 
   try {
     let jobs, payments, clients;

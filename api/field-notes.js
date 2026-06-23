@@ -6,7 +6,7 @@
 // author_id is taken from the verified token, never trusted from the body.
 // attachments/location are reserved for phase 2 (photo/voice/geo capture).
 import { getDb, hasDb, JOB_ID_RE } from './_lib/db.js';
-import { hasClerk, getUserId } from './_lib/clerk.js';
+import { requireStaff } from './_lib/require-staff.js';
 
 const BUCKET = 'field-notes';
 const SIGNED_URL_TTL = 3600; // 1h — long enough for a session, short enough to stay private
@@ -19,19 +19,6 @@ export default async function handler(req, res) {
   if (req.method === 'PATCH') return updateNote(req, res);
   if (req.method === 'DELETE') return deleteNote(req, res);
   return res.status(405).json({ error: 'Method not allowed' });
-}
-
-// Resolve the staff user from the Clerk token. Returns the user id, or sends a
-// 401 and returns null. When Clerk isn't configured (pure local mock), we allow
-// an anonymous "local" author so the feature still works offline.
-async function requireStaff(req, res) {
-  if (!hasClerk()) return 'local-dev';
-  const userId = await getUserId(req);
-  if (!userId) {
-    res.status(401).json({ error: 'Not authenticated' });
-    return null;
-  }
-  return userId;
 }
 
 async function getNotes(req, res) {

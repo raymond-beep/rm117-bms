@@ -1,6 +1,7 @@
 // POST /api/jobs/update — saveJob(): writes job edits to Supabase (Phase 3).
 // Body: { job_id, fields: { ...editable fields } }
 import { getDb, hasDb, PHASES } from '../_lib/db.js';
+import { requireStaff } from '../_lib/require-staff.js';
 
 // Whitelist — only fields the JobEditor may write. Everything else is computed,
 // import-only, or managed elsewhere.
@@ -27,6 +28,7 @@ const EDITABLE = new Set([
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!(await requireStaff(req, res))) return; // 401/403 already sent
 
   const { job_id, fields } = req.body || {};
   if (!job_id || !fields || typeof fields !== 'object') {

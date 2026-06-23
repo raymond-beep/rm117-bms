@@ -4,6 +4,7 @@
 // payment logging (Phase 4). `outstanding` always arrives computed from the API.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@clerk/clerk-react';
+import { apiFetch } from './lib/api.js';
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
   useDroppable, pointerWithin, closestCenter,
@@ -176,7 +177,7 @@ export default function BmsDashboard() {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await fetch('/api/jobs');
+      const res = await apiFetch('/api/jobs');
       if (!res.ok) throw new Error((await res.json()).error || `HTTP ${res.status}`);
       const data = await res.json();
       setJobs(data.jobs);
@@ -255,7 +256,7 @@ export default function BmsDashboard() {
   async function saveJob(jobId, fields) {
     const prev = jobs;
     setJobs((js) => js.map((j) => (j.job_id === jobId ? { ...j, ...fields } : j)));
-    const res = await fetch('/api/jobs/update', {
+    const res = await apiFetch('/api/jobs/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ job_id: jobId, fields }),
@@ -268,7 +269,7 @@ export default function BmsDashboard() {
   }
 
   async function createJob(fields) {
-    const res = await fetch('/api/jobs/create', {
+    const res = await apiFetch('/api/jobs/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(fields),
@@ -552,7 +553,7 @@ function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
   // Load the client list for the picker — one identity shared with the portal.
   useEffect(() => {
     let live = true;
-    fetch('/api/clients')
+    apiFetch('/api/clients')
       .then((r) => r.json())
       .then((d) => { if (live) setClients(d.clients || []); })
       .catch(() => {});
@@ -817,7 +818,7 @@ function ProgressTab({ job, onSave }) {
 
   async function loadEvents() {
     try {
-      const res = await fetch(`/api/phase-events?job_id=${encodeURIComponent(job.job_id)}`);
+      const res = await apiFetch(`/api/phase-events?job_id=${encodeURIComponent(job.job_id)}`);
       const d = await res.json();
       setEvents(d.events || []);
     } catch {
@@ -856,7 +857,7 @@ function ProgressTab({ job, onSave }) {
     setSavingPhase(phase);
     setError(null);
     try {
-      const res = await fetch('/api/phase-events', {
+      const res = await apiFetch('/api/phase-events', {
         method: dateStr ? 'POST' : 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dateStr ? { job_id: job.job_id, phase, date: dateStr } : { job_id: job.job_id, phase }),
@@ -1070,7 +1071,7 @@ function PaymentsTab({ job, onLogged }) {
   const [error, setError] = useState(null);
 
   async function loadPayments() {
-    const res = await fetch(`/api/payments?job_id=${encodeURIComponent(job.job_id)}`);
+    const res = await apiFetch(`/api/payments?job_id=${encodeURIComponent(job.job_id)}`);
     const data = await res.json();
     setPayments(data.payments || []);
   }
@@ -1082,7 +1083,7 @@ function PaymentsTab({ job, onLogged }) {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch('/api/payments', {
+      const res = await apiFetch('/api/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ job_id: job.job_id, ...form, amount: Number(form.amount) }),

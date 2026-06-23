@@ -3,11 +3,13 @@
 // POST { job_id, amount, payment_method, payment_type, paid_date, notes? }
 import { getDb, hasDb } from './_lib/db.js';
 import { MOCK_PAYMENTS } from './_lib/mock-data.js';
+import { requireStaff } from './_lib/require-staff.js';
 
 const METHODS = ['check', 'venmo', 'zelle', 'qb', 'cash', 'other'];
 const TYPES = ['retainer', 'dp1', 'dp2', 'dp3', 'cd', 'final', 'other'];
 
 export default async function handler(req, res) {
+  if (!(await requireStaff(req, res))) return; // 401/403 already sent
   if (req.method === 'GET') return getPayments(req, res);
   if (req.method === 'POST') return createPayment(req, res);
   return res.status(405).json({ error: 'Method not allowed' });

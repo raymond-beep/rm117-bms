@@ -5,8 +5,10 @@
 //                                              phase, or inserts one if none)
 //   DELETE { job_id, phase }               -> clear the date for that phase
 import { getDb, hasDb, PHASES } from './_lib/db.js';
+import { requireStaff } from './_lib/require-staff.js';
 
 export default async function handler(req, res) {
+  if (!(await requireStaff(req, res))) return; // 401/403 already sent
   if (req.method === 'GET') return getEvents(req, res);
   if (req.method === 'POST') return setEvent(req, res);
   if (req.method === 'DELETE') return clearEvent(req, res);

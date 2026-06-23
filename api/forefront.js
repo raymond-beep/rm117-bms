@@ -1,6 +1,7 @@
 // GET /api/forefront — list all Forefront commissions with job details
 // POST /api/forefront — log a commission payment for a job
 import { getDb, hasDb } from './_lib/db.js';
+import { requireStaff } from './_lib/require-staff.js';
 
 const MOCK = [
   { id: 'mock-1', job_id: '26_009_FF_Chou', total_commission: 1200, amount_paid: 0, payment_history: [], status: 'active', notes: null, jobs: { client_name: 'Frank Chou', phase: 'design_phase', address: '622 Prospect Ave, Westfield NJ' } },
@@ -8,6 +9,8 @@ const MOCK = [
 ];
 
 export default async function handler(req, res) {
+  if (!(await requireStaff(req, res))) return; // 401/403 already sent
+
   if (req.method === 'GET') {
     if (!hasDb()) return res.json({ source: 'mock', commissions: MOCK });
     const db = getDb();

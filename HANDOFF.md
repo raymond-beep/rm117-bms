@@ -8,8 +8,17 @@ moved well past that. For current state, read these files in order:
 3. **`CHECKLIST.md`** — full phase-by-phase build checklist with completion status
 4. **`SCHEMA.md`** — Supabase table definitions
 
-## Current status (as of 2026-06-20)
+## Current status (as of 2026-06-21)
 
+- **2026-06-21 — Phase-1 security gate WRITTEN LOCALLY (NOT committed, NOT deployed):** an
+  architect "user test" (graded the app 7/10; writeup in `~/Desktop/User Test Results/`) found the
+  staff data APIs were **unauthenticated in prod** — `/api/jobs`, `/api/clients`, `/api/forefront`,
+  `/api/payments`, `/api/phase-events` all returned live firm data anonymously. Built a shared
+  `api/_lib/require-staff.js` gate (401 no-token / 403 not-staff; staff = `@rm117.com`), applied it to
+  8 endpoints + refactored `field-notes.js` onto it, and added a token-attaching `src/lib/api.js`
+  (`apiFetch`) wired into all 14 frontend call sites (the GET/write calls previously sent no token).
+  Build green. **The live leak stays open until this is deployed** — see `NEXT_SESSION.md` for the
+  deploy + anonymous-verify steps and the optional JWT-role-claim upgrade (the best-value perf fix).
 - **2026-06-20 — Field Notes shipped + BMS drag/reorder/sort (all on `main`, deployed prod):**
   Upgraded to **Vercel Pro** (function cap gone). Built **Field Notes** end-to-end — the README's
   mobile feature: `field_notes` table, `api/field-notes.js` (GET/POST/PATCH/DELETE) +

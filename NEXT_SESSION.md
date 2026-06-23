@@ -1,5 +1,76 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-20 (Field Notes shipped + BMS drag/reorder/sort; next = Templates)
+**Last updated:** 2026-06-21 (Phase 1 security gate written locally — NOT committed, NOT deployed)
+
+---
+
+## ▶ RESUME HERE — 2026-06-21 — Deploy the staff-API security gate (+ optional auth upgrade)
+
+> Came out of an architect's "user test" of the whole app (graded 7/10). Full writeup +
+> improvement plan live on the Desktop in **`User Test Results/`** (`RM117-User-Test-Review.md`
+> + `RM117-Improvement-Plan.md`).
+
+### ⚠️ State of the code: WRITTEN LOCALLY, NOT COMMITTED, NOT DEPLOYED
+The Phase-1 fix is implemented in the working tree and the build is green (`npm run build` ✓),
+but **nothing is committed or pushed**, so **the live leak is still open until you deploy.**
+
+### The finding (why this matters)
+The staff data APIs were **completely unauthenticated in production** — anyone with the URL could
+pull the firm's whole book of business anonymously. Verified live 2026-06-21:
+`/api/jobs`, `/api/clients`, `/api/forefront`, `/api/payments`, `/api/phase-events` all returned
+`200` with no token. (Portal + field notes were already locked.)
+
+### What's been done locally
+- **New `api/_lib/require-staff.js`** — shared gate. Returns the user id, or sends `401`
+  (no/invalid token) / `403` (valid token but not staff) and returns null. Staff = `@rm117.com`
+  email (checked via Clerk `getUserEmail`). Caller pattern: `if (!(await requireStaff(req,res))) return;`
+- **Gated 8 endpoints:** `jobs.js`, `jobs/update.js`, `jobs/create.js`, `clients.js`, `forefront.js`,
+  `phase-events.js`, `payments.js`, `field-notes/upload.js`.
+- **Refactored `field-notes.js`** to use the shared helper (deleted its private copy; this also
+  tightened it from any-signed-in-user → staff-only).
+- **Left open on purpose:** `health.js` (public, leaks nothing) + `payments/webhook.js`
+  (Zapier — guarded by `WEBHOOK_SECRET`). `calendar.js` / `inbox.js` were already gated.
+- **Frontend — the essential other half:** the GET *and* write calls sent no token, so gating the
+  backend alone would break the app. Added **`src/lib/api.js`** (`apiFetch` — attaches the Clerk
+  session token from `window.Clerk`) and routed all **14** call sites through it across
+  `rm117-dashboard-v1.jsx` (8), `rm117-app-shell-v1.jsx` (4), `rm117-forefront-v1.jsx` (2).
+
+### Next session — DO THIS
+1. **Sanity-test locally signed in with an `@rm117.com` account** (the gate now requires it):
+   dashboard loads, jobs/forefront/payments render, a job edit saves, a field note saves.
+   *(Heads-up: local uses Clerk **dev** keys — sign in with an @rm117.com dev user or you'll get 403.)*
+2. **Commit + deploy** (`vercel --prod`, or push to `main` for auto-deploy).
+3. **Verify the leak is closed (anonymous):**
+   ```bash
+   BASE=https://rm117-bms.vercel.app
+   for p in jobs clients forefront phase-events payments; do
+     printf "%-14s " "$p"; curl -s -o /dev/null -w "%{http_code}\n" "$BASE/api/$p"
+   done   # every line should now read 401 (health stays 200)
+   ```
+4. **Then confirm signed-in still works** on your phone (token path can't be tested from CLI).
+
+### Optional but recommended — upgrade the gate to a JWT role claim (perf + cost)
+The shipped version makes a Clerk `getUserEmail` API call **per request** (~100–300ms + a hard
+dependency on Clerk's API). It's secure and fine for 5 staff, but the better-value fix is to put
+the role **in the session token** so the check is token-only (zero network calls, same cost = $0).
+Decided this is the **best value option** (graded A+ on perf-vs-price; Organizations was B, ship-as-is
+B+). Steps:
+1. Set `publicMetadata: { role: 'staff' }` on the 5 staff accounts (Clerk dashboard or a script).
+2. Clerk → session token template: add `"role": "{{user.public_metadata.role}}"`.
+3. In `require-staff.js`, read `claims.role === 'staff'` from `verifyToken` and drop the
+   `getUserEmail` call.
+4. Clients get no staff role → denied at the gate, still scoped by `portal-auth.js` (defense in depth).
+
+**Cost note (the whole point of the review's pricing question):** the gate mechanism is ~cost-neutral
+— your Clerk bill is driven by **MAUs** (free up to ~10k; Pro ~$25/mo after), and 5 staff + dozens–low-
+hundreds of portal clients sits comfortably in the free tier. The JWT-claim upgrade adds **$0**.
+Clerk **Organizations** is the only option that could add a line item (gates you to Pro / per-org),
+so skip it unless you later want managed team membership. *(Verify Clerk's current pricing page.)*
+
+### After security — back to the feature backlog
+**Templates** (table exists, 0 rows) → see the 2026-06-20 section below + `REDESIGN-BACKEND-NEXT.md`.
+Then the **Forefront commission-rate** decision (blocked on Ang). Bigger refactors from the review
+(split the two ~1,300-line components, route-level code splitting, smoke tests) are Phases 2–4 in
+`User Test Results/RM117-Improvement-Plan.md`.
 
 ---
 
