@@ -6,7 +6,7 @@
 // Every action goes through resolvePortalIdentity first, so client isolation is
 // enforced uniformly. The portal is deliberately money-free.
 import { resolvePortalIdentity, getJobForIdentity } from '../_lib/portal-auth.js';
-import { hasDrive, listFolderFiles, getFileMeta, streamFileTo } from '../_lib/google-drive.js';
+import { hasDrive, listFolderFiles, getFileMeta, streamFileTo, resolveFilesSentFolderId } from '../_lib/google-drive.js';
 
 function group(rows, key) {
   const m = new Map();
@@ -131,11 +131,30 @@ async function handleFiles(req, res, identity) {
   const job = await getJobForIdentity(identity, url.searchParams.get('job_id'));
   if (!job) return res.status(404).json({ error: 'job_not_found' });
 
-  if (!job.drive_files_sent_folder_id || !hasDrive()) {
-    return res.status(200).json({ configured: false, files: [] });
+  if (!hasDrive()) return res.status(200).json({ configured: false, files: [] });
+
+  // Self-heal: jobs created after the bulk mapper run have a null folder id.
+  // Resolve it from Drive on demand and persist on a hit, so the vault populates
+  // without anyone re-running scripts/map-drive-folders.js. A miss (no project
+  // folder or no "Files Sent" subfolder yet) just reports configured:false.
+  let folderId = job.drive_files_sent_folder_id;
+  if (!folderId) {
+    try {
+      folderId = await resolveFilesSentFolderId(job.job_id);
+      if (folderId) {
+        await identity.db
+          .from('jobs')
+          .update({ drive_files_sent_folder_id: folderId })
+          .eq('job_id', job.job_id);
+      }
+    } catch (e) {
+      console.error('[portal/files] self-heal resolve failed:', e?.message || e);
+    }
   }
+  if (!folderId) return res.status(200).json({ configured: false, files: [] });
+
   try {
-    const files = await listFolderFiles(job.drive_files_sent_folder_id);
+    const files = await listFolderFiles(folderId);
     res.status(200).json({
       configured: true,
       files: files.map((f) => ({
