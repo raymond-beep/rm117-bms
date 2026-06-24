@@ -1,9 +1,41 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-23 (Phase 1 security DONE + deployed + verified; next = product roadmap)
+**Last updated:** 2026-06-23 (QBO two-way sync scaffolded; BLOCKED on Ray getting Intuit creds)
 
 ---
 
-## ▶ RESUME HERE — 2026-06-23 — Security done; pick the next build from ROADMAP.md
+## ▶ RESUME HERE — 2026-06-23 (later) — QBO sync scaffolded; need Intuit creds to activate
+
+**Item ① (Two-way QBO sync) is code-complete in the working tree, blocked only on credentials.**
+
+**Discovery done** (via the connected Intuit QuickBooks MCP, authed to the REAL company):
+- Company = **Room 117 Architecture & Design LLC**, **Realm ID `193514517070094`** (PRODUCTION, not sandbox).
+- DisplayName===Job ID invariant confirmed live; invoice/customer/service-item shapes captured.
+- **Correction to earlier notes:** the 4 `QBO_*` keys in local `.env` are **EMPTY placeholders** — there
+  are no QBO creds anywhere locally. So the first task is *getting* creds, not re-minting an expired one.
+
+**Scaffold written (NOT committed, NOT deployed — build green, modules load clean):**
+- `api/_lib/qbo.js` — OAuth refresh (access-token cache + refresh-token-rotation persisted to an optional
+  Supabase `qbo_tokens` table, env fallback) + `findOrCreateCustomer` / `createInvoice` / `sendInvoice`.
+- `api/qbo/create-customer.js` (POST `{job_id}`) and `api/qbo/create-invoice.js`
+  (POST `{job_id, lines:[{item_id|item_name, amount, description?, qty?}], due_date?, memo?, send?}`) —
+  both staff-gated; create-invoice mirrors into the `invoices` table keyed by `qbo_invoice_id`.
+- Registered in `server.js`; `health.js` `qbo` flag now uses `hasQbo()` (all 4 creds).
+
+**▶ TO ACTIVATE — Ray's steps (developer.intuit.com):**
+1. Open the Intuit Developer app → **Keys & credentials** → copy **Production** Client ID + Client Secret.
+2. Mint a **refresh token** via the **OAuth 2.0 Playground** (scope `com.intuit.quickbooks.accounting`,
+   authorize the RM117 company) → copy the refresh token; confirm realmId = `193514517070094`.
+3. Put all 4 (`QBO_CLIENT_ID/SECRET/REFRESH_TOKEN/REALM_ID`) into local `.env` **and** Vercel env.
+4. (Optional, recommended) create the `qbo_tokens` table (DDL in `api/_lib/qbo.js` header) so rotated
+   refresh tokens survive restarts.
+5. Test: `POST /api/qbo/create-customer {job_id}` then `create-invoice`; verify in QBO + the `invoices`
+   table; then commit + `vercel --prod`.
+
+Then move to **② Proposal template + AI auto-fill** (read the `claude-api` skill first; Ray feeds samples).
+
+---
+
+## ▶ (DONE — historical) 2026-06-23 — Security done; pick the next build from ROADMAP.md
 
 **The security pass is fully CLOSED** — staff-API gate + the JWT role-claim upgrade, all committed,
 deployed, and verified (anonymous → 401, signed-in staff → token fast-path; Ray confirmed on phone +
