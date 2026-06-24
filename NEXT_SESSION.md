@@ -1,41 +1,64 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-23 (QBO two-way sync scaffolded; BLOCKED on Ray getting Intuit creds)
+**Last updated:** 2026-06-23 (QBO scaffold + Drive self-heal SHIPPED to prod; next build = ② proposal template)
 
 ---
 
-## ▶ RESUME HERE — 2026-06-23 (later) — QBO sync scaffolded; need Intuit creds to activate
+## ▶ RESUME HERE — 2026-06-23 (latest) — Next build = ② Proposal template + AI auto-fill
 
-**Item ① (Two-way QBO sync) is code-complete in the working tree, blocked only on credentials.**
+**Two things shipped to prod tonight; QBO is parked. The clear next build is the proposal template.**
 
-**Discovery done** (via the connected Intuit QuickBooks MCP, authed to the REAL company):
-- Company = **Room 117 Architecture & Design LLC**, **Realm ID `193514517070094`** (PRODUCTION, not sandbox).
-- DisplayName===Job ID invariant confirmed live; invoice/customer/service-item shapes captured.
-- **Correction to earlier notes:** the 4 `QBO_*` keys in local `.env` are **EMPTY placeholders** — there
-  are no QBO creds anywhere locally. So the first task is *getting* creds, not re-minting an expired one.
+### ✅ Shipped to prod tonight (committed to `main`, `vercel --prod`, rm117-bms.vercel.app)
+- **QBO two-way sync — SCAFFOLDED + DEPLOYED but DORMANT (commit `99684c6`).** `api/_lib/qbo.js`
+  (OAuth refresh w/ access-token cache + refresh-token rotation → optional Supabase `qbo_tokens` table,
+  env fallback; `findOrCreateCustomer`/`createInvoice`/`sendInvoice`) + `api/qbo/create-customer.js`
+  + `api/qbo/create-invoice.js` (staff-gated; invoice mirrors into the `invoices` table keyed by
+  `qbo_invoice_id`). `health.js` `qbo` flag now uses `hasQbo()`. **Inert until creds exist** — prod
+  reads `qbo:false`, so zero behavior change.
+- **Drive "Files Sent" self-heal — SHIPPED (commit `99232b4`).** New jobs no longer show an empty vault:
+  `resolveFilesSentFolderId(jobId)` in `google-drive.js` (targeted `name contains 'YY_NNN'` Drive search,
+  no full-tree walk) + `handleFiles` in `api/portal/[action].js` resolves a null folder id on read,
+  persists on a hit, serves the files. Verified end-to-end (resolve→persist→restore, no net change).
 
-**Scaffold written (NOT committed, NOT deployed — build green, modules load clean):**
-- `api/_lib/qbo.js` — OAuth refresh (access-token cache + refresh-token-rotation persisted to an optional
-  Supabase `qbo_tokens` table, env fallback) + `findOrCreateCustomer` / `createInvoice` / `sendInvoice`.
-- `api/qbo/create-customer.js` (POST `{job_id}`) and `api/qbo/create-invoice.js`
-  (POST `{job_id, lines:[{item_id|item_name, amount, description?, qty?}], due_date?, memo?, send?}`) —
-  both staff-gated; create-invoice mirrors into the `invoices` table keyed by `qbo_invoice_id`.
-- Registered in `server.js`; `health.js` `qbo` flag now uses `hasQbo()` (all 4 creds).
+### ⏸ QBO is TABLED (Ray's call) — blocked on Intuit's PRODUCTION-credential unlock
+The real company (realm `193514517070094`) needs **production** QBO keys, and Intuit gates those behind a
+checklist incl. **Compliance (~40 min)** + a public **EULA + privacy-policy URL** + hosting attestation —
+too much to stand up for a private 5-person tool right now. **Code is parked & ready** (deployed, dormant).
+**To activate later:** developer.intuit.com → app **Keys & credentials** (Production Client ID + Secret)
+→ **OAuth 2.0 Playground** mint a refresh token (scope `com.intuit.quickbooks.accounting`, RM117 company,
+realmId `193514517070094`) → put all 4 `QBO_*` in `.env` + Vercel → (optional) create the `qbo_tokens`
+table (DDL in `qbo.js` header) → test `POST /api/qbo/create-customer {job_id}` then `create-invoice`.
+Sandbox keys are issued instantly (no checklist) if we ever want to prove the code without the gate.
 
-**▶ TO ACTIVATE — Ray's steps (developer.intuit.com):**
-1. Open the Intuit Developer app → **Keys & credentials** → copy **Production** Client ID + Client Secret.
-2. Mint a **refresh token** via the **OAuth 2.0 Playground** (scope `com.intuit.quickbooks.accounting`,
-   authorize the RM117 company) → copy the refresh token; confirm realmId = `193514517070094`.
-3. Put all 4 (`QBO_CLIENT_ID/SECRET/REFRESH_TOKEN/REALM_ID`) into local `.env` **and** Vercel env.
-4. (Optional, recommended) create the `qbo_tokens` table (DDL in `api/_lib/qbo.js` header) so rotated
-   refresh tokens survive restarts.
-5. Test: `POST /api/qbo/create-customer {job_id}` then `create-invoice`; verify in QBO + the `invoices`
-   table; then commit + `vercel --prod`.
+### ▶ NEXT BUILD — ② Proposal template + AI auto-fill (HIGH daily value; Ang does proposals constantly)
+**Read the `claude-api` skill FIRST** (latest Claude model id + Anthropic SDK), then build:
+- The `templates` table exists (0 rows). Populate it + replace the `/templates` placeholder in
+  `rm117-app-shell-v1.jsx` with the category card grid (see `REDESIGN-BACKEND-NEXT.md` for the spec).
+- Prefixed proposal template: **static contract boilerplate stays fixed**; project-specific fields
+  auto-fill from job/client data; **Claude drafts the variable scope/fee sections** from RM117's
+  project-size patterns. Ties to `templates` + DocuSign (`docusign:false`) + the milestone schedule.
+- **BLOCKED ON RAY:** he will **feed sample proposals** to base the new template on — get those first.
+- Decide file storage (Drive vs Supabase Storage) — the Field Notes private-bucket pattern is reusable.
 
-Then move to **② Proposal template + AI auto-fill** (read the `claude-api` skill first; Ray feeds samples).
+### 🧹 Side items / housekeeping
+- **Drive-content gap (no code fixes this):** 48 of 134 jobs still show no files because their Drive
+  project folder has **no "Files Sent" subfolder** (e.g. `26_033_Guido`, `25_001_Sztyk`) or is an old
+  `24_XXX_…` folder with no Job ID. Create the subfolder in Drive → self-heal maps it on next open.
+  Tonight's mapped count: 84→86 (fixed `26_042_Gonzalez`, `23_047_FF_Jones`, `25_054_McCalla`).
+- **GitHub token:** Ray was renewing an expiring PAT. The stale cred was cleared from the macOS Keychain
+  (`git credential-osxkeychain erase`); next `git push origin main` prompts fresh — username `raymond-beep`,
+  password = the **new** token (classic `repo` or fine-grained Contents:write on `raymond-beep/rm117-bms`).
+  Local `main` is ~24 ahead of `origin` (prod stays current via CLI deploys; GitHub is housekeeping only).
+- Deferred self-heal niceties: best-effort map in `api/jobs/create.js`; a clearer "not set up in Drive yet"
+  empty-state in the portal UI.
 
 ---
 
 ## ▶ (DONE — historical) 2026-06-23 — Security done; pick the next build from ROADMAP.md
+
+> **⚠️ SUPERSEDED by the RESUME-HERE section above.** This block's QBO prep notes are WRONG/outdated —
+> there were **no QBO creds in `.env`** (empty placeholders), the company/realm is confirmed
+> (`193514517070094`, production), the scaffold is **built + deployed + tabled**, and the next build is
+> now **② proposal template**, not QBO. Read the top section; this is kept only for the security history.
 
 **The security pass is fully CLOSED** — staff-API gate + the JWT role-claim upgrade, all committed,
 deployed, and verified (anonymous → 401, signed-in staff → token fast-path; Ray confirmed on phone +
