@@ -32,6 +32,9 @@ const routes = {
   '/api/inbox': () => import('./api/inbox.js'),
   '/api/calendar': () => import('./api/calendar.js'),
   '/api/payments/webhook': () => import('./api/payments/webhook.js'),
+  // Outbound QBO (app → QBO): create customers + invoices. Two-way sync, Stage B.
+  '/api/qbo/create-customer': () => import('./api/qbo/create-customer.js'),
+  '/api/qbo/create-invoice': () => import('./api/qbo/create-invoice.js'),
 };
 
 for (const [path, load] of Object.entries(routes)) {
