@@ -54,3 +54,13 @@ export function shortDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
+
+// Format a date-only string ('YYYY-MM-DD') in local time without a TZ shift.
+// (shortDate parses through Date(iso), which reads a bare date as UTC midnight
+// and can display the day before in negative-offset zones — use this for the
+// phase-date / milestone fields that are stored date-only.)
+export function fmtDateOnly(d) {
+  if (!d) return '—';
+  const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+  return new Date(y, m - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
