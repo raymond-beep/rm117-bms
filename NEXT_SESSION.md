@@ -1,9 +1,53 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-23 (QBO scaffold + Drive self-heal SHIPPED to prod; next build = ② proposal template)
+**Last updated:** 2026-06-26 (App hardening Phases 2–4 SHIPPED to prod; proposal feature paused; pick next from below)
 
 ---
 
-## ▶ RESUME HERE — 2026-06-23 (latest) — Next build = ② Proposal template + AI auto-fill
+## ▶ RESUME HERE — 2026-06-26 (latest) — App hardening DONE + LIVE; pick the next thing
+
+**Last session: the proposal feature was PAUSED and the app-hardening backlog was cleared and shipped.**
+
+### What happened
+- **② Proposal template + AI = PAUSED (Ray's call).** Ang & Tom aren't interested right now. The `templates`
+  table (`type proposal|invoice|email`, `name`, `description`, `content` jsonb, `is_active`) + a `proposals`
+  table (`job_id`, `template_id`, `content` jsonb, `status`, `docusign_envelope_id`) both exist (0 rows) and are
+  well-suited to the AI feature whenever it comes back — no rebuild needed. (The old `REDESIGN-BACKEND-NEXT.md`
+  §2 "templates = doc library w/ category/format/file_url" spec is WRONG — the real table is the one above.)
+- **App hardening (architect's 7/10 user-test, Improvement-Plan Phases 2–4) = DONE + COMMITTED + PUSHED +
+  DEPLOYED + verified live.** Commit `160c90e` on `main`, pushed to origin, `vercel --prod` → rm117-bms.vercel.app.
+  - **Phase 4 safety net:** Vitest added (`npm test`). **22 tests, all green** in `tests/`: money math
+    (`outstanding = job_total − Σpayments`) + `JOB_ID_RE`; the staff auth gate (no token→401, client/non-staff→403,
+    staff role-claim fast path, email fallback); the QBO webhook (**dedup on repeated `qbo_invoice_id`**, bad
+    secret→401, missing fields→400, job-not-found→404, fresh insert→201).
+  - **Phase 2 monolith split (behavior-identical):** `rm117-dashboard-v1.jsx` **1,299→376** and
+    `rm117-app-shell-v1.jsx` **1,285→132**, broken into 21 modules under **`src/components/`** (`bms/`,
+    `job-editor/`, `shell/` [incl. `auth-gate.jsx`], `dashboard/`, `settings/`, `portal/`, `field-note-sheet/`,
+    `ui/`). Shared `fmtDateOnly` moved to `lib/format.js`; duplicate `LADDER` dropped (use `PHASE_LADDER`). The
+    entry imports are unchanged (`AppShell` from app-shell; default `BmsDashboard`).
+  - **Phase 3 code-splitting:** `React.lazy`+`Suspense` on staff routes, on-demand sheets, and `ClientPortal`
+    (lazy in `auth-gate.jsx` + `StaffPortalPreview`). Initial JS **455→327 kB (gzip 134→99)**; a portal client
+    downloads the 10 kB portal chunk, **not** the 82 kB staff dashboard.
+  - **Verified live:** all 13 split chunks return 200 (no broken lazy import → no route white-screens), 6 staff
+    APIs 401 anon + `/api/health` 200 (gate intact). Ray eyeballed on his phone — looks OK.
+
+### ▶ Pick the next thing (nothing is mid-flight)
+Open items, all from `ROADMAP.md` / the Improvement-Plan, none blocking each other:
+- **Deploy-from-git hygiene** (the only leftover Phase-4 item) — wire Vercel auto-deploy from `main` so `git push`
+  is the path to prod instead of working-dir `vercel --prod`. Small, makes "live" == "committed".
+- **Phase 5 "build forward"** — Field Notes → site-visit system of record (reverse-geocode location→address, link
+  notes to phase events, per-job site-report PDF). The differentiator; no external blocker.
+- **Two-way QBO sync** — code scaffolded + deployed dormant; **BLOCKED on Intuit production-credential unlock**
+  (Compliance ~40min + public EULA/privacy URL). Ray-action at developer.intuit.com. Sandbox keys are instant if
+  we just want to prove the code.
+- **Proposal template + AI** — paused; revisit if Ang/Tom want it (Ray feeds sample proposals; read `claude-api` skill).
+- **Needs Ang:** Forefront commission rate (% vs flat fee); the ~$80K QBO payment imports + $190K completed-A/R
+  reconciliation (`CLIENT-RECON.md`).
+- **Deferred (pre-launch):** Clerk dev→prod migration (prod runs `pk_test` dev keys — works, but migrate before any
+  public client launch); portal-via-rm117.com (blocked on Wix/DNS account access).
+
+---
+
+## ▶ (DONE — historical) 2026-06-23 — Next build was ② Proposal template + AI auto-fill
 
 **Two things shipped to prod tonight; QBO is parked. The clear next build is the proposal template.**
 
