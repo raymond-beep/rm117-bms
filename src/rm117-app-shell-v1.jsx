@@ -7,7 +7,6 @@ import { SignedIn, SignedOut, SignIn, UserButton } from '@clerk/clerk-react';
 import { ErrorBoundary, RoleGate } from './components/shell/auth-gate.jsx';
 import UserChip from './components/shell/UserChip.jsx';
 import TopBar from './components/shell/TopBar.jsx';
-import ComingSoon from './components/shell/ComingSoon.jsx';
 
 // Route pages + on-demand sheets are lazy so each is its own chunk: staff pages
 // load on navigation (and never load at all for a portal client, who is routed
@@ -21,6 +20,8 @@ const Settings = lazy(() => import('./components/settings/Settings.jsx'));
 const MobileThemeSheet = lazy(() => import('./components/settings/MobileThemeSheet.jsx'));
 const FieldNoteSheet = lazy(() => import('./components/field-note-sheet/FieldNoteSheet.jsx'));
 const SiteReport = lazy(() => import('./components/site-report/SiteReport.jsx'));
+const TemplatesHome = lazy(() => import('./components/templates/TemplatesHome.jsx'));
+const LetterGenerator = lazy(() => import('./components/templates/LetterGenerator.jsx'));
 
 const RouteFallback = () => <div className="page"><div className="card"><div className="empty">Loading…</div></div></div>;
 
@@ -124,7 +125,8 @@ export default function AppShell() {
                     <Route path="/" element={<Home />} />
                     <Route path="/bms" element={<BmsDashboard />} />
                     <Route path="/forefront" element={<ForefrountView />} />
-                    <Route path="/templates" element={<ComingSoon title="Templates" phase="Document library" detail="Proposal, agreement, CD-set, and client-letter templates — grouped by category. Coming in the redesign build." />} />
+                    <Route path="/templates" element={<TemplatesHome />} />
+                    <Route path="/templates/letter" element={<LetterGenerator />} />
                     <Route path="/portal" element={<StaffPortalPreview />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />

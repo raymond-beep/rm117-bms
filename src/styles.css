@@ -1245,3 +1245,63 @@ input, select, textarea { font: inherit; }
   .sr-photo { width: 150px; height: 150px; }
   a { color: #000 !important; text-decoration: none; }
 }
+
+/* ── Templates: category grid, generator, and the printable document ───────── */
+.page-sub { color: var(--ink2); font-size: 13px; margin-top: 6px; }
+
+.tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 18px; }
+.tpl-card { text-align: left; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; cursor: pointer; transition: border-color .15s, transform .05s; }
+.tpl-card:hover:not(:disabled) { border-color: var(--accent); }
+.tpl-card:active:not(:disabled) { transform: translateY(1px); }
+.tpl-card.soon { opacity: 0.55; cursor: default; }
+.tpl-card-title { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.tpl-soon { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+.tpl-card-desc { font-size: 12.5px; color: var(--ink2); margin-top: 8px; line-height: 1.5; }
+
+.tpl-gen-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.tpl-gen { display: flex; gap: 22px; align-items: flex-start; }
+.tpl-form { flex: 0 0 340px; max-width: 340px; display: flex; flex-direction: column; gap: 12px; }
+.tpl-form-title { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
+.tpl-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--ink2); }
+.tpl-field > span { font-weight: 600; }
+.tpl-field input, .tpl-field select, .tpl-field textarea {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--inset);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; width: 100%;
+}
+.tpl-field textarea { resize: vertical; line-height: 1.5; }
+.tpl-field-group { font-family: var(--mono); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink3); margin-top: 6px; }
+
+.tpl-preview { flex: 1 1 auto; min-width: 0; }
+
+/* The printable sheet (shared by letters + proposals) */
+.doc-paper { background: var(--panel); color: var(--ink); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 1px 3px rgba(0,0,0,0.06); max-width: 760px; margin: 0 auto; padding: 56px 64px; font-size: 14px; line-height: 1.55; }
+.doc-letterhead { text-align: center; padding-bottom: 20px; }
+.doc-logo { color: var(--ink); }
+.doc-firm { font-size: 12px; font-weight: 600; margin-top: 2px; }
+.doc-firm-addr { font-size: 9px; color: var(--ink2); margin-top: 3px; }
+.doc-date { margin: 22px 0 18px; }
+.doc-recipient > div { line-height: 1.45; }
+.doc-project-addr { text-align: center; margin: 16px 0; }
+.doc-greeting { margin: 18px 0; }
+.doc-body ul { margin: 10px 0; padding-left: 26px; }
+.doc-body li { margin: 6px 0; }
+.doc-body p { margin: 12px 0; }
+.doc-placeholder { color: var(--ink3); font-style: italic; }
+.doc-closing { margin: 18px 0; }
+.doc-signoff { margin-top: 40px; }
+.doc-signer { margin-top: 46px; }
+
+@media (max-width: 880px) {
+  .tpl-gen { flex-direction: column; }
+  .tpl-form { flex-basis: auto; max-width: none; width: 100%; }
+  .doc-paper { padding: 32px 24px; }
+}
+
+/* Print only the document — hide app chrome and the form. */
+@media print {
+  .sidebar, .mobile-topbar, .mobile-tabbar, .note-fab, .topbar, .no-print { display: none !important; }
+  .content, .main, .page, .tpl-gen-page { padding: 0 !important; margin: 0 !important; background: #fff !important; }
+  .tpl-gen { display: block; }
+  .doc-paper { max-width: none; margin: 0; border: none; border-radius: 0; box-shadow: none; padding: 0; color: #000; background: #fff; }
+}
+@page { margin: 0.75in; }

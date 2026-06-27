@@ -1,5 +1,66 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-27 (Deploy-from-git hygiene DONE — git auto-deploy confirmed + test gate added; pick next from below)
+**Last updated:** 2026-06-27 (Building-Dept Letter generator SHIPPED; next = Proposal generator, then AI auto-fill)
+
+---
+
+## ▶ RESUME HERE — 2026-06-27 (latest) — Templates started: Letter DONE, Proposal NEXT
+
+**Building-department letter generator shipped (manual-fill v1, print-to-PDF).** Read the 6 sample PDFs in
+`~/Downloads` (3 letters + 3 proposals) to extract the format.
+- **`/templates`** is now a real category grid (`TemplatesHome.jsx`) — Building-Dept Letter active;
+  Proposal / Invoice / Email marked "Soon". Replaced the old `ComingSoon` placeholder.
+- **`/templates/letter`** (`LetterGenerator.jsx`) — two-pane: form (job picker → prefills project address;
+  date; bldg-dept name/street/city-state-zip; reference; project address; body; closing; signer) + a live
+  print preview. Body: lines starting with `-`/`•` → bullets, else paragraphs (`parseBodyBlocks`). Print via
+  `@media print` (hides chrome + form, prints only `.doc-paper`). Shared `Letterhead.jsx` (reused by proposal).
+- **Helpers** `src/lib/doc-format.js`: `longDateOnly` ("January 26, 2026"), `todayIso`, `parseBodyBlocks` — +9 tests.
+- **Print-only v1** — letters are NOT persisted (short to redo). Building-dept address is **manual** (external,
+  not in the job record) — a remembered municipality directory is a nice later add.
+
+### ▶ NEXT — Proposal generator (bigger), then AI auto-fill
+- **Decision locked:** manual fill-in first, **Claude AI drafting as a fast follow** (read `claude-api` skill —
+  already loaded once; use `@anthropic-ai/sdk`, model `claude-opus-4-8`, adaptive thinking, stream long output;
+  `anthropic` not yet a dep — add it; needs `ANTHROPIC_API_KEY` in .env + Vercel).
+- **Proposal anatomy (from the 3 samples) — ~70% fixed boilerplate, ~30% variable:** letterhead (fixed);
+  date + "Proposal"/"Revised Proposal"; title (`<NAME> RESIDENCE` / `RESIDENTIAL DEVELOPMENT`); project type +
+  address; `Re:` line; `Attn:`; `Dear <first name>,`; intro (fixed); **PROJECT SUMMARY** (free-text);
+  **SCOPE OF SERVICES** (Survey / Design / CD / CA phases + deliverables — mostly fixed, only # design meetings
+  + which phases vary); **FEE SCHEDULE** (per-phase $ variable, "when due" wording fixed, total from job);
+  optional Additional Services (3D render); payment-methods note (fixed); **EXCLUSIONS & LIMITATIONS** (10
+  numbered items — $90/hr, $1,200 variance, $5/$2 prints — **identical verbatim across all 3 samples**); binding
+  clause + "valid 90 days" + signature lines (client(s), Thomas Dores RA, Angelena Hreczny).
+- **Persist proposals** to the existing `proposals` table (job_id, content jsonb, status draft|sent|signed) so
+  they can be reopened/revised/re-printed. (If we later persist letters too, add `'letter'` to `templates.type`.)
+
+---
+
+## ▶ RESUME HERE — 2026-06-27 (latest) — Phase 5 Field Notes DONE + LIVE; next is templates
+
+**Phase 5 (Field Notes → site-visit system of record) shipped to prod (commit `af13ae8`, `git push` → live).**
+- **Reverse-geocode pins → street address.** `api/_lib/geocode.js` (keyless OSM Nominatim, fail-soft, 4s
+  timeout). On save a fresh `{lat,lng}` pin is resolved to `location.address` (inside the existing jsonb —
+  no column change). `NoteMedia` + report show the address, fall back to coords.
+- **Phase tagging.** New `field_notes.phase` column (migration `0002`, applied to Supabase + in repo).
+  Each note auto-stamped with the job's current phase on save (editable via PATCH) → groups the report.
+- **Per-job site report.** `/report/:jobId` (`src/components/site-report/SiteReport.jsx`) — standalone,
+  chrome-free, staff-gated print page: header (job/client/project address), notes grouped by phase along
+  the ladder with photos/voice/location, **Print → Save as PDF**. Opens in a new tab from a "Site report ↗"
+  button in JobEditor → Progress tab.
+- **Verified:** 30 tests green (+8: `formatAddress`, `sanitizeLocation`); live checks — SiteReport chunk 200,
+  `/report/...` 200, health 200, field-notes API still 401 anon. SiteReport is its own 3.83 kB lazy chunk.
+- **Note:** the 2 pre-existing field notes have `phase=null` → they show under "Other notes" in the report
+  (expected; only notes saved after this ship get auto-stamped). Reverse-geocode runs once per saved pin.
+
+### ▶ NEXT (Ray's call this session) — Proposals + building-department letter templates
+Ray wants to do the **proposal feature** AND **building-department letter templates** next. Context:
+- The proposal feature was *paused* (Ang/Tom weren't interested) but Ray is reviving it. `templates` table
+  (`type proposal|invoice|email`, `name`, `description`, `content` jsonb, `is_active`) + `proposals` table
+  both exist, 0 rows. **Read the `claude-api` skill FIRST** for the latest Claude model id + Anthropic SDK
+  before building any AI auto-fill.
+- "Building-department letter templates" is a NEW ask — letters to municipal building departments (zoning,
+  permits, variances). Likely a new `type` value on `templates` (e.g. `letter`) or its own category. The
+  `/templates` route is currently a `ComingSoon` placeholder in `rm117-app-shell-v1.jsx` — this is where the
+  category card grid + editor goes. Scope/decisions to settle with Ray when starting.
 
 ---
 
