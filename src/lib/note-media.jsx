@@ -65,7 +65,7 @@ export function NoteMedia({ attachments, location }) {
       })}
       {location && (
         <a className="fn-media-loc" href={`https://www.google.com/maps?q=${location.lat},${location.lng}`} target="_blank" rel="noreferrer">
-          📍 {Number(location.lat).toFixed(5)}, {Number(location.lng).toFixed(5)}
+          📍 {location.address || `${Number(location.lat).toFixed(5)}, ${Number(location.lng).toFixed(5)}`}
         </a>
       )}
       {lbIndex !== null && photos.length > 0 && (

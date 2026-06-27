@@ -69,7 +69,17 @@ export default function FieldNotesPanel({ job }) {
 
   return (
     <div className="fnp">
-      <div className="pay-form-title">Field notes</div>
+      <div className="fnp-head">
+        <div className="pay-form-title">Field notes</div>
+        {notes && notes.length > 0 && (
+          <button
+            className="fn-link"
+            onClick={() => window.open(`/report/${encodeURIComponent(job.job_id)}`, '_blank', 'noopener')}
+          >
+            Site report ↗
+          </button>
+        )}
+      </div>
       <div className="placeholder-note" style={{ padding: '0 0 10px' }}>
         Captured on-site from the mobile app (photo, voice, and location). Edit or delete as needed.
       </div>

@@ -2,7 +2,7 @@
 // The dashboard home, calendar/inbox widgets, settings, portal preview, and the
 // mobile field-note sheet live in ./components/ — this file owns the layout.
 import React, { Suspense, lazy, useState } from 'react';
-import { Routes, Route, NavLink } from 'react-router-dom';
+import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { SignedIn, SignedOut, SignIn, UserButton } from '@clerk/clerk-react';
 import { ErrorBoundary, RoleGate } from './components/shell/auth-gate.jsx';
 import UserChip from './components/shell/UserChip.jsx';
@@ -20,6 +20,7 @@ const StaffPortalPreview = lazy(() => import('./components/portal/StaffPortalPre
 const Settings = lazy(() => import('./components/settings/Settings.jsx'));
 const MobileThemeSheet = lazy(() => import('./components/settings/MobileThemeSheet.jsx'));
 const FieldNoteSheet = lazy(() => import('./components/field-note-sheet/FieldNoteSheet.jsx'));
+const SiteReport = lazy(() => import('./components/site-report/SiteReport.jsx'));
 
 const RouteFallback = () => <div className="page"><div className="card"><div className="empty">Loading…</div></div></div>;
 
@@ -49,6 +50,11 @@ const NAV_GROUPS = [
 export default function AppShell() {
   const [themeSheet, setThemeSheet] = useState(false);
   const [noteSheet, setNoteSheet] = useState(false);
+  const location = useLocation();
+  // The site report is a standalone, print-friendly page (opened in its own tab):
+  // render it full-bleed without the sidebar/topbar/tabbar chrome. Still staff-only
+  // (inside SignedIn + RoleGate; the API is staff-gated too).
+  const isReport = location.pathname.startsWith('/report/');
   return (
     <>
       <SignedOut>
@@ -58,6 +64,15 @@ export default function AppShell() {
       </SignedOut>
       <SignedIn>
         <RoleGate>
+        {isReport ? (
+          <ErrorBoundary>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/report/:jobId" element={<SiteReport />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
+        ) : (
         <div className="shell">
           <aside className="sidebar">
             <div className="sidebar-logo">
@@ -136,6 +151,7 @@ export default function AppShell() {
             {noteSheet && <FieldNoteSheet onClose={() => setNoteSheet(false)} />}
           </Suspense>
         </div>
+        )}
         </RoleGate>
       </SignedIn>
     </>

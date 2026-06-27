@@ -103,7 +103,12 @@ verified Clerk token, never the request body.
 **Attachments:** photos/voice memos are uploaded via `api/field-notes/upload.js` (base64 → the
 private **`field-notes` Storage bucket**, path `job_id/uuid.ext`) which returns the storage path;
 that path is stored in `attachments`. On read, `GET` swaps each path for a short-lived **signed
-URL** (1h) so the bucket is never public. `location` holds an optional `{lat,lng}` GPS pin.
+URL** (1h) so the bucket is never public. `location` holds an optional `{lat,lng,address?}` GPS pin.
+**Phase 5 (site-visit system of record):** on save, a fresh pin is reverse-geocoded to a street
+`address` (keyless OpenStreetMap Nominatim, `api/_lib/geocode.js`, fail-soft → stored inside the
+`location` jsonb), and the note is stamped with the job's current `phase`. The per-job **site report**
+(`/report/:jobId`, `src/components/site-report/SiteReport.jsx`) groups notes by phase along the
+lifecycle ladder for a printable record (Print → Save as PDF).
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | uuid PK | default `gen_random_uuid()` |
@@ -111,7 +116,8 @@ URL** (1h) so the bucket is never public. `location` holds an optional `{lat,lng
 | `body` | text NOT NULL | the note text |
 | `author_id` | text | Clerk user id of the staff author (nullable for local-dev) |
 | `attachments` | jsonb | default `[]` — `[{type:'photo'|'voice', url, name}]` (phase 2) |
-| `location` | jsonb | nullable — `{lat, lng}` (phase 2) |
+| `location` | jsonb | nullable — `{lat, lng, address?}` (address reverse-geocoded on save, phase 5) |
+| `phase` | text | nullable — job phase the note was captured in; auto-stamped, editable (phase 5); groups the site report |
 | `created_at` | timestamptz | default `now()` |
 
 ### `payments`

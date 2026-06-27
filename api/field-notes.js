@@ -5,8 +5,9 @@
 // Staff-only: both methods require a valid Clerk session token (Bearer). The
 // author_id is taken from the verified token, never trusted from the body.
 // attachments/location are reserved for phase 2 (photo/voice/geo capture).
-import { getDb, hasDb, JOB_ID_RE } from './_lib/db.js';
+import { getDb, hasDb, JOB_ID_RE, PHASES } from './_lib/db.js';
 import { requireStaff } from './_lib/require-staff.js';
+import { reverseGeocode } from './_lib/geocode.js';
 
 const BUCKET = 'field-notes';
 const SIGNED_URL_TTL = 3600; // 1h — long enough for a session, short enough to stay private
@@ -34,7 +35,7 @@ async function getNotes(req, res) {
     const db = getDb();
     const { data, error } = await db
       .from('field_notes')
-      .select('id, job_id, body, author_id, attachments, location, created_at')
+      .select('id, job_id, body, author_id, attachments, location, phase, created_at')
       .eq('job_id', jobId)
       .order('created_at', { ascending: false });
     if (error) throw error;
@@ -67,10 +68,27 @@ async function createNote(req, res) {
 
   try {
     const db = getDb();
+
+    // Tag the note with the phase it was captured in. Honor a caller-supplied
+    // phase (validated); otherwise stamp the job's current phase so the site
+    // report can group notes along the lifecycle. Look-up failure → null (fine).
+    let phase = PHASES.includes(req.body?.phase) ? req.body.phase : null;
+    if (!phase) {
+      const { data: job } = await db.from('jobs').select('phase').eq('job_id', job_id).single();
+      phase = job?.phase || null;
+    }
+
+    // Reverse-geocode a fresh pin to a street address (fail-soft) so the record
+    // reads like an address, not coordinates. Skip if the client already sent one.
+    if (location && !location.address) {
+      const address = await reverseGeocode(location.lat, location.lng);
+      if (address) location.address = address;
+    }
+
     const { data, error } = await db
       .from('field_notes')
-      .insert({ job_id, body: text, author_id: userId, attachments, location })
-      .select('id, job_id, body, author_id, attachments, location, created_at')
+      .insert({ job_id, body: text, author_id: userId, attachments, location, phase })
+      .select('id, job_id, body, author_id, attachments, location, phase, created_at')
       .single();
     if (error) throw error;
     const [note] = await signAttachments(db, [data]);
@@ -92,15 +110,24 @@ async function updateNote(req, res) {
   if (!id) return res.status(400).json({ error: 'id is required' });
   const text = typeof body === 'string' ? body.trim() : '';
 
+  // Only set fields the caller actually sent; a valid phase can be corrected here.
+  const patch = { body: text };
+  if (req.body?.phase !== undefined) {
+    if (req.body.phase !== null && !PHASES.includes(req.body.phase)) {
+      return res.status(400).json({ error: `Invalid phase: ${req.body.phase}` });
+    }
+    patch.phase = req.body.phase;
+  }
+
   if (!hasDb()) return res.status(200).json({ source: 'mock', persisted: false });
 
   try {
     const db = getDb();
     const { data, error } = await db
       .from('field_notes')
-      .update({ body: text })
+      .update(patch)
       .eq('id', id)
-      .select('id, job_id, body, author_id, attachments, location, created_at')
+      .select('id, job_id, body, author_id, attachments, location, phase, created_at')
       .single();
     if (error) throw error;
     if (!data) return res.status(404).json({ error: 'Note not found' });
@@ -159,12 +186,17 @@ function sanitizeAttachments(input) {
 }
 
 // Accept a finite {lat, lng} pair only; anything else → null (no location).
-function sanitizeLocation(input) {
+// An optional human address (string, capped) rides along in the same object.
+export function sanitizeLocation(input) {
   if (!input || typeof input !== 'object') return null;
   const lat = Number(input.lat);
   const lng = Number(input.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-  return { lat, lng };
+  const loc = { lat, lng };
+  if (typeof input.address === 'string' && input.address.trim()) {
+    loc.address = input.address.trim().slice(0, 300);
+  }
+  return loc;
 }
 
 // Replace each stored attachment `path` with a short-lived signed download `url`
