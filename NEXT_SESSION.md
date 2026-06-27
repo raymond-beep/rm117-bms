@@ -1,9 +1,26 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-26 (App hardening Phases 2–4 SHIPPED to prod; proposal feature paused; pick next from below)
+**Last updated:** 2026-06-27 (Deploy-from-git hygiene DONE — git auto-deploy confirmed + test gate added; pick next from below)
 
 ---
 
-## ▶ RESUME HERE — 2026-06-26 (latest) — App hardening DONE + LIVE; pick the next thing
+## ▶ RESUME HERE — 2026-06-27 — Deploy hygiene done; `git push` is now the only path to prod
+
+**Finding:** Vercel git integration was **already connected** — the live prod deploy serving
+`rm117-bms.vercel.app` is a pure git-push deploy (full `githubDeployment`/`branchAlias`/`repoPushedAt`
+metadata, no CLI actor). The old notes' "still working-dir `vercel --prod`" described a *habit*, not a
+missing integration. Running both meant duplicate prod deploys (e.g. commit `160c90e` shipped twice, 7s apart).
+
+**What changed this session:**
+- **Test gate on deploy.** Added `"vercel-build": "vitest run && vite build"` to `package.json`. Vercel
+  runs `vercel-build` (over the framework default) so the **22 Vitest tests run first** — a red test fails
+  the build and **aborts the deploy**, leaving prod on the last good build. Verified locally end-to-end
+  (tests → build, 22 green, ~200ms test overhead). devDeps (vitest) install during Vercel build, so it's available.
+- **Workflow is now: `git push origin main` = prod. Do NOT run `vercel --prod`** (causes duplicate deploys).
+  Roll back via the Vercel dashboard (every prod deploy is a rollback candidate) or `vercel rollback`.
+
+---
+
+## ▶ RESUME HERE — 2026-06-26 — App hardening DONE + LIVE; pick the next thing
 
 **Last session: the proposal feature was PAUSED and the app-hardening backlog was cleared and shipped.**
 
@@ -32,8 +49,8 @@
 
 ### ▶ Pick the next thing (nothing is mid-flight)
 Open items, all from `ROADMAP.md` / the Improvement-Plan, none blocking each other:
-- **Deploy-from-git hygiene** (the only leftover Phase-4 item) — wire Vercel auto-deploy from `main` so `git push`
-  is the path to prod instead of working-dir `vercel --prod`. Small, makes "live" == "committed".
+- ~~**Deploy-from-git hygiene**~~ ✅ **DONE 2026-06-27** — git auto-deploy was already wired; added a test
+  gate (`vercel-build` runs the 22 tests before building). `git push` = prod; stop running `vercel --prod`.
 - **Phase 5 "build forward"** — Field Notes → site-visit system of record (reverse-geocode location→address, link
   notes to phase events, per-job site-report PDF). The differentiator; no external blocker.
 - **Two-way QBO sync** — code scaffolded + deployed dormant; **BLOCKED on Intuit production-credential unlock**
