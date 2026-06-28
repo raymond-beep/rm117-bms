@@ -16,7 +16,7 @@ const CATEGORIES = [
     to: '/templates/proposal',
     title: 'Proposal',
     desc: 'Scope of services + fee schedule for a new project. Boilerplate built in; fees per job.',
-    ready: false,
+    ready: true,
   },
   {
     key: 'invoice',

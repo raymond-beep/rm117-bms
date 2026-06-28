@@ -22,6 +22,7 @@ const FieldNoteSheet = lazy(() => import('./components/field-note-sheet/FieldNot
 const SiteReport = lazy(() => import('./components/site-report/SiteReport.jsx'));
 const TemplatesHome = lazy(() => import('./components/templates/TemplatesHome.jsx'));
 const LetterGenerator = lazy(() => import('./components/templates/LetterGenerator.jsx'));
+const ProposalGenerator = lazy(() => import('./components/templates/ProposalGenerator.jsx'));
 
 const RouteFallback = () => <div className="page"><div className="card"><div className="empty">Loading…</div></div></div>;
 
@@ -127,6 +128,7 @@ export default function AppShell() {
                     <Route path="/forefront" element={<ForefrountView />} />
                     <Route path="/templates" element={<TemplatesHome />} />
                     <Route path="/templates/letter" element={<LetterGenerator />} />
+                    <Route path="/templates/proposal" element={<ProposalGenerator />} />
                     <Route path="/portal" element={<StaffPortalPreview />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />

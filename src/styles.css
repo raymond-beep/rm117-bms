@@ -1326,3 +1326,15 @@ input, select, textarea { font: inherit; }
 @media (max-width: 880px) {
   .tpl-pdf-frame { height: 70vh; }
 }
+
+/* ── Proposal generator form bits ──────────────────────────────────────────── */
+.tpl-row { display: flex; gap: 10px; }
+.tpl-row .tpl-field { flex: 1 1 0; min-width: 0; }
+.tpl-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
+.tpl-check input { width: auto; }
+.tpl-fee { display: flex; align-items: center; gap: 8px; }
+.tpl-fee-inc { flex: 1 1 auto; min-width: 0; font-size: 12.5px; }
+.tpl-fee-inc span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-fee-amt { flex: 0 0 90px; font: inherit; font-size: 14px; color: var(--ink); background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; }
+.tpl-fee-amt:disabled { opacity: 0.4; }
+.tpl-note { font-size: 11px; color: var(--ink3); font-style: italic; }

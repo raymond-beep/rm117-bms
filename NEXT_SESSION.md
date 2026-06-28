@@ -1,5 +1,33 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-27 (Building-Dept Letter generator SHIPPED + refined to assembled-PDF + real logo; next = Proposal generator, then AI auto-fill)
+**Last updated:** 2026-06-27 (Letter + PROPOSAL generators SHIPPED; next = persist proposals, then AI auto-fill)
+
+---
+
+## ▶ RESUME HERE — 2026-06-27 (latest) — Proposal generator SHIPPED; next = persistence + AI
+
+**Proposal generator built + live** (`/templates/proposal`, `ProposalGenerator.jsx` + `src/lib/proposal-pdf.js`).
+Assembled PDF reusing the shared engine. ~70% boilerplate baked verbatim into the renderer from the 3
+samples (scope phases + deliverables, 10 exclusions, payment/meeting notes, binding clause, footer
+`M/D/YYYY Proposal`); user fills only the variables.
+- **Form fields:** job picker (prefills client/address/title/greeting); date + label (Proposal/Revised);
+  title; project type + address; Re:; Attn; greeting; intro; project summary; **scope phase toggles**
+  (Survey/Design/CD/CA) + # design meetings; **fee schedule** (per-phase include + amount, total auto-computed,
+  amounts→words via `dollarsToWords`); optional **additional services**; **client signer(s)** (firm signers
+  Thomas Dores RA + Angelena Hreczny auto-appended); attachments (images / reference PDF, reorder).
+- **Shared refactor:** `src/lib/pdf-doc.js` (PAGE geometry, `drawLetterhead`, `embedLogo`, `appendAttachments`,
+  `makeWriter` cursor/paginator) now used by BOTH letter + proposal — letterhead/logo stay identical. Logo +
+  image helpers moved to `src/lib/doc-assets.js`. `pdf-lib` is in a shared lazy chunk (~436 kB; initial bundle
+  unchanged at 327 kB). Helpers added to `doc-format.js`: `numericDate`, `dollarsToWords`. **48 tests green.**
+- **NOT YET: persistence.** Proposals are download-only (not saved to the `proposals` table yet). That table
+  exists (job_id, template_id, content jsonb, status draft|sent|signed) — next step is `api/proposals.js`
+  (staff-gated GET/POST) + save/reopen in the editor (store the form state in `content`).
+- **THEN: AI auto-fill** (project summary + scope tailoring) — `@anthropic-ai/sdk`, `claude-opus-4-8`, adaptive
+  thinking, stream; add `anthropic` dep + `ANTHROPIC_API_KEY` (.env + Vercel). Read `claude-api` skill.
+- **Ray to review the proposal output** against the 3 samples (KUHN/Knapp/Troy) and flag formatting tweaks.
+
+---
+
+## ▶ (DONE) Building-Dept Letter generator — assembled-PDF + real logo
 
 ---
 

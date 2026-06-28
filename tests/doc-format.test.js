@@ -1,6 +1,6 @@
 // Document formatting helpers for the letter/proposal generators.
 import { describe, it, expect } from 'vitest';
-import { longDateOnly, todayIso, parseBodyBlocks, wrapText } from '../src/lib/doc-format.js';
+import { longDateOnly, todayIso, parseBodyBlocks, wrapText, numericDate, dollarsToWords } from '../src/lib/doc-format.js';
 
 // Fake measurer: every character is 1 unit wide (incl. spaces) — lets us assert
 // wrapping deterministically without a real font.
@@ -74,5 +74,34 @@ describe('wrapText (greedy word wrap for the PDF body)', () => {
   it('handles empty / nullish input', () => {
     expect(wrapText('', 10, charWidth)).toEqual(['']);
     expect(wrapText(null, 10, charWidth)).toEqual(['']);
+  });
+});
+
+describe('numericDate (proposal footer "1/27/2026")', () => {
+  it('formats without leading zeros', () => {
+    expect(numericDate('2026-01-27')).toBe('1/27/2026');
+    expect(numericDate('2026-06-08')).toBe('6/8/2026');
+  });
+  it('empty for falsy/malformed', () => {
+    expect(numericDate('')).toBe('');
+    expect(numericDate(null)).toBe('');
+  });
+});
+
+describe('dollarsToWords (fee-schedule wording)', () => {
+  it('matches the sample proposal amounts', () => {
+    expect(dollarsToWords(11500)).toBe('Eleven Thousand Five Hundred Dollars');
+    expect(dollarsToWords(3000)).toBe('Three Thousand Dollars');
+    expect(dollarsToWords(1200)).toBe('One Thousand Two Hundred Dollars');
+    expect(dollarsToWords(16500)).toBe('Sixteen Thousand Five Hundred Dollars');
+    expect(dollarsToWords(3800)).toBe('Three Thousand Eight Hundred Dollars');
+  });
+  it('handles tens with hyphen and small numbers', () => {
+    expect(dollarsToWords(90)).toBe('Ninety Dollars');
+    expect(dollarsToWords(125)).toBe('One Hundred Twenty-Five Dollars');
+  });
+  it('handles cents and zero', () => {
+    expect(dollarsToWords(0)).toBe('Zero Dollars');
+    expect(dollarsToWords(1500.5)).toBe('One Thousand Five Hundred Dollars and 50/100');
   });
 });
