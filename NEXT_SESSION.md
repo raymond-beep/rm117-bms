@@ -11,9 +11,18 @@
   needs the answers in the plan's "What Claude needs to generate the legal docs" section (entity name, contact
   email, internal-only?, sub-processor disclosure OK). The big sync **build** (Phase E) is gated on Intuit creds —
   save it for a fresh budget.
-- **OTHER THINGS Ray can also work on this session (not blocked):**
+- **▶ QUEUED (Ray asked to do next session) — New-job creation quick wins.** From the user-test pass (see
+  **`USER_TEST_FINDINGS.md`** §1): build the **Job-ID builder** (auto-suggest next free `NNN` for the year +
+  assemble `YY_NNN_[FF_]LastName` from parts) + **live format validation/preview** in `NewJobDrawer.jsx`.
+  Self-contained, no schema change, no one else needed — good first build of the session. Follow-on (needs a
+  decision): **link a new job to a client record** (`client_id` is null today; offer pick-existing-or-create +
+  optional referrer) — **OPEN Q for Ray: client-linking required or optional?**
+- **OTHER THINGS Ray can also work on (not blocked):**
   - Review/sign-off on letter + proposal output with **Angelena** (Ray already eyeballed; her review is the last gate).
-  - Backlog: Field Notes site-report polish, or anything from `ROADMAP.md` (website redesign, etc.).
+  - More user-test backlog in `USER_TEST_FINDINGS.md`: "Sent documents view + un-send" (also the document half of an
+    "editable staff portal"); table "Last comm" column truncation; dedupe the two New-Job buttons / two Portal nav entries.
+  - **OPEN Q (portal):** revive the client-facing portal, or build a staff-only "manage client docs + comms" view first?
+  - Field Notes site-report polish, or anything from `ROADMAP.md` (website redesign, etc.).
 - **Blocked / parked:** QBO two-way sync **build** (Intuit prod creds — see `QBO_INTUIT_PLAN.md`), Clerk dev→prod
   (pre-launch), portal-via-Wix (DNS).
 - **What shipped 2026-06-28 — Drive delivery + proposal/letter formatting (all SHIPPED + LIVE):**
