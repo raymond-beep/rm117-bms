@@ -1,5 +1,27 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-27 (Letter + PROPOSAL generators SHIPPED; next = persist proposals, then AI auto-fill)
+**Last updated:** 2026-06-27 (Letter + Proposal generators DONE incl. fields-only Save for BOTH; next [later] = "Send to Files Sent" Drive delivery — needs Ray to enable Drive write)
+
+---
+
+## ▶ RESUME HERE — 2026-06-27 (latest) — Both generators have Save; Drive "Files Sent" is the next layer
+
+**Letter persistence added (mirrors proposals).** `api/letters.js` (staff-gated GET list/GET ?id/POST/DELETE) +
+`letters` table (migration `0004`: id, job_id nullable FK, content jsonb, created_at, updated_at; RLS on,
+service-role bypasses). `LetterGenerator` now has Open saved…/New/Save/Delete. Registered in `server.js`. 48 tests.
+
+**KEY DECISION captured — two distinct layers (don't conflate):**
+1. **Save (DB, fields-only)** = the *editable recipe* (reopen/revise/regenerate). DONE for both letter + proposal.
+   Stored in `letters.content` / `proposals.content` jsonb. Tiny text, no extra cost. Attachments NOT saved.
+2. **"Send to Files Sent" (Google Drive)** = the *delivered PDF artifact*, filed in the job's Drive "Files Sent"
+   folder (the same one the client-portal Documents vault reads). **NOT BUILT — blocked on Drive WRITE access.**
+   - `api/_lib/google-drive.js` is **`drive.readonly`** today (reads vault for portal; can't write).
+   - To enable: broaden the service-account Drive scope (e.g. add `drive.file`/`drive`) **+ grant the service
+     account content-writer on the shared drive** (Ray-action in Google Cloud/Drive). Then add a "Send to Files
+     Sent" button to both generators that uploads the generated PDF to `resolveFilesSentFolderId(jobId)` and
+     records it in `file_records` (folder=files_sent, direction=to_client).
+   - Caveat: Files-Sent is **per-job**; a **proposal can precede a job** (no folder) → DB fields-save still needed.
+   - Portal itself still deferred, but the Drive "Files Sent" folder is already the firm's real filing location.
+   - Ray chose: do letters Save now (done), pursue Drive delivery later once he enables write access.
 
 ---
 

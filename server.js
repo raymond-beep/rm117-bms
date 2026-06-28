@@ -19,6 +19,7 @@ const routes = {
   '/api/clients': () => import('./api/clients.js'),
   '/api/phase-events': () => import('./api/phase-events.js'),
   '/api/proposals': () => import('./api/proposals.js'),
+  '/api/letters': () => import('./api/letters.js'),
   '/api/field-notes': () => import('./api/field-notes.js'),
   '/api/field-notes/upload': () => import('./api/field-notes/upload.js'),
   // Portal routes are one consolidated function; the dispatcher reads the

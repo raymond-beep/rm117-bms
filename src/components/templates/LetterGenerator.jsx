@@ -28,6 +28,11 @@ export default function LetterGenerator() {
   const [attachments, setAttachments] = useState([]); // {id, kind, name, bytes, mime}
   const [logo, setLogo] = useState(null);
 
+  const [currentId, setCurrentId] = useState(null);
+  const [saved, setSaved] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+
   const [pdfUrl, setPdfUrl] = useState(null);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState(null);
@@ -42,11 +47,16 @@ export default function LetterGenerator() {
       .then(({ jobs }) => alive && setJobs((jobs || []).slice().sort((a, b) => (a.job_id || '').localeCompare(b.job_id || ''))))
       .catch(() => alive && setJobs([]));
     loadTrimmedLogo().then((l) => alive && setLogo(l)).catch(() => {});
+    refreshSaved();
     return () => { alive = false; };
   }, []);
 
+  const refreshSaved = () => apiFetch('/api/letters').then((r) => r.json())
+    .then((d) => setSaved(d.letters || [])).catch(() => {});
+
   // Rebuild the preview PDF (debounced) whenever the letter or attachments change.
   useEffect(() => {
+    setSavedMsg('');
     const t = setTimeout(async () => {
       setBuilding(true); setError(null);
       try {
@@ -72,6 +82,58 @@ export default function LetterGenerator() {
     setJobId(id);
     const job = (jobs || []).find((j) => j.job_id === id);
     if (job?.address) setProjectAddress(job.address);
+  };
+
+  // ── Save / reopen (fields-only; attachments + PDF are not persisted) ──
+  const collectForm = () => ({ jobId, date, deptName, deptStreet, deptCityStateZip, reference, projectAddress, body, closing, signer });
+  const applyForm = (c = {}) => {
+    setDate(c.date || todayIso());
+    setDeptName(c.deptName || ''); setDeptStreet(c.deptStreet || ''); setDeptCityStateZip(c.deptCityStateZip || '');
+    setReference(c.reference || 'Addition / Renovation'); setProjectAddress(c.projectAddress || '');
+    setBody(c.body || ''); setClosing(c.closing || DEFAULT_CLOSING); setSigner(c.signer || DEFAULT_SIGNER);
+  };
+
+  const save = async () => {
+    setSaving(true); setError(null);
+    try {
+      const r = await apiFetch('/api/letters', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentId, job_id: jobId || null, content: collectForm() }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Save failed');
+      setCurrentId(d.letter.id);
+      setSavedMsg('Saved ✓');
+      refreshSaved();
+    } catch (e) { setError(e.message); } finally { setSaving(false); }
+  };
+
+  const openSaved = async (id) => {
+    if (!id) return;
+    setError(null);
+    try {
+      const r = await apiFetch(`/api/letters?id=${id}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not open letter');
+      applyForm(d.letter.content || {});
+      setCurrentId(d.letter.id);
+      setJobId(d.letter.job_id || '');
+      setAttachments([]);
+    } catch (e) { setError(e.message); }
+  };
+
+  const newLetter = () => { applyForm({}); setJobId(''); setCurrentId(null); setAttachments([]); };
+
+  const deleteSaved = async () => {
+    if (!currentId || !window.confirm('Delete this saved letter? This cannot be undone.')) return;
+    try {
+      const r = await apiFetch('/api/letters', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentId }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Delete failed'); }
+      newLetter(); refreshSaved();
+    } catch (e) { setError(e.message); }
   };
 
   const addImages = async (e) => {
@@ -119,7 +181,15 @@ export default function LetterGenerator() {
       <div className="tpl-gen-bar">
         <Link to="/templates" className="fn-link">← Templates</Link>
         <div className="tpl-gen-bar-right">
+          <select className="tpl-open" value="" onChange={(e) => { openSaved(e.target.value); e.target.value = ''; }}>
+            <option value="">Open saved…</option>
+            {saved.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+          </select>
+          <button className="sr-btn ghost" onClick={newLetter}>New</button>
+          {currentId && <button className="sr-btn ghost" onClick={deleteSaved}>Delete</button>}
+          {savedMsg && <span className="tpl-status">{savedMsg}</span>}
           {building && <span className="tpl-status">Building…</span>}
+          <button className="sr-btn" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
           <button className="sr-btn" onClick={download} disabled={!pdfUrl}>Download PDF</button>
         </div>
       </div>
@@ -183,6 +253,7 @@ export default function LetterGenerator() {
 
           {/* Attachments — appended pages (images + reference PDFs) */}
           <div className="tpl-field-group">Attachments / extra pages</div>
+          <div className="tpl-note">Attachments aren’t saved with the letter — re-add them when you reopen.</div>
           <div className="tpl-att-actions">
             <button type="button" className="tpl-att-btn" onClick={() => imgInputRef.current?.click()}>+ Image</button>
             <button type="button" className="tpl-att-btn" onClick={() => pdfInputRef.current?.click()}>+ Reference PDF</button>
