@@ -15,6 +15,18 @@ const FIRM_SIGNERS = ['Thomas Dores, RA', 'Angelena Hreczny'];
 const DEFAULT_INCLUDE = { survey: true, design: true, cd: true, ca: false };
 const DEFAULT_FEE_INCLUDE = { survey: true, dp1: true, dp2: true, cd: true, ca: false };
 
+// Editable scope phases, seeded from the standard set. Deliverables are held as
+// newline-separated text (one bullet per line) so they're easy to hand-edit.
+function seedPhases() {
+  return STANDARD_PHASES.map((p) => ({
+    id: ++UID,
+    title: p.title,
+    desc: p.desc.replace('{meetings}', '3'),
+    deliverables: p.deliverables.join('\n'),
+    included: DEFAULT_INCLUDE[p.key] ?? true,
+  }));
+}
+
 export default function ProposalGenerator() {
   const [jobs, setJobs] = useState(null);
   const [jobId, setJobId] = useState('');
@@ -28,8 +40,7 @@ export default function ProposalGenerator() {
   const [greeting, setGreeting] = useState('');
   const [intro, setIntro] = useState(DEFAULT_INTRO);
   const [projectSummary, setProjectSummary] = useState('');
-  const [meetings, setMeetings] = useState(3);
-  const [include, setInclude] = useState(DEFAULT_INCLUDE);
+  const [phases, setPhases] = useState(seedPhases);
   const [fees, setFees] = useState(DEFAULT_FEE_ITEMS.map((f) => ({ ...f, included: DEFAULT_FEE_INCLUDE[f.key] })));
   const [addl, setAddl] = useState([]);
   const [clientSigners, setClientSigners] = useState('');
@@ -61,8 +72,11 @@ export default function ProposalGenerator() {
         const clientNames = clientSigners.split('\n').map((s) => s.trim()).filter(Boolean);
         const bytes = await buildProposalPdf({
           date, label, title, projectType, projectAddress, attn, reSubject, greeting, intro, projectSummary,
-          meetings,
-          phases: STANDARD_PHASES.filter((p) => include[p.key]),
+          phases: phases.filter((p) => p.included).map((p) => ({
+            title: p.title,
+            desc: p.desc,
+            deliverables: p.deliverables.split('\n').map((s) => s.trim()).filter(Boolean),
+          })),
           feeItems: fees.filter((f) => f.included).map(({ label: l, amount, due }) => ({ label: l, amount: Number(amount) || 0, due })),
           additionalServices: addl.filter((a) => a.label).map((a) => ({ label: a.label, amount: Number(a.amount) || 0 })),
           signers: [...clientNames, ...FIRM_SIGNERS],
@@ -77,7 +91,7 @@ export default function ProposalGenerator() {
       } finally { setBuilding(false); }
     }, 500);
     return () => clearTimeout(t);
-  }, [date, label, title, projectType, projectAddress, attn, reSubject, greeting, intro, projectSummary, meetings, include, fees, addl, clientSigners, attachments, logo]);
+  }, [date, label, title, projectType, projectAddress, attn, reSubject, greeting, intro, projectSummary, phases, fees, addl, clientSigners, attachments, logo]);
 
   useEffect(() => () => { if (lastUrl.current) URL.revokeObjectURL(lastUrl.current); }, []);
 
@@ -92,6 +106,10 @@ export default function ProposalGenerator() {
       setTitle((prev) => prev || job.client_name.toUpperCase());
     }
   };
+
+  const setPhase = (id, patch) => setPhases((p) => p.map((ph) => (ph.id === id ? { ...ph, ...patch } : ph)));
+  const addPhase = () => setPhases((p) => [...p, { id: ++UID, title: '', desc: '', deliverables: '', included: true }]);
+  const removePhase = (id) => setPhases((p) => p.filter((ph) => ph.id !== id));
 
   const setFee = (key, patch) => setFees((p) => p.map((f) => (f.key === key ? { ...f, ...patch } : f)));
   const addService = () => setAddl((p) => [...p, { id: ++UID, label: '', amount: '' }]);
@@ -169,14 +187,23 @@ export default function ProposalGenerator() {
           <label className="tpl-field"><span>Intro paragraph</span><textarea rows={2} value={intro} onChange={(e) => setIntro(e.target.value)} /></label>
           <label className="tpl-field"><span>Project summary</span><textarea rows={3} value={projectSummary} onChange={(e) => setProjectSummary(e.target.value)} placeholder="The existing house will undergo interior renovations and a 2-story addition…" /></label>
 
-          <div className="tpl-field-group">Scope of services — phases included</div>
-          {STANDARD_PHASES.map((p) => (
-            <label key={p.key} className="tpl-check">
-              <input type="checkbox" checked={!!include[p.key]} onChange={(e) => setInclude((s) => ({ ...s, [p.key]: e.target.checked }))} />
-              <span>{p.title}</span>
-            </label>
+          <div className="tpl-field-group">Scope of services — edit freely (deliverables = one bullet per line)</div>
+          {phases.map((p) => (
+            <div key={p.id} className="tpl-phase">
+              <div className="tpl-phase-head">
+                <input type="checkbox" checked={p.included} onChange={(e) => setPhase(p.id, { included: e.target.checked })} aria-label="Include phase" />
+                <input className="tpl-phase-title" value={p.title} onChange={(e) => setPhase(p.id, { title: e.target.value })} placeholder="Phase title" />
+                <button type="button" className="tpl-x" onClick={() => removePhase(p.id)} aria-label="Remove phase">✕</button>
+              </div>
+              {p.included && (
+                <>
+                  <textarea className="tpl-phase-area" rows={2} value={p.desc} onChange={(e) => setPhase(p.id, { desc: e.target.value })} placeholder="Description of this phase…" />
+                  <textarea className="tpl-phase-area" rows={3} value={p.deliverables} onChange={(e) => setPhase(p.id, { deliverables: e.target.value })} placeholder={'Deliverables — one per line\nExisting floor plans\nProposed elevations'} />
+                </>
+              )}
+            </div>
           ))}
-          <label className="tpl-field"><span>Design meetings (#)</span><input type="number" min="1" value={meetings} onChange={(e) => setMeetings(e.target.value)} /></label>
+          <button type="button" className="tpl-att-btn" onClick={addPhase}>+ Add phase</button>
 
           <div className="tpl-field-group">Fee schedule — total {moneyLabel(total)}</div>
           {fees.map((f) => (

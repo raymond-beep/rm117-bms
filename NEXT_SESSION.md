@@ -18,12 +18,17 @@ samples (scope phases + deliverables, 10 exclusions, payment/meeting notes, bind
   `makeWriter` cursor/paginator) now used by BOTH letter + proposal — letterhead/logo stay identical. Logo +
   image helpers moved to `src/lib/doc-assets.js`. `pdf-lib` is in a shared lazy chunk (~436 kB; initial bundle
   unchanged at 327 kB). Helpers added to `doc-format.js`: `numericDate`, `dollarsToWords`. **48 tests green.**
-- **NOT YET: persistence.** Proposals are download-only (not saved to the `proposals` table yet). That table
-  exists (job_id, template_id, content jsonb, status draft|sent|signed) — next step is `api/proposals.js`
-  (staff-gated GET/POST) + save/reopen in the editor (store the form state in `content`).
-- **THEN: AI auto-fill** (project summary + scope tailoring) — `@anthropic-ai/sdk`, `claude-opus-4-8`, adaptive
-  thinking, stream; add `anthropic` dep + `ANTHROPIC_API_KEY` (.env + Vercel). Read `claude-api` skill.
-- **Ray to review the proposal output** against the 3 samples (KUHN/Knapp/Troy) and flag formatting tweaks.
+- **Scope of services is now FULLY EDITABLE** (Ray's request 2026-06-27): each phase has an editable title +
+  description + deliverables (one bullet per line) seeded from the standard set; add/remove/exclude phases.
+  The PDF formats them identically (numbered phase + "Deliverables:" roman list). Dropped the fixed phase
+  toggles + meetings field.
+- **AI auto-fill = DROPPED for now** (Ang doesn't want to pay for an API key just for proposals; the editable
+  scope removes the need). Revisit only if they ask. No `anthropic` dep added.
+- **NOT YET: persistence.** Proposals are download-only (not saved). Explained to Ray = a Save button writing
+  form state to the `proposals` table (job_id, content jsonb, status draft|sent|signed) so they can reopen/
+  revise/re-print. **Ray deciding whether he wants it** — next step if yes: `api/proposals.js` (staff-gated
+  GET/POST) + save/list/reopen in the editor.
+- **Ray (+ Ang) to review the proposal output** against the 3 samples (KUHN/Knapp/Troy) and flag tweaks.
 
 ---
 
