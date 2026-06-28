@@ -48,7 +48,7 @@ export async function buildLetterPdf(data = {}) {
 
   // ── Letterhead (logo mark + firm name on one line, address beneath) ──
   drawLetterhead(page, { times, logoImg });
-  y = PAGE[1] - 150; // content begins below the letterhead band
+  y = PAGE[1] - 128; // content begins below the (compact) letterhead band
 
   // ── Date ──
   writeText(longDateOnly(data.date), { size: 11 });
@@ -125,10 +125,10 @@ export async function buildLetterPdf(data = {}) {
 function drawLetterhead(page, { times, logoImg }) {
   const firm = 'Room 117 Architecture + Design, LLC';
   const addr = '836 Galloping Hill Road | Roselle Park | NJ 07204 | T: 908.451.4633 | Email: tom@rm117.com';
-  const firmSize = 15, addrSize = 9, gapLW = 12;
-  const centerY = PAGE[1] - 66;            // vertical center of the mark/name line
-  const targetH = logoImg ? 34 : 22;
-  const logoW = logoImg ? (logoImg.width / logoImg.height) * targetH : 30;
+  const firmSize = 10.5, addrSize = 8, gapLW = 8;
+  const centerY = PAGE[1] - 56;            // vertical center of the mark/name line
+  const targetH = logoImg ? 22 : 16;
+  const logoW = logoImg ? (logoImg.width / logoImg.height) * targetH : 24;
 
   const firmW = times.widthOfTextAtSize(firm, firmSize);
   const groupW = logoW + gapLW + firmW;
@@ -146,5 +146,5 @@ function drawLetterhead(page, { times, logoImg }) {
 
   page.drawText(firm, { x: startX + logoW + gapLW, y: centerY - firmSize * 0.34, size: firmSize, font: times, color: INK });
   const addrW = times.widthOfTextAtSize(addr, addrSize);
-  page.drawText(addr, { x: (PAGE[0] - addrW) / 2, y: centerY - targetH / 2 - 18, size: addrSize, font: times, color: GREY });
+  page.drawText(addr, { x: (PAGE[0] - addrW) / 2, y: centerY - targetH / 2 - 13, size: addrSize, font: times, color: GREY });
 }
