@@ -1,10 +1,22 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-27 (Bugfix: client contact info now editable in JobEditor; Letter+Proposal Save done; next [later] = "Send to Files Sent" Drive delivery — needs Ray to enable Drive write)
+**Last updated:** 2026-06-27 (end of session)
 
-> **Bugfix (2026-06-27):** staff couldn't edit a client's email/phone — the Details-tab client card was
-> read-only and `api/clients.js` was GET-only. Added POST (update/create) to `api/clients.js` (staff-gated,
-> type-validated) and made the JobEditor client card editable (Type/Phone/Email/Company + "Save contact info").
-> Found via job `26_042_Gonzalez` (Yvette Gonzalez — was linked but had null email/phone).
+## ⭐ START HERE NEXT
+- **Repo state:** clean, in sync with origin, latest commit `0920ab7`. Live on rm117-bms.vercel.app.
+  Workflow = `git push origin main` (test gate runs, then auto-deploys). 48 Vitest tests green.
+- **Pick ONE to do next** (none are mid-flight — nothing is half-built):
+  1. **"Send to Files Sent" (Drive delivery)** — the planned follow-up to the document generators. Upload the
+     generated letter/proposal PDF into the job's Drive "Files Sent" folder. **BLOCKED on Ray:** the Drive
+     integration is `drive.readonly` — needs the service-account scope broadened (`drive.file`/`drive`) +
+     content-writer access on the shared drive. Full plan in the 2026-06-27 resume section below.
+  2. **Review feedback** — Ray (+ Angelena) were going to review the **proposal** output vs the 3 sample PDFs
+     and the **letter** output; apply any formatting tweaks they flag.
+  3. **Other backlog (no blockers):** Phase 5 forward (Field Notes site-report polish), or anything from ROADMAP.
+- **Blocked / parked:** QBO two-way sync (Intuit prod creds), Clerk dev→prod (pre-launch), portal-via-Wix (DNS).
+- **What shipped this session (2026-06-27):** deploy test-gate; Phase 5 Field-Notes site report; building-dept
+  **letter generator** + **proposal generator** (assembled PDFs via `pdf-lib`, real logo, attachments,
+  editable scope, fee schedule); **save/reopen** for both (`proposals`/`letters` tables); **client contact
+  info now editable** (bugfix). Details in the dated sections below.
 
 ---
 

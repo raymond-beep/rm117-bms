@@ -22,7 +22,12 @@ QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
   from the Google OAuth app, so the portal does **not** touch the Google "test users" (100) cap.
 - **Email:** Resend (portal notifications + inbound reply bridge; Postmark fallback)
 - **E-sign / invoicing:** DocuSign (proposals); QuickBooks Online API (outbound invoices)
-- **Deployment:** Vercel (auto-deploys from `main`)
+- **Documents:** client-side PDF generation with **`pdf-lib`** (building-dept letters + proposals) — see
+  Document generators below. No server/AI; PDFs assemble in the browser.
+- **Deployment:** Vercel, **auto-deploys from `main`** (Git integration). `git push origin main` = production;
+  **do NOT run `vercel --prod`** (causes duplicate deploys). A **test gate** runs first: `vercel-build` =
+  `vitest run && vite build`, so a failing test aborts the deploy. Roll back via the Vercel dashboard or
+  `vercel rollback`. Tests live in `tests/` (Vitest); `npm test` to run locally.
 
 ## Local dev
 `npm run dev` → Vite (5173) + Express API (3001) via concurrently. Vite proxies `/api/*` →
@@ -35,12 +40,19 @@ QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
 | `src/rm117-dashboard-v1.jsx` | BMS job dashboard — data layer being swapped Sheet→Supabase (Phase 3) |
 | `api/jobs.js` | GET /api/jobs — reads jobs from Supabase, joins each job's `client` record |
 | `api/jobs/update.js` | POST — `saveJob()` writes job edits; stamps a `job_phase_events` row on phase change |
-| `api/clients.js` | GET /api/clients — client list for the Details-tab picker |
+| `api/clients.js` | GET list + **POST (update/create)** — client records; powers the Details-tab picker + the editable client-contact card |
 | `api/payments.js` | Payment records per job (Phase 4); webhook dedups on `qbo_invoice_id` |
 | `api/phase-events.js` | GET/POST/DELETE — per-job phase-reached timeline (Progress tab) |
 | `api/field-notes.js` | GET/POST/PATCH/DELETE — on-site field notes (staff-only; author from Clerk token); GET signs attachment URLs |
 | `api/field-notes/upload.js` | POST base64 photo/voice → private `field-notes` Storage bucket; returns the storage path |
+| `api/proposals.js` | GET list/`?id`/POST/DELETE — saved proposals (fields-only) in `proposals.content` jsonb |
+| `api/letters.js` | GET list/`?id`/POST/DELETE — saved building-dept letters (fields-only) in `letters.content` jsonb |
 | `src/lib/note-media.jsx` | Shared field-note media render (photo thumbs + swipeable lightbox, voice players, location link) — used by the mobile sheet + desktop Progress tab |
+| `src/components/site-report/SiteReport.jsx` | Per-job printable Field-Notes site report (`/report/:jobId`, chrome-free, print→PDF) |
+| **Document generators** (`/templates`) | `src/components/templates/` — `TemplatesHome` (category grid), `LetterGenerator` (`/templates/letter`), `ProposalGenerator` (`/templates/proposal`). Both build an assembled PDF (letter/proposal + image/reference-PDF attachments) shown in an iframe + Download; save/reopen via the proposals/letters APIs. |
+| `src/lib/pdf-doc.js` | Shared PDF engine: page geometry, `drawLetterhead` (embeds `src/assets/rm117-logo-black.png`), `embedLogo`, `appendAttachments`, `makeWriter` (cursor/paginator) |
+| `src/lib/letter-pdf.js` / `src/lib/proposal-pdf.js` | Document renderers (proposal bakes in the scope/exclusions/binding boilerplate verbatim from samples) |
+| `src/lib/doc-format.js` / `src/lib/doc-assets.js` | Pure formatters (`longDateOnly`, `dollarsToWords`, `wrapText`, `parseBodyBlocks`, …) / logo-trim + image→JPEG helpers |
 | `scripts/import-sheet.js` | One-time Sheet → Supabase migration (Phase 2) |
 | `scripts/link-jobs-to-clients.js` | Link unlinked jobs to existing clients (dry-run default) |
 | `scripts/create-clients-for-unlinked.js` | Create clients for unlinked jobs w/ real names (dry-run default) |
@@ -57,9 +69,13 @@ each `api/` file deploys directly as a function.
   `iam.disableServiceAccountKeyCreation` blocks service-account key downloads.
 
 ## Data model
-Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `proposals`,
+Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `proposals`, `letters`,
 `templates`, `forefront_commissions`, `staff`, `job_phase_events`, `field_notes`. Client tier
 (Phase 7): `clients`, `threads`, `messages`, `file_records`, `notifications`.
+- **`proposals` / `letters`** = saved document drafts (fields-only): the generator's form state in a
+  `content` jsonb, `job_id` nullable (a proposal can precede its job). No files/PDFs stored — the PDF
+  regenerates on reopen and attachments are re-added. (The *delivered* PDF → Drive "Files Sent" is a
+  planned next step; needs Drive write access — see NEXT_SESSION.md.)
 - **`field_notes`** = on-site notes (the mobile feature); photo/voice files live in the private
   `field-notes` Supabase **Storage** bucket (backend signs short-lived URLs on read).
 - **`jobs.board_position`** = manual within-phase ordering for the BMS drag-to-reorder board.

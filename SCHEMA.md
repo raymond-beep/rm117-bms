@@ -154,18 +154,30 @@ record back so the Phase 4 Zapier webhook can match payment.
 | `created_at` | timestamptz | |
 
 ### `proposals`
-Proposals created from templates (Phase 5). Tracked through DocuSign.
+Saved proposals from the **proposal generator** (`/templates/proposal`). Fields-only persistence: `content`
+holds the generator's full form state; the PDF regenerates on reopen and attachments are not stored. Served by
+`api/proposals.js` (staff-gated GET list / GET ?id / POST create+update / DELETE). `docusign_envelope_id` is for
+future e-sign. (Migration `0003`: `job_id` made nullable + `updated_at` added.)
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | uuid PK | |
-| `job_id` | text FK → jobs.job_id | |
-| `template_id` | uuid FK → templates.id | |
-| `content` | jsonb | filled-in proposal structure (scope, fees, milestones, terms) |
+| `job_id` | text FK → jobs.job_id, **nullable** | a proposal can precede its job |
+| `template_id` | uuid FK → templates.id | nullable (generator doesn't use a template row) |
+| `content` | jsonb | generator form state (client, address, project summary, editable scope phases, fee items, signers) |
 | `status` | text | `check in ('draft','sent','signed')` |
-| `docusign_envelope_id` | text | nullable |
-| `sent_date` | timestamptz | nullable |
-| `signed_date` | timestamptz | nullable |
-| `created_at` | timestamptz | |
+| `docusign_envelope_id` | text | nullable (future e-sign) |
+| `sent_date` / `signed_date` | timestamptz | nullable |
+| `created_at` / `updated_at` | timestamptz | `updated_at` powers "most recently edited" ordering |
+
+### `letters`
+Saved building-department letters from the **letter generator** (`/templates/letter`). Same fields-only model
+as `proposals` (migration `0004`). Served by `api/letters.js` (staff-gated GET list / GET ?id / POST / DELETE).
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | default `gen_random_uuid()` |
+| `job_id` | text FK → jobs.job_id, nullable | usually set, but optional |
+| `content` | jsonb | generator form state (dept name/address, reference, project address, body, closing, signer) |
+| `created_at` / `updated_at` | timestamptz | |
 
 ### `templates`
 Reusable templates for proposals, invoices, and emails. Stored in the DB so they can be
