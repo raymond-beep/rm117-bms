@@ -78,8 +78,9 @@ Forefront toggle + commission, Notes. Required = Job ID + Client name. Findings:
 4. **QBO billing** — the planned big build (gated on Intuit creds).
 5. **Polish:** table "Last comm" column, dedupe the two New-Job buttons + two Portal nav entries.
 
-## Open questions for Ray / Ang
-- New job: should linking to a client record be **required** or optional?
-- Portal: **revive the client-facing portal**, or first build a **staff-only "manage client docs + comms"**
-  view (no client logins)?
-- Billing UI: invoice **per job** (one button) or per **milestone** (line items from the milestone schedule)?
+## Decisions (Ray, 2026-06-28)
+- **New job — client-linking is OPTIONAL** (offer it, don't force it).
+- **Portal — build the staff-only "manage client docs + comms" view FIRST**, intending a client-facing portal
+  later. Ray wants an **easier way to organize everything** on the firm's end (not just a mirror of the client view).
+- **Billing — support BOTH per-job (pay in full) and per-milestone.** Some clients pay the full bill, some pay per
+  milestone; the QBO "Send to QuickBooks" UI should handle both modes.
