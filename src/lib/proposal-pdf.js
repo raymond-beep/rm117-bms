@@ -67,19 +67,20 @@ export async function buildProposalPdf(data = {}) {
   const logoImg = await embedLogo(doc, data.logo);
 
   const footer = `${numericDate(data.date)} ${data.label || 'Proposal'}`.trim();
+  // Repeat the letterhead + footer on every page (the firm's proposals carry the
+  // letterhead on all pages). `top` starts content below the letterhead band.
   const decorate = (page) => {
-    const w = italic.widthOfTextAtSize(footer, 8);
-    page.drawText(footer, { x: (PAGE[0] - w) / 2, y: 34, size: 8, font: italic, color: GREY });
+    drawLetterhead(page, { times: regular, logoImg });
+    const fw = italic.widthOfTextAtSize(footer, 8);
+    page.drawText(footer, { x: (PAGE[0] - fw) / 2, y: 34, size: 8, font: italic, color: GREY });
   };
 
-  const w = makeWriter(doc, { fonts: { regular, bold, italic }, decorate });
-  drawLetterhead(w.page, { times: regular, logoImg });
-  w.y = PAGE[1] - 118;
+  const w = makeWriter(doc, { fonts: { regular, bold, italic }, decorate, top: PAGE[1] - 118, lineFactor: 1.3 });
 
-  const section = (t) => { w.gap(16); w.text(t, { bold: true, size: 11 }); w.gap(4); };
+  const section = (t) => { w.gap(13); w.text(t, { bold: true, size: 11 }); w.gap(3); };
   // Numbered item: marker at the left margin, text indented and wrapped.
   const numbered = (marker, text, { boldText = false, x = ML, indent = 18 } = {}) => {
-    w.gap(5);
+    w.gap(4);
     const firstY = w.text(text, { bold: boldText, x, width: CONTENT_W - (x - ML), indent });
     w.page.drawText(marker, { x, y: firstY, size: 11, font: boldText ? bold : regular, color: INK });
   };
@@ -100,6 +101,30 @@ export async function buildProposalPdf(data = {}) {
     w.text(data.projectSummary, { italic: true, size: 11 });
   }
 
+  // One deliverable: roman marker just left of its (italic) text column.
+  const delivItem = (text, roman, colX, colW) => {
+    const firstY = w.text(text, { italic: true, size: 10, x: colX, width: colW });
+    w.page.drawText(`${ROMAN[roman] || roman}.`, { x: colX - 14, y: firstY, size: 10, font: italic, color: INK });
+  };
+  // Deliverables list: single column for ≤2 items, else two balanced columns
+  // (numbering runs i… down the left, then continues down the right), matching
+  // the firm's samples and keeping long lists from running an extra page.
+  const drawDeliverables = (items = []) => {
+    if (items.length <= 2) {
+      items.forEach((d, j) => delivItem(d, j + 1, ML + 44, CONTENT_W - 44));
+      return;
+    }
+    const mid = Math.ceil(items.length / 2);
+    const colW = (CONTENT_W - 44) / 2 - 12;
+    const leftX = ML + 44, rightX = leftX + colW + 24;
+    const startY = w.y;
+    items.slice(0, mid).forEach((d, j) => delivItem(d, j + 1, leftX, colW));
+    const leftEndY = w.y;
+    w.y = startY;
+    items.slice(mid).forEach((d, j) => delivItem(d, mid + j + 1, rightX, colW));
+    w.y = Math.min(leftEndY, w.y);
+  };
+
   // ── Scope of services ──
   section('SCOPE OF SERVICES');
   w.text(MEETING_NOTE, { italic: true, size: 10 });
@@ -109,10 +134,7 @@ export async function buildProposalPdf(data = {}) {
     w.text(desc, { size: 11, indent: 18 });
     w.gap(2);
     w.text('Deliverables:', { italic: true, size: 10, indent: 28 });
-    (p.deliverables || []).forEach((d, j) => {
-      const firstY = w.text(d, { italic: true, size: 10, x: ML + 44, width: CONTENT_W - 44 });
-      w.page.drawText(`${ROMAN[j + 1] || j + 1}.`, { x: ML + 30, y: firstY, size: 10, font: italic, color: INK });
-    });
+    drawDeliverables(p.deliverables);
   });
 
   // ── Fee schedule ──
@@ -121,7 +143,9 @@ export async function buildProposalPdf(data = {}) {
   section('FEE SCHEDULE');
   w.text(`In this proposal, the total fee for services rendered is a lump sum fee of ${money(total, { cents: true })} (${dollarsToWords(total)}). The fee schedule is as follows:`, { size: 11 });
   items.forEach((it, i) => {
-    numbered(`${i + 1}.`, `${it.label}:`, { boldText: true });
+    w.gap(4);
+    const firstY = w.richText([{ text: `${it.label}:`, underline: true }], { indent: 18 });
+    w.page.drawText(`${i + 1}.`, { x: ML, y: firstY, size: 11, font: regular, color: INK });
     w.text(`A lump sum fee of ${money(it.amount, { cents: true })} (${dollarsToWords(it.amount)})${it.due || '.'}`, { size: 11, indent: 18 });
   });
   if ((data.additionalServices || []).length) {
@@ -137,21 +161,29 @@ export async function buildProposalPdf(data = {}) {
   // ── Exclusions & limitations ──
   section('EXCLUSIONS AND LIMITATIONS');
   EXCLUSIONS.forEach((ex, i) => {
-    numbered(`${i + 1}.`, `${ex.title}:${ex.body ? ` ${ex.body}` : ''}`, { boldText: false });
+    w.gap(4);
+    const segs = [{ text: `${ex.title}:`, bold: true }];
+    if (ex.body) segs.push({ text: ` ${ex.body}` });
+    const firstY = w.richText(segs, { indent: 18 });
+    w.page.drawText(`${i + 1}.`, { x: ML, y: firstY, size: 11, font: regular, color: INK });
     (ex.subs || []).forEach((s, j) => {
-      const firstY = w.text(s, { size: 11, x: ML + 36, width: CONTENT_W - 36 });
-      w.page.drawText(`${ALPHA[j + 1] || j + 1}.`, { x: ML + 22, y: firstY, size: 11, font: regular, color: INK });
+      const fy = w.text(s, { size: 11, x: ML + 36, width: CONTENT_W - 36 });
+      w.page.drawText(`${ALPHA[j + 1] || j + 1}.`, { x: ML + 22, y: fy, size: 11, font: regular, color: INK });
     });
   });
 
   // ── Binding clause + signatures ──
-  w.gap(20);
+  // Keep the closing (binding clause + valid-for + every signature line) on one
+  // page — never orphan signatures onto a page by themselves.
+  const signers = data.signers || [];
+  w.need(95 + signers.length * 64);
+  w.gap(18);
   w.text(BINDING, { bold: true, size: 10 });
   w.gap(10);
   w.text(VALID, { bold: true, size: 10 });
 
-  for (const name of (data.signers || [])) {
-    w.gap(40);
+  for (const name of signers) {
+    w.gap(36);
     const ly = w.y;
     w.page.drawLine({ start: { x: ML, y: ly }, end: { x: ML + 250, y: ly }, thickness: 0.8, color: INK });
     w.page.drawLine({ start: { x: ML + 290, y: ly }, end: { x: ML + 380, y: ly }, thickness: 0.8, color: INK });

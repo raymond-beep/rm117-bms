@@ -74,13 +74,16 @@ export async function appendAttachments(doc, attachments) {
 
 // Cursor-based writer over a document. Manages the current page + a baseline
 // cursor (y), paginating as content is added. `decorate(page)` runs on every new
-// page (e.g. a footer). `fonts` = { regular, bold, italic }.
-export function makeWriter(doc, { fonts, decorate } = {}) {
+// page (e.g. a repeating letterhead + footer). `top` sets where content begins on
+// every page (default just below the top margin; pass a lower value to clear a
+// letterhead band). `fonts` = { regular, bold, italic }.
+export function makeWriter(doc, { fonts, decorate, top, lineFactor = 1.4 } = {}) {
+  const startY = top ?? (PAGE[1] - MT);
   let page = doc.addPage(PAGE);
   if (decorate) decorate(page);
-  let y = PAGE[1] - MT;
+  let y = startY;
 
-  const newPage = () => { page = doc.addPage(PAGE); if (decorate) decorate(page); y = PAGE[1] - MT; };
+  const newPage = () => { page = doc.addPage(PAGE); if (decorate) decorate(page); y = startY; };
   const need = (h) => { if (y - h < MB) newPage(); };
 
   const api = {
@@ -93,7 +96,7 @@ export function makeWriter(doc, { fonts, decorate } = {}) {
     // Wrapped text from the cursor down. Returns the y of the first line's baseline.
     text(str, { size = 11, bold = false, italic = false, x = ML, width = CONTENT_W, indent = 0, leading, center = false, color = INK } = {}) {
       const font = bold ? fonts.bold : italic ? fonts.italic : fonts.regular;
-      const lh = leading || size * 1.4;
+      const lh = leading || size * lineFactor;
       const measure = (s) => font.widthOfTextAtSize(s, size);
       let firstY = null;
       for (const line of wrapText(str, width - indent, measure)) {
@@ -103,6 +106,46 @@ export function makeWriter(doc, { fonts, decorate } = {}) {
         if (center) dx = x + (width - measure(line)) / 2;
         if (line) page.drawText(line, { x: dx, y, size, font, color });
       }
+      return firstY;
+    },
+    // Like text(), but the content is a list of inline segments, each with its
+    // own style: { text, bold, italic, underline }. Words flow continuously and
+    // wrap, so e.g. a bold "Title:" can lead a regular body on the same line.
+    // Returns the y of the first line's baseline.
+    richText(segments, { size = 11, x = ML, width = CONTENT_W, indent = 0, leading } = {}) {
+      const lh = leading || size * lineFactor;
+      const fontFor = (s) => (s.bold ? fonts.bold : s.italic ? fonts.italic : fonts.regular);
+      // Split each segment into words (keeping the spaces) tagged with its style.
+      const toks = [];
+      for (const seg of segments) {
+        const font = fontFor(seg);
+        for (const part of String(seg.text).split(/(\s+)/)) {
+          if (part.length) toks.push({ s: part, font, underline: seg.underline });
+        }
+      }
+      const maxW = width - indent;
+      let line = [], lineW = 0, firstY = null;
+      const flush = () => {
+        need(lh); y -= lh;
+        if (firstY === null) firstY = y;
+        let dx = x + indent;
+        for (const t of line) {
+          if (t.s.trim()) page.drawText(t.s, { x: dx, y, size, font: t.font, color: INK });
+          const tw = t.font.widthOfTextAtSize(t.s, size);
+          if (t.underline && t.s.trim()) {
+            page.drawLine({ start: { x: dx, y: y - 1.5 }, end: { x: dx + tw, y: y - 1.5 }, thickness: 0.6, color: INK });
+          }
+          dx += tw;
+        }
+        line = []; lineW = 0;
+      };
+      for (const t of toks) {
+        const tw = t.font.widthOfTextAtSize(t.s, size);
+        if (lineW + tw > maxW && line.length) flush();
+        if (!line.length && !t.s.trim()) continue; // drop leading space on a new line
+        line.push(t); lineW += tw;
+      }
+      if (line.length) flush();
       return firstY;
     },
   };

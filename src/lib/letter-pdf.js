@@ -4,17 +4,19 @@
 // Shared letterhead / geometry / attachment logic lives in ./pdf-doc.js.
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { longDateOnly, parseBodyBlocks, wrapText } from './doc-format.js';
-import { PAGE, ML, MT, MB, CONTENT_W, INK, embedLogo, drawLetterhead, appendAttachments } from './pdf-doc.js';
+import { PAGE, ML, MB, CONTENT_W, INK, embedLogo, drawLetterhead, appendAttachments } from './pdf-doc.js';
 
 export async function buildLetterPdf(data = {}) {
   const doc = await PDFDocument.create();
   const times = await doc.embedFont(StandardFonts.TimesRoman);
   const logoImg = await embedLogo(doc, data.logo);
 
+  const CONTENT_TOP = PAGE[1] - 128; // content begins below the (compact) letterhead band
   let page = doc.addPage(PAGE);
-  let y = PAGE[1] - MT;
+  let y = CONTENT_TOP;
 
-  const newPage = () => { page = doc.addPage(PAGE); y = PAGE[1] - MT; };
+  // Every page repeats the letterhead, matching the firm's multi-page documents.
+  const newPage = () => { page = doc.addPage(PAGE); drawLetterhead(page, { times, logoImg }); y = CONTENT_TOP; };
   const need = (h) => { if (y - h < MB) newPage(); };
   const writeText = (text, { size = 11, x = ML, width = CONTENT_W, leading, center = false, color = INK } = {}) => {
     const lh = leading || size * 1.4;
@@ -28,9 +30,8 @@ export async function buildLetterPdf(data = {}) {
   };
   const gap = (h) => { need(h); y -= h; };
 
-  // ── Letterhead ──
+  // ── Letterhead (page 1; subsequent pages get it via newPage) ──
   drawLetterhead(page, { times, logoImg });
-  y = PAGE[1] - 128; // content begins below the (compact) letterhead band
 
   // ── Date ──
   writeText(longDateOnly(data.date), { size: 11 });
