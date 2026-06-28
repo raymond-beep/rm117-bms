@@ -1,6 +1,6 @@
 // Document formatting helpers for the letter/proposal generators.
 import { describe, it, expect } from 'vitest';
-import { longDateOnly, todayIso, parseBodyBlocks, wrapText, numericDate, dollarsToWords } from '../src/lib/doc-format.js';
+import { longDateOnly, todayIso, parseBodyBlocks, wrapText, numericDate, dotDate, dollarsToWords } from '../src/lib/doc-format.js';
 
 // Fake measurer: every character is 1 unit wide (incl. spaces) — lets us assert
 // wrapping deterministically without a real font.
@@ -85,6 +85,18 @@ describe('numericDate (proposal footer "1/27/2026")', () => {
   it('empty for falsy/malformed', () => {
     expect(numericDate('')).toBe('');
     expect(numericDate(null)).toBe('');
+  });
+});
+
+describe('dotDate (delivered-file naming "06.28.26")', () => {
+  it('zero-pads month/day and uses a 2-digit year', () => {
+    expect(dotDate('2026-06-28')).toBe('06.28.26');
+    expect(dotDate('2026-01-05')).toBe('01.05.26');
+    expect(dotDate('2026-12-31')).toBe('12.31.26');
+  });
+  it('empty for falsy/malformed', () => {
+    expect(dotDate('')).toBe('');
+    expect(dotDate(null)).toBe('');
   });
 });
 

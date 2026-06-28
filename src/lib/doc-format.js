@@ -30,6 +30,15 @@ export function numericDate(d) {
   return `${m}/${day}/${y}`;
 }
 
+// 'YYYY-MM-DD' → "06.28.26" (zero-padded, 2-digit year) — delivered-file naming.
+export function dotDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.slice(0, 10).split('-').map(Number);
+  if (!y || !m || !day) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(m)}.${p(day)}.${p(y % 100)}`;
+}
+
 const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
   'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
 const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];

@@ -1,22 +1,37 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-27 (end of session)
+**Last updated:** 2026-06-28 (end of session)
 
 ## ⭐ START HERE NEXT
-- **Repo state:** clean, in sync with origin, latest commit `0920ab7`. Live on rm117-bms.vercel.app.
-  Workflow = `git push origin main` (test gate runs, then auto-deploys). 48 Vitest tests green.
-- **Pick ONE to do next** (none are mid-flight — nothing is half-built):
-  1. **"Send to Files Sent" (Drive delivery)** — the planned follow-up to the document generators. Upload the
-     generated letter/proposal PDF into the job's Drive "Files Sent" folder. **BLOCKED on Ray:** the Drive
-     integration is `drive.readonly` — needs the service-account scope broadened (`drive.file`/`drive`) +
-     content-writer access on the shared drive. Full plan in the 2026-06-27 resume section below.
-  2. **Review feedback** — Ray (+ Angelena) were going to review the **proposal** output vs the 3 sample PDFs
-     and the **letter** output; apply any formatting tweaks they flag.
-  3. **Other backlog (no blockers):** Phase 5 forward (Field Notes site-report polish), or anything from ROADMAP.
+- **Repo state:** Drive-delivery feature DONE + **VERIFIED working live (local)** + cleaned up; tests/build green
+  (50 Vitest). **NOT yet committed** as of this writing (confirm `git status`) — Ray was holding the commit until a
+  real upload was tested; **that test passed**, so committing is the natural next step (ask Ray). Live deploy still
+  `0920ab7`. Workflow = `git push origin main` (test gate, auto-deploy). **The Drive role was granted** — the
+  service account is now **Content manager** on the Shared Drive (write works).
+- **▶ FIRST THING — commit + push the Drive-delivery feature, then apply migration `0005` in Supabase.**
+  - Migration `supabase/migrations/0005_file_records_proposal_folder.sql` adds `'proposal'` to the
+    `file_records.folder` check — **needed before a proposal delivery logs** (letters already work without it).
+  - After deploy, sanity-check on prod: `/templates/letter`, pick a real job, **Send to Files Sent**, confirm the
+    PDF lands + a `file_records` row appears.
+- **Then:** review feedback on letter/proposal output vs the 3 samples; or backlog (Field Notes polish / ROADMAP).
 - **Blocked / parked:** QBO two-way sync (Intuit prod creds), Clerk dev→prod (pre-launch), portal-via-Wix (DNS).
-- **What shipped this session (2026-06-27):** deploy test-gate; Phase 5 Field-Notes site report; building-dept
-  **letter generator** + **proposal generator** (assembled PDFs via `pdf-lib`, real logo, attachments,
-  editable scope, fee schedule); **save/reopen** for both (`proposals`/`letters` tables); **client contact
-  info now editable** (bugfix). Details in the dated sections below.
+- **What shipped 2026-06-28 — "Send to Drive" delivery (built + verified live local):**
+  - `api/_lib/google-drive.js`: scope widened to `drive.readonly` + `drive.file` (least-privilege read + create-only
+    write — **cannot edit/delete existing firm files**); added `uploadToFolder()` (create-only) + generalized
+    `resolveSubfolderId` → `resolveFilesSentFolderId` / `resolveProposalFolderId`.
+  - New staff-gated **`api/deliver.js`** (POST `{jobId, kind:'letter'|'proposal', filename, pdf(base64)}` → resolve
+    folder → upload → log to `file_records`; 409 if subfolder missing, 502 if Drive denies). Migration `0005`.
+  - **"Send to Files Sent" (letter) / "Send to Proposal folder" (proposal) buttons** in both generators (enabled only
+    when a job is selected; reuse last-built bytes via a `lastBytes` ref). Shared `src/lib/deliver.js` helper
+    (`deliverPdf`) + `bytesToBase64` in `doc-assets.js`.
+  - **Filenames (Ray's convention):** clean, date-stamped from the doc's own date — letters
+    `Building Department Letter MM.DD.YY.pdf`, proposals `Proposal MM.DD.YY.pdf` (`dotDate` in `doc-format.js`,
+    +2 tests). **No overwrite:** a same-name file gets a ` (2)` suffix.
+  - **Routing (Ray):** letters → job's **Files Sent**; proposals → job's **Proposal** folder (kept separate; the
+    portal vault reads only Files Sent, fine since the portal isn't live).
+  - **Verified end-to-end** against job `26_042_Gonzalez`: real letter PDF landed in Files Sent as
+    `Building Department Letter 06.28.26.pdf`, `file_records` row written, then all test artifacts cleaned up
+    (folder left with only the real `Design iterations 01.pdf`). **Note:** deleting a delivered PDF by hand in Drive
+    leaves a stale `file_records` row — a future "unsend" should delete the row too.
 
 ---
 

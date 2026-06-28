@@ -59,3 +59,14 @@ export async function imageToJpegBytes(file, maxDim = 1600, quality = 0.85) {
   const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', quality));
   return new Uint8Array(await blob.arrayBuffer());
 }
+
+// Base64-encode raw bytes (for shipping a generated PDF to the /api/deliver
+// endpoint). Chunked so large PDFs don't blow the String.fromCharCode arg limit.
+export function bytesToBase64(bytes) {
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+}

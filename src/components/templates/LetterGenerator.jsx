@@ -4,9 +4,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../lib/api.js';
-import { todayIso } from '../../lib/doc-format.js';
+import { todayIso, dotDate } from '../../lib/doc-format.js';
 import { buildLetterPdf } from '../../lib/letter-pdf.js';
 import { loadTrimmedLogo, imageToJpegBytes } from '../../lib/doc-assets.js';
+import { deliverPdf } from '../../lib/deliver.js';
 
 const DEFAULT_CLOSING =
   'If there are any questions regarding this item, please do not hesitate to contact me.';
@@ -36,9 +37,12 @@ export default function LetterGenerator() {
   const [pdfUrl, setPdfUrl] = useState(null);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState(null);
+  const [sending, setSending] = useState(false);
+  const [sentMsg, setSentMsg] = useState('');
   const imgInputRef = useRef(null);
   const pdfInputRef = useRef(null);
   const lastUrl = useRef(null);
+  const lastBytes = useRef(null);
 
   useEffect(() => {
     let alive = true;
@@ -56,13 +60,14 @@ export default function LetterGenerator() {
 
   // Rebuild the preview PDF (debounced) whenever the letter or attachments change.
   useEffect(() => {
-    setSavedMsg('');
+    setSavedMsg(''); setSentMsg('');
     const t = setTimeout(async () => {
       setBuilding(true); setError(null);
       try {
         const bytes = await buildLetterPdf({
           date, deptName, deptStreet, deptCityStateZip, reference, projectAddress, body, closing, signer, attachments, logo,
         });
+        lastBytes.current = bytes;
         const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
         if (lastUrl.current) URL.revokeObjectURL(lastUrl.current);
         lastUrl.current = url;
@@ -176,6 +181,20 @@ export default function LetterGenerator() {
     a.click();
   };
 
+  // Deliver the assembled PDF into the job's Drive "Files Sent" folder.
+  const sendToDrive = async () => {
+    if (!jobId || !lastBytes.current) return;
+    setSending(true); setError(null); setSentMsg('');
+    try {
+      const { folder } = await deliverPdf({
+        jobId, kind: 'letter',
+        filename: `Building Department Letter ${dotDate(date)}.pdf`,
+        bytes: lastBytes.current,
+      });
+      setSentMsg(`Sent to ${folder} ✓`);
+    } catch (e) { setError(e.message); } finally { setSending(false); }
+  };
+
   return (
     <div className="page tpl-gen-page">
       <div className="tpl-gen-bar">
@@ -188,9 +207,18 @@ export default function LetterGenerator() {
           <button className="sr-btn ghost" onClick={newLetter}>New</button>
           {currentId && <button className="sr-btn ghost" onClick={deleteSaved}>Delete</button>}
           {savedMsg && <span className="tpl-status">{savedMsg}</span>}
+          {sentMsg && <span className="tpl-status">{sentMsg}</span>}
           {building && <span className="tpl-status">Building…</span>}
           <button className="sr-btn" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
           <button className="sr-btn" onClick={download} disabled={!pdfUrl}>Download PDF</button>
+          <button
+            className="sr-btn"
+            onClick={sendToDrive}
+            disabled={sending || !pdfUrl || !jobId}
+            title={jobId ? 'File this letter in the job’s Drive “Files Sent” folder' : 'Select a job first'}
+          >
+            {sending ? 'Sending…' : 'Send to Files Sent'}
+          </button>
         </div>
       </div>
 

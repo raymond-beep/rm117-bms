@@ -1,14 +1,25 @@
-// Service-account Google Drive client (read-only) for the client-portal vault.
-// Reuses the same credentials as the Sheets reader (GOOGLE_SERVICE_ACCOUNT_EMAIL
-// + GOOGLE_PRIVATE_KEY), just with the drive.readonly scope added. The service
-// account must be a MEMBER (Viewer) of the firm's Shared Drive.
+// Service-account Google Drive client for the client-portal vault. Reads the whole
+// vault (portal Documents) and creates the app's own delivered files (letters /
+// proposals). Reuses the Sheets-reader credentials (GOOGLE_SERVICE_ACCOUNT_EMAIL +
+// GOOGLE_PRIVATE_KEY). For reads the service account need only be a Shared Drive
+// MEMBER; to deliver files it must be a Content manager (see SCOPES note below).
 //
 // The backend brokers every file access: clients never receive Drive
 // permissions and never see Drive itself. All calls pass supportsAllDrives so
 // Shared Drive (Team Drive) items resolve.
+import { Readable } from 'node:stream';
 import { google } from 'googleapis';
 
-const SCOPES = ['https://www.googleapis.com/auth/drive.readonly'];
+// readonly = list/read the whole vault (portal Documents); drive.file = create
+// the app's own files (delivered letters/proposals). drive.file is least-privilege
+// for writes — it only grants access to files this app creates, never the rest of
+// the Drive. NOTE: scope alone isn't enough to upload — the service account must
+// also hold a content-writer (Content manager) role on the Shared Drive; while it
+// is only a Viewer member, every upload 403s. (Read paths keep working regardless.)
+const SCOPES = [
+  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/drive.file',
+];
 
 let _drive = null;
 
@@ -144,7 +155,10 @@ async function findProjectFolder(driveId, jobId) {
   );
 }
 
-export async function resolveFilesSentFolderId(jobId) {
+// Resolve a named subfolder inside a job's project folder. `match` is a predicate
+// over the lowercased subfolder name, so callers can be exact ("files sent") or
+// fuzzy ("proposal"/"proposals"). Read-only; returns the folder id or null.
+async function resolveSubfolderId(jobId, match) {
   if (!hasDrive() || !jobId) return null;
   const driveId = await resolveSharedDriveId();
   if (!driveId) return null;
@@ -153,8 +167,38 @@ export async function resolveFilesSentFolderId(jobId) {
   if (!project) return null;
 
   const subs = await listChildFolders(project.id);
-  const fs = subs.find((s) => s.name.trim().toLowerCase() === CLIENT_SUBFOLDER);
-  return fs?.id || null;
+  const hit = subs.find((s) => match(s.name.trim().toLowerCase()));
+  return hit?.id || null;
+}
+
+// The job's client-facing "Files Sent" folder (the one the portal vault reads).
+// Building-department letters are delivered here.
+export function resolveFilesSentFolderId(jobId) {
+  return resolveSubfolderId(jobId, (name) => name === CLIENT_SUBFOLDER);
+}
+
+// The job's "Proposal(s)" folder — where the firm files proposals (kept distinct
+// from Files Sent). Matches "proposal" or "proposals" first, then any name that
+// contains "proposal" as a fallback.
+const PROPOSAL_SUBFOLDER = (process.env.PROPOSAL_SUBFOLDER || 'Proposal').trim().toLowerCase();
+export function resolveProposalFolderId(jobId) {
+  return resolveSubfolderId(
+    jobId,
+    (name) => name === PROPOSAL_SUBFOLDER || name === `${PROPOSAL_SUBFOLDER}s` || name.includes('proposal'),
+  );
+}
+
+// Upload bytes as a NEW file into a Drive folder (always creates; the caller picks
+// a non-colliding name). Returns { id, name, webViewLink }.
+// 403s until the service account has content-writer access on the Shared Drive.
+export async function uploadToFolder(folderId, { name, mimeType = 'application/pdf', bytes }) {
+  const { data } = await drive().files.create({
+    requestBody: { name, parents: [folderId] },
+    media: { mimeType, body: Readable.from(Buffer.from(bytes)) },
+    fields: 'id, name, webViewLink',
+    supportsAllDrives: true,
+  });
+  return data;
 }
 
 // File metadata including parents — used to verify a download request really
