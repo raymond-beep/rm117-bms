@@ -1349,3 +1349,7 @@ input, select, textarea { font: inherit; }
 
 /* Saved-proposal toolbar */
 .tpl-open { font: inherit; font-size: 12px; color: var(--ink); background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; max-width: 200px; }
+
+/* Editable client contact card (JobEditor Details) */
+.client-card-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.client-card-saved { font-size: 12px; color: var(--accent-ink); }

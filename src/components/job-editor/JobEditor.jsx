@@ -29,6 +29,9 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
   const [clients, setClients] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [cForm, setCForm] = useState({ type: 'homeowner', email: '', phone: '', company: '' });
+  const [cSaving, setCSaving] = useState(false);
+  const [cMsg, setCMsg] = useState('');
 
   // Load the client list for the picker — one identity shared with the portal.
   useEffect(() => {
@@ -41,6 +44,36 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
   }, []);
 
   const linkedClient = clients.find((c) => c.id === form.client_id) || null;
+
+  // Sync the editable contact fields to whichever client is linked.
+  useEffect(() => {
+    setCMsg('');
+    if (linkedClient) {
+      setCForm({
+        type: linkedClient.type || 'homeowner',
+        email: linkedClient.email || '',
+        phone: linkedClient.phone || '',
+        company: linkedClient.company || '',
+      });
+    }
+  }, [form.client_id, clients]);
+
+  const cset = (key) => (e) => { setCForm((f) => ({ ...f, [key]: e.target.value })); setCMsg(''); };
+
+  async function saveClient() {
+    if (!linkedClient) return;
+    setCSaving(true); setError(null); setCMsg('');
+    try {
+      const r = await apiFetch('/api/clients', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: linkedClient.id, ...cForm }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not save client');
+      setClients((list) => list.map((c) => (c.id === d.client.id ? d.client : c)));
+      setCMsg('Saved ✓');
+    } catch (e) { setError(e.message); } finally { setCSaving(false); }
+  }
 
   const set = (key) => (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
@@ -104,11 +137,34 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
               </div>
               {linkedClient ? (
                 <div className="client-card">
-                  <div className="client-card-row"><span className="ck">Type</span><span className="cv">{linkedClient.type || '—'}</span></div>
-                  <div className="client-card-row"><span className="ck">Email</span><span className="cv">{linkedClient.email || '—'}</span></div>
-                  <div className="client-card-row"><span className="ck">Phone</span><span className="cv">{linkedClient.phone || '—'}</span></div>
-                  {linkedClient.company && <div className="client-card-row"><span className="ck">Company</span><span className="cv">{linkedClient.company}</span></div>}
-                  <div className="client-card-note">Shared with the client portal. Edit contact details on the client record.</div>
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Type</label>
+                      <select value={cForm.type} onChange={cset('type')}>
+                        <option value="homeowner">homeowner</option>
+                        <option value="investor">investor</option>
+                        <option value="contractor">contractor</option>
+                        <option value="other">other</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Phone <PortalTag /></label>
+                      <input type="tel" value={cForm.phone} onChange={cset('phone')} placeholder="(908) 555-1234" />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Email <PortalTag /></label>
+                    <input type="email" value={cForm.email} onChange={cset('email')} placeholder="name@example.com" />
+                  </div>
+                  <div className="field">
+                    <label>Company</label>
+                    <input type="text" value={cForm.company} onChange={cset('company')} placeholder="optional" />
+                  </div>
+                  <div className="client-card-actions">
+                    <button className="btn" onClick={saveClient} disabled={cSaving}>{cSaving ? 'Saving…' : 'Save contact info'}</button>
+                    {cMsg && <span className="client-card-saved">{cMsg}</span>}
+                  </div>
+                  <div className="client-card-note">Shared with the client portal. Saving updates the client record everywhere it's used.</div>
                 </div>
               ) : (
                 <div className="placeholder-note">Not linked to a client record — this job won't appear in the client portal. Pick a client above to connect it.</div>

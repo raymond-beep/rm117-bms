@@ -1,5 +1,10 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-27 (Letter + Proposal generators DONE incl. fields-only Save for BOTH; next [later] = "Send to Files Sent" Drive delivery — needs Ray to enable Drive write)
+**Last updated:** 2026-06-27 (Bugfix: client contact info now editable in JobEditor; Letter+Proposal Save done; next [later] = "Send to Files Sent" Drive delivery — needs Ray to enable Drive write)
+
+> **Bugfix (2026-06-27):** staff couldn't edit a client's email/phone — the Details-tab client card was
+> read-only and `api/clients.js` was GET-only. Added POST (update/create) to `api/clients.js` (staff-gated,
+> type-validated) and made the JobEditor client card editable (Type/Phone/Email/Company + "Save contact info").
+> Found via job `26_042_Gonzalez` (Yvette Gonzalez — was linked but had null email/phone).
 
 ---
 
