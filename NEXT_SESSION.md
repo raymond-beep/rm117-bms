@@ -24,7 +24,8 @@
 - **#4 done** — added vertical space between the recipient block and the `Reference:` line.
 - **Print-only/not-persisted v1** — letters aren't saved to DB (download the PDF). Bldg-dept address is manual
   (external) — a remembered municipality directory is a nice later add.
-- **Ray to verify the logo renders** on the deployed letter (this was the reason for the deploy).
+- **STATUS: Ray approved the letter generator (logo + compact letterhead look right). Letter is DONE
+  pending Angelena's review — if Ang has no comments, it's good to go.** Then start the Proposal generator.
 
 ### ▶ NEXT — Proposal generator (bigger), then AI auto-fill
 - **Decision locked:** manual fill-in first, **Claude AI drafting as a fast follow** (read `claude-api` skill —
