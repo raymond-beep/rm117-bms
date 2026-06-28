@@ -1,21 +1,30 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-27 (Building-Dept Letter generator SHIPPED; next = Proposal generator, then AI auto-fill)
+**Last updated:** 2026-06-27 (Building-Dept Letter generator SHIPPED + refined to assembled-PDF + real logo; next = Proposal generator, then AI auto-fill)
 
 ---
 
-## ▶ RESUME HERE — 2026-06-27 (latest) — Templates started: Letter DONE, Proposal NEXT
+## ▶ RESUME HERE — 2026-06-27 (latest) — Templates started: Letter DONE (assembled PDF), Proposal NEXT
 
-**Building-department letter generator shipped (manual-fill v1, print-to-PDF).** Read the 6 sample PDFs in
-`~/Downloads` (3 letters + 3 proposals) to extract the format.
-- **`/templates`** is now a real category grid (`TemplatesHome.jsx`) — Building-Dept Letter active;
-  Proposal / Invoice / Email marked "Soon". Replaced the old `ComingSoon` placeholder.
-- **`/templates/letter`** (`LetterGenerator.jsx`) — two-pane: form (job picker → prefills project address;
-  date; bldg-dept name/street/city-state-zip; reference; project address; body; closing; signer) + a live
-  print preview. Body: lines starting with `-`/`•` → bullets, else paragraphs (`parseBodyBlocks`). Print via
-  `@media print` (hides chrome + form, prints only `.doc-paper`). Shared `Letterhead.jsx` (reused by proposal).
-- **Helpers** `src/lib/doc-format.js`: `longDateOnly` ("January 26, 2026"), `todayIso`, `parseBodyBlocks` — +9 tests.
-- **Print-only v1** — letters are NOT persisted (short to redo). Building-dept address is **manual** (external,
-  not in the job record) — a remembered municipality directory is a nice later add.
+**Building-department letter generator shipped, then refined per Ray's feedback to a real assembled PDF
+(`pdf-lib`).** Read the 6 sample PDFs in `~/Downloads` (3 letters + 3 proposals) to extract the format.
+- **`/templates`** is a real category grid (`TemplatesHome.jsx`) — Building-Dept Letter active; Proposal /
+  Invoice / Email "Soon". Replaced the old `ComingSoon` placeholder.
+- **`/templates/letter`** (`LetterGenerator.jsx`) — form (job picker → prefills project address; date;
+  bldg-dept name/street/city-state-zip; reference; project address; body; closing; signer) +
+  **attachments** (add images / a reference PDF; reorder ↑↓; remove) + an **inline PDF preview** (iframe,
+  debounced rebuild) and **Download PDF**.
+- **Output = assembled PDF** via `src/lib/letter-pdf.js` (`buildLetterPdf`): letter drawn in Times (auto-
+  paginates), then each attachment in order — **images become pages, a reference PDF's pages are merged in**
+  (pdf-lib `copyPages`). NOT browser print anymore. `pdf-lib` bundles only into the letter's lazy chunk
+  (~442 kB; initial bundle unchanged).
+- **Real logo embedded.** Black PNG at `src/assets/rm117-logo-black.png` (see `[[brand-assets]]` memory; tan
+  version kept there too). `LetterGenerator` trims the PNG's transparent padding at runtime, passes bytes to
+  `buildLetterPdf` → `drawLetterhead` (logo + firm name centered, address beneath). Vector fallback if missing.
+- **Helpers** `src/lib/doc-format.js`: `longDateOnly`, `todayIso`, `parseBodyBlocks`, `wrapText` — 43 tests green.
+- **#4 done** — added vertical space between the recipient block and the `Reference:` line.
+- **Print-only/not-persisted v1** — letters aren't saved to DB (download the PDF). Bldg-dept address is manual
+  (external) — a remembered municipality directory is a nice later add.
+- **Ray to verify the logo renders** on the deployed letter (this was the reason for the deploy).
 
 ### ▶ NEXT — Proposal generator (bigger), then AI auto-fill
 - **Decision locked:** manual fill-in first, **Claude AI drafting as a fast follow** (read `claude-api` skill —

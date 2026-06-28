@@ -1,6 +1,10 @@
 // Document formatting helpers for the letter/proposal generators.
 import { describe, it, expect } from 'vitest';
-import { longDateOnly, todayIso, parseBodyBlocks } from '../src/lib/doc-format.js';
+import { longDateOnly, todayIso, parseBodyBlocks, wrapText } from '../src/lib/doc-format.js';
+
+// Fake measurer: every character is 1 unit wide (incl. spaces) — lets us assert
+// wrapping deterministically without a real font.
+const charWidth = (s) => s.length;
 
 describe('longDateOnly (house style: "January 26, 2026")', () => {
   it('formats a YYYY-MM-DD date in local time with full month', () => {
@@ -50,5 +54,25 @@ describe('parseBodyBlocks (letter body → bullets + paragraphs)', () => {
   it('returns an empty array for empty input', () => {
     expect(parseBodyBlocks('')).toEqual([]);
     expect(parseBodyBlocks(null)).toEqual([]);
+  });
+});
+
+describe('wrapText (greedy word wrap for the PDF body)', () => {
+  it('wraps words to the max width', () => {
+    // width 10: "aaa bbb" = 7 fits; adding " ccc" = 11 > 10 → wrap
+    expect(wrapText('aaa bbb ccc', 10, charWidth)).toEqual(['aaa bbb', 'ccc']);
+  });
+
+  it('keeps an over-long single word on its own line (no mid-word split)', () => {
+    expect(wrapText('supercalifragilistic', 5, charWidth)).toEqual(['supercalifragilistic']);
+  });
+
+  it('preserves explicit newlines as separate paragraphs (blank line kept)', () => {
+    expect(wrapText('one\n\ntwo', 100, charWidth)).toEqual(['one', '', 'two']);
+  });
+
+  it('handles empty / nullish input', () => {
+    expect(wrapText('', 10, charWidth)).toEqual(['']);
+    expect(wrapText(null, 10, charWidth)).toEqual(['']);
   });
 });

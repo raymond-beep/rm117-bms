@@ -24,6 +24,7 @@
     "dotenv": "^16.4.0",
     "express": "^4.21.0",
     "googleapis": "^144.0.0",
+    "pdf-lib": "^1.17.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.0"

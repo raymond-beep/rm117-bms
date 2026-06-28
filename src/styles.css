@@ -1305,3 +1305,24 @@ input, select, textarea { font: inherit; }
   .doc-paper { max-width: none; margin: 0; border: none; border-radius: 0; box-shadow: none; padding: 0; color: #000; background: #fff; }
 }
 @page { margin: 0.75in; }
+
+/* ── Letter generator: attachments + PDF preview ───────────────────────────── */
+.tpl-gen-bar-right { display: flex; align-items: center; gap: 12px; }
+.tpl-status { font-size: 12px; color: var(--ink3); }
+.tpl-att-actions { display: flex; gap: 8px; }
+.tpl-att-btn { font: inherit; font-size: 12px; font-weight: 600; color: var(--accent-ink); background: var(--accent-soft); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 12px; cursor: pointer; }
+.tpl-att-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tpl-att-item { display: flex; align-items: center; gap: 8px; background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 12px; }
+.tpl-att-kind { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; color: var(--ink3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; flex: none; }
+.tpl-att-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.tpl-att-ctrls { display: flex; gap: 2px; flex: none; }
+.tpl-att-ctrls button { font: inherit; font-size: 12px; line-height: 1; color: var(--ink2); background: transparent; border: 1px solid var(--border); border-radius: 5px; width: 24px; height: 24px; cursor: pointer; }
+.tpl-att-ctrls button:disabled { opacity: 0.35; cursor: default; }
+.tpl-att-ctrls button.danger { color: #c0392b; }
+
+.tpl-pdf-frame { width: 100%; height: calc(100vh - 190px); min-height: 520px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--inset); }
+.tpl-pdf-empty { display: flex; align-items: center; justify-content: center; height: 60vh; color: var(--ink3); font-size: 13px; }
+
+@media (max-width: 880px) {
+  .tpl-pdf-frame { height: 70vh; }
+}

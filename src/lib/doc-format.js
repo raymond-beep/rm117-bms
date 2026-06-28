@@ -22,6 +22,25 @@ export function todayIso() {
   return `${n.getFullYear()}-${mm}-${dd}`;
 }
 
+// Greedy word-wrap to a max width. `measure(str)` returns the rendered width of
+// a string (e.g. font.widthOfTextAtSize) — injected so this stays pure/testable.
+// A single word wider than maxWidth is kept on its own line (not split).
+export function wrapText(text, maxWidth, measure) {
+  const lines = [];
+  for (const paragraph of String(text ?? '').split('\n')) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (words.length === 0) { lines.push(''); continue; }
+    let cur = '';
+    for (const w of words) {
+      const candidate = cur ? `${cur} ${w}` : w;
+      if (!cur || measure(candidate) <= maxWidth) cur = candidate;
+      else { lines.push(cur); cur = w; }
+    }
+    if (cur) lines.push(cur);
+  }
+  return lines;
+}
+
 // Turn a free-text letter body into rendered blocks. Lines beginning with "-" or
 // "•" group into a bullet list; blank lines break a group; everything else is a
 // paragraph. Matches the RM117 letter style (a few bullets + a closing paragraph).
