@@ -1,20 +1,33 @@
 # RM117 BMS — Next Session Start Here
 **Last updated:** 2026-06-28 (end of session)
 
-## ⭐ START HERE NEXT
-- **Repo state:** Drive-delivery feature DONE + **VERIFIED working live (local)** + cleaned up; tests/build green
-  (50 Vitest). **NOT yet committed** as of this writing (confirm `git status`) — Ray was holding the commit until a
-  real upload was tested; **that test passed**, so committing is the natural next step (ask Ray). Live deploy still
-  `0920ab7`. Workflow = `git push origin main` (test gate, auto-deploy). **The Drive role was granted** — the
-  service account is now **Content manager** on the Shared Drive (write works).
-- **▶ FIRST THING — commit + push the Drive-delivery feature, then apply migration `0005` in Supabase.**
-  - Migration `supabase/migrations/0005_file_records_proposal_folder.sql` adds `'proposal'` to the
-    `file_records.folder` check — **needed before a proposal delivery logs** (letters already work without it).
-  - After deploy, sanity-check on prod: `/templates/letter`, pick a real job, **Send to Files Sent**, confirm the
-    PDF lands + a `file_records` row appears.
-- **Then:** review feedback on letter/proposal output vs the 3 samples; or backlog (Field Notes polish / ROADMAP).
-- **Blocked / parked:** QBO two-way sync (Intuit prod creds), Clerk dev→prod (pre-launch), portal-via-Wix (DNS).
-- **What shipped 2026-06-28 — "Send to Drive" delivery (built + verified live local):**
+## ⭐ START HERE NEXT (planned 2026-06-28 for the next session)
+- **Repo state:** clean + in sync with origin. Live = commit `704a93a` (latest). Workflow = `git push origin main`
+  (test gate runs 50 Vitest, then auto-deploys). Everything below this session is shipped + verified live.
+- **▶ PRIMARY TASK — QuickBooks two-way sync, Intuit production unlock.** A full step-by-step plan + checklist
+  lives in **`QBO_INTUIT_PLAN.md`** (read it first). The immediate, do-able piece (small Claude budget, no Intuit
+  creds needed): **draft the EULA + Privacy Policy** as `public/privacy.html` + `public/terms.html` — Ray confirmed
+  he has **neither** today, and Intuit's production checklist requires both as public URLs. Before drafting, Claude
+  needs the answers in the plan's "What Claude needs to generate the legal docs" section (entity name, contact
+  email, internal-only?, sub-processor disclosure OK). The big sync **build** (Phase E) is gated on Intuit creds —
+  save it for a fresh budget.
+- **OTHER THINGS Ray can also work on this session (not blocked):**
+  - Review/sign-off on letter + proposal output with **Angelena** (Ray already eyeballed; her review is the last gate).
+  - Backlog: Field Notes site-report polish, or anything from `ROADMAP.md` (website redesign, etc.).
+- **Blocked / parked:** QBO two-way sync **build** (Intuit prod creds — see `QBO_INTUIT_PLAN.md`), Clerk dev→prod
+  (pre-launch), portal-via-Wix (DNS).
+- **What shipped 2026-06-28 — Drive delivery + proposal/letter formatting (all SHIPPED + LIVE):**
+  - **"Send to Drive"** (commit `2d0e5a4`): staff-gated `api/deliver.js` files a generated letter→**Files Sent** /
+    proposal→**Proposal** Drive folder + logs to `file_records`. Drive SA is now **Content manager** (write works,
+    create-only scope `drive.readonly`+`drive.file`). Migration `0005` applied. **Production-verified** via a real
+    UI send on job `26_042_Gonzalez` (PDF landed + row written; cleaned up). Filenames
+    `Building Department Letter MM.DD.YY.pdf` / `Proposal MM.DD.YY.pdf` (`dotDate`), no-overwrite ` (2)` suffix.
+  - **Proposal/letter PDF formatting** (commit `704a93a`): matched the firm's 3 sample proposals — **letterhead on
+    every page**, **signatures kept together**, **fee titles underlined + exclusion titles bold** (new `richText`
+    inline writer), **two-column deliverables**, tightened spacing → **3-page** proposal. Verified vs the Knapp
+    sample. 50 tests green. (Caveat for a future "unsend": hand-deleting a delivered Drive PDF leaves a stale
+    `file_records` row.)
+- **(archived) What shipped earlier 2026-06-28 — "Send to Drive" delivery detail:**
   - `api/_lib/google-drive.js`: scope widened to `drive.readonly` + `drive.file` (least-privilege read + create-only
     write — **cannot edit/delete existing firm files**); added `uploadToFolder()` (create-only) + generalized
     `resolveSubfolderId` → `resolveFilesSentFolderId` / `resolveProposalFolderId`.
