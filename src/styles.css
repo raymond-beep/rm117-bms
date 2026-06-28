@@ -1346,3 +1346,6 @@ input, select, textarea { font: inherit; }
 .tpl-phase-title { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13px; font-weight: 600; color: var(--ink); background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 5px 7px; }
 .tpl-phase-area { font: inherit; font-size: 13px; color: var(--ink); background: var(--panel); border: 1px solid var(--border); border-radius: 5px; padding: 6px 8px; width: 100%; resize: vertical; line-height: 1.45; }
 .tpl-x { flex: none; font: inherit; font-size: 12px; color: #c0392b; background: transparent; border: 1px solid var(--border); border-radius: 5px; width: 26px; height: 26px; cursor: pointer; }
+
+/* Saved-proposal toolbar */
+.tpl-open { font: inherit; font-size: 12px; color: var(--ink); background: var(--inset); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; max-width: 200px; }

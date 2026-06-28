@@ -47,6 +47,12 @@ export default function ProposalGenerator() {
   const [attachments, setAttachments] = useState([]);
   const [logo, setLogo] = useState(null);
 
+  const [currentId, setCurrentId] = useState(null);
+  const [status, setStatus] = useState('draft');
+  const [saved, setSaved] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+
   const [pdfUrl, setPdfUrl] = useState(null);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState(null);
@@ -60,12 +66,17 @@ export default function ProposalGenerator() {
       .then(({ jobs }) => alive && setJobs((jobs || []).slice().sort((a, b) => (a.job_id || '').localeCompare(b.job_id || ''))))
       .catch(() => alive && setJobs([]));
     loadTrimmedLogo().then((l) => alive && setLogo(l)).catch(() => {});
+    refreshSaved();
     return () => { alive = false; };
   }, []);
+
+  const refreshSaved = () => apiFetch('/api/proposals').then((r) => r.json())
+    .then((d) => setSaved(d.proposals || [])).catch(() => {});
 
   const total = fees.filter((f) => f.included).reduce((s, f) => s + (Number(f.amount) || 0), 0);
 
   useEffect(() => {
+    setSavedMsg('');
     const t = setTimeout(async () => {
       setBuilding(true); setError(null);
       try {
@@ -105,6 +116,63 @@ export default function ProposalGenerator() {
       setGreeting((prev) => prev || job.client_name.split(/\s+/)[0]);
       setTitle((prev) => prev || job.client_name.toUpperCase());
     }
+  };
+
+  // ── Save / reopen (fields-only; attachments + PDF are not persisted) ──
+  const collectForm = () => ({ jobId, date, label, title, projectType, projectAddress, attn, reSubject, greeting, intro, projectSummary, phases, fees, addl, clientSigners });
+  const applyForm = (c = {}) => {
+    setDate(c.date || todayIso()); setLabel(c.label || 'Proposal'); setTitle(c.title || '');
+    setProjectType(c.projectType || 'Addition / Renovation'); setProjectAddress(c.projectAddress || '');
+    setAttn(c.attn || ''); setReSubject(c.reSubject || DEFAULT_RE); setGreeting(c.greeting || '');
+    setIntro(c.intro || DEFAULT_INTRO); setProjectSummary(c.projectSummary || '');
+    setPhases(Array.isArray(c.phases) && c.phases.length ? c.phases : seedPhases());
+    setFees(Array.isArray(c.fees) && c.fees.length ? c.fees : DEFAULT_FEE_ITEMS.map((f) => ({ ...f, included: DEFAULT_FEE_INCLUDE[f.key] })));
+    setAddl(Array.isArray(c.addl) ? c.addl : []);
+    setClientSigners(c.clientSigners || '');
+  };
+
+  const save = async () => {
+    setSaving(true); setError(null);
+    try {
+      const r = await apiFetch('/api/proposals', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentId, job_id: jobId || null, status, content: collectForm() }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Save failed');
+      setCurrentId(d.proposal.id);
+      setSavedMsg('Saved ✓');
+      refreshSaved();
+    } catch (e) { setError(e.message); } finally { setSaving(false); }
+  };
+
+  const openSaved = async (id) => {
+    if (!id) return;
+    setError(null);
+    try {
+      const r = await apiFetch(`/api/proposals?id=${id}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not open proposal');
+      applyForm(d.proposal.content || {});
+      setCurrentId(d.proposal.id);
+      setStatus(d.proposal.status || 'draft');
+      setJobId(d.proposal.job_id || '');
+      setAttachments([]);
+    } catch (e) { setError(e.message); }
+  };
+
+  const newProposal = () => { applyForm({}); setJobId(''); setStatus('draft'); setCurrentId(null); setAttachments([]); };
+
+  const deleteSaved = async () => {
+    if (!currentId || !window.confirm('Delete this saved proposal? This cannot be undone.')) return;
+    try {
+      const r = await apiFetch('/api/proposals', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: currentId }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Delete failed'); }
+      newProposal(); refreshSaved();
+    } catch (e) { setError(e.message); }
   };
 
   const setPhase = (id, patch) => setPhases((p) => p.map((ph) => (ph.id === id ? { ...ph, ...patch } : ph)));
@@ -148,7 +216,15 @@ export default function ProposalGenerator() {
       <div className="tpl-gen-bar">
         <Link to="/templates" className="fn-link">← Templates</Link>
         <div className="tpl-gen-bar-right">
+          <select className="tpl-open" value="" onChange={(e) => { openSaved(e.target.value); e.target.value = ''; }}>
+            <option value="">Open saved…</option>
+            {saved.map((s) => <option key={s.id} value={s.id}>{s.title}{s.status !== 'draft' ? ` (${s.status})` : ''}</option>)}
+          </select>
+          <button className="sr-btn ghost" onClick={newProposal}>New</button>
+          {currentId && <button className="sr-btn ghost" onClick={deleteSaved}>Delete</button>}
+          {savedMsg && <span className="tpl-status">{savedMsg}</span>}
           {building && <span className="tpl-status">Building…</span>}
+          <button className="sr-btn" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
           <button className="sr-btn" onClick={download} disabled={!pdfUrl}>Download PDF</button>
         </div>
       </div>
@@ -170,6 +246,11 @@ export default function ProposalGenerator() {
             <label className="tpl-field"><span>Label</span>
               <select value={label} onChange={(e) => setLabel(e.target.value)}>
                 <option>Proposal</option><option>Revised Proposal</option>
+              </select>
+            </label>
+            <label className="tpl-field"><span>Status</span>
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="draft">draft</option><option value="sent">sent</option><option value="signed">signed</option>
               </select>
             </label>
           </div>
@@ -232,6 +313,7 @@ export default function ProposalGenerator() {
           <div className="tpl-note">Thomas Dores, RA and Angelena Hreczny are added as signers automatically.</div>
 
           <div className="tpl-field-group">Attachments / extra pages</div>
+          <div className="tpl-note">Attachments aren’t saved with the proposal — re-add them when you reopen.</div>
           <div className="tpl-att-actions">
             <button type="button" className="tpl-att-btn" onClick={() => imgInputRef.current?.click()}>+ Image</button>
             <button type="button" className="tpl-att-btn" onClick={() => pdfInputRef.current?.click()}>+ Reference PDF</button>

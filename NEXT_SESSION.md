@@ -24,10 +24,11 @@ samples (scope phases + deliverables, 10 exclusions, payment/meeting notes, bind
   toggles + meetings field.
 - **AI auto-fill = DROPPED for now** (Ang doesn't want to pay for an API key just for proposals; the editable
   scope removes the need). Revisit only if they ask. No `anthropic` dep added.
-- **NOT YET: persistence.** Proposals are download-only (not saved). Explained to Ray = a Save button writing
-  form state to the `proposals` table (job_id, content jsonb, status draft|sent|signed) so they can reopen/
-  revise/re-print. **Ray deciding whether he wants it** — next step if yes: `api/proposals.js` (staff-gated
-  GET/POST) + save/list/reopen in the editor.
+- **Persistence DONE (fields-only).** `api/proposals.js` (staff-gated GET list / GET ?id / POST create+update /
+  DELETE) saves the form state into `proposals.content` jsonb — no files, no extra cost (Supabase Pro, tiny text
+  rows). Migration `0003`: `job_id` made nullable (proposals precede jobs) + added `updated_at`. Editor has
+  **Open saved… / New / Save / Delete** + a status field (draft|sent|signed). Attachments are NOT persisted
+  (re-add on reopen; the PDF regenerates from saved fields). Registered in `server.js`.
 - **Ray (+ Ang) to review the proposal output** against the 3 samples (KUHN/Knapp/Troy) and flag tweaks.
 
 ---
