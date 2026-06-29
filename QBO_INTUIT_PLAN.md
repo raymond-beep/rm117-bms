@@ -1,7 +1,21 @@
 # QuickBooks Two-Way Sync — Intuit Production Plan & Checklist
 
-**Created:** 2026-06-28 · **Owner:** Ray · **Status:** Not started — blocked on Intuit production
-credentials (a Ray/Angelena/Tom action, costs no Claude usage to prep).
+**Created:** 2026-06-28 · **Owner:** Ray · **Status:** IN PROGRESS — Phase B (legal docs) DONE & LIVE
+(2026-06-29). Next = Phase C (Ray applies for Intuit production keys using the live URLs below).
+
+### ✅ DONE 2026-06-29
+- **Decisions:** legal/privacy contact = **raymond@rm117.com**; app scope described as an **internal firm tool**
+  (staff-only; connects to the firm's own QuickBooks). Entity = "Room 117 Architecture & Design LLC", address
+  836 Galloping Hill Road, Roselle Park, NJ 07204, phone 908.451.4633.
+- **Phase B — legal docs LIVE** (commit `5d35b45`). Static public pages, served ahead of the SPA catch-all
+  (Vercel serves real files before `rewrites`):
+  - **Privacy Policy:** https://rm117-bms.vercel.app/privacy.html  (HTTP 200, public, no login)
+  - **Terms of Service:** https://rm117-bms.vercel.app/terms.html  (HTTP 200, public, no login)
+  - QuickBooks data-handling disclosed (customers + invoices; `com.intuit.quickbooks.accounting` scope only).
+- **Verified:** session is connected to the real company via the Intuit MCP — `company_info` returned
+  "Room 117 Architecture & Design LLC" (industry 541490). Confirms Realm `193514517070094` is reachable.
+- **Sent to Ray:** copy-paste messages for Angelena (entity name/address, authorize app to read/write QBO,
+  OK to create real invoices) and Tom (review legal docs / lawyer?, security-questionnaire input).
 
 ## Goal
 Move the **RM117 App** on developer.intuit.com from **IN DEVELOPMENT** → **production credentials**,
@@ -78,10 +92,10 @@ With creds live (`hasQbo()` → true), the parked code wakes up. Work:
 - [ ] [Ray] Confirm app is **internal / single-company** (not published to other firms) — affects both
       the legal docs and the Intuit review path
 
-**Phase B — legal docs**
-- [ ] [Claude] Draft `public/privacy.html` + `public/terms.html` (boilerplate tailored to the app's data)
-- [ ] [Ray + Tom] Review wording (optional lawyer check)
-- [ ] [Claude] Commit + push → confirm both URLs load publicly (no login)
+**Phase B — legal docs** ✅ DONE 2026-06-29 (commit `5d35b45`)
+- [x] [Claude] Draft `public/privacy.html` + `public/terms.html` (boilerplate tailored to the app's data)
+- [ ] [Ray + Tom] Review wording (optional lawyer check) — pages are LIVE; review in parallel, amend anytime
+- [x] [Claude] Commit + push → confirmed both URLs load publicly (HTTP 200, no login)
 
 **Phase C — Intuit production keys**
 - [ ] [Ray] developer.intuit.com → RM117 App → "Get production keys" / Keys and credentials → Production
