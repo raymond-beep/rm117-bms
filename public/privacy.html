@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="index,follow" />
+  <title>Privacy Policy — Room 117 Architecture &amp; Design LLC</title>
+  <style>
+    :root { --ink: #1c1c1c; --muted: #5a5a5a; --rule: #e2e0db; --accent: #8a7a5c; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink); background: #faf9f6; line-height: 1.65;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 56px 24px 96px; }
+    header { border-bottom: 2px solid var(--accent); padding-bottom: 20px; margin-bottom: 32px; }
+    .firm { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+    h1 { font-size: 30px; margin: 0 0 6px; font-weight: 600; }
+    .eff { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
+    h2 { font-size: 19px; margin: 36px 0 10px; font-weight: 600; }
+    h3 { font-size: 16px; margin: 22px 0 6px; font-weight: 600; }
+    p, li { font-size: 16px; color: var(--ink); }
+    ul { padding-left: 22px; }
+    li { margin: 6px 0; }
+    a { color: var(--accent); }
+    .note { background: #f1efe8; border-left: 3px solid var(--accent); padding: 14px 18px; margin: 24px 0; font-size: 15px; }
+    table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 15px; }
+    th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 14px; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <p class="firm">Room 117 Architecture &amp; Design LLC</p>
+      <h1>Privacy Policy</h1>
+      <p class="eff">Effective date: June 29, 2026</p>
+    </header>
+
+    <p>
+      This Privacy Policy describes how Room 117 Architecture &amp; Design LLC (&ldquo;Room 117,&rdquo;
+      &ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;) collects, uses, and protects information in
+      connection with our internal business-management application (the &ldquo;App&rdquo;). The App is a
+      private tool used by Room 117 staff to manage the firm&rsquo;s architectural-design projects, client
+      records, documents, and billing.
+    </p>
+
+    <div class="note">
+      The App is an <strong>internal tool for Room 117 staff</strong>. It is not a public consumer service.
+      It connects to systems the firm already uses &mdash; including the firm&rsquo;s own QuickBooks Online
+      account &mdash; to keep project and billing information in sync.
+    </div>
+
+    <h2>1. Information we process</h2>
+    <p>In the course of running the firm&rsquo;s operations, the App processes:</p>
+    <ul>
+      <li><strong>Project &amp; client information</strong> — job records, project addresses, phase/status,
+        and the contact details of the firm&rsquo;s clients (name, email, phone, company).</li>
+      <li><strong>Billing &amp; payment records</strong> — contract values, invoices, payments, and amounts
+        outstanding.</li>
+      <li><strong>Documents</strong> — proposals, building-department letters, and project files stored in the
+        firm&rsquo;s Google Drive.</li>
+      <li><strong>Field notes</strong> — on-site notes, photos, voice memos, and location captured by staff.</li>
+      <li><strong>Staff account information</strong> — the email address and authentication identifiers of
+        Room 117 staff who sign in.</li>
+      <li><strong>Accounting data from QuickBooks Online</strong> — see Section 2.</li>
+    </ul>
+
+    <h2>2. QuickBooks Online data</h2>
+    <p>
+      With the firm&rsquo;s authorization, the App connects to Room 117&rsquo;s QuickBooks Online company to
+      keep job billing synchronized. Specifically, the App may:
+    </p>
+    <ul>
+      <li>Read and create <strong>customers</strong> and <strong>invoices</strong> that correspond to the
+        firm&rsquo;s jobs;</li>
+      <li>Read invoice and <strong>payment</strong> status to reconcile what has been billed and received.</li>
+    </ul>
+    <p>
+      We request only the <code>com.intuit.quickbooks.accounting</code> scope, and we use this data solely to
+      synchronize Room 117&rsquo;s own job and billing records with the firm&rsquo;s own QuickBooks company.
+      We do <strong>not</strong> sell QuickBooks data, use it for advertising, or share it with any third party
+      except the service providers listed in Section 5 that are necessary to operate the App. If the firm
+      disconnects the App from QuickBooks, the App stops accessing QuickBooks data.
+    </p>
+
+    <h2>3. How we use information</h2>
+    <ul>
+      <li>To operate the firm&rsquo;s project, document, and billing workflows;</li>
+      <li>To create and reconcile invoices and payments with QuickBooks;</li>
+      <li>To authenticate staff and secure access to firm data;</li>
+      <li>To maintain, troubleshoot, and improve the App.</li>
+    </ul>
+    <p>We do not use this information for advertising and we do not sell it.</p>
+
+    <h2>4. How we protect information</h2>
+    <ul>
+      <li><strong>In transit:</strong> all traffic is encrypted using HTTPS/TLS.</li>
+      <li><strong>At rest:</strong> data is stored with providers that encrypt data at rest by default.</li>
+      <li><strong>Access control:</strong> only authenticated Room 117 staff can access firm data; access is
+        gated on every internal request. Clients of the firm do not access the App&rsquo;s internal data.</li>
+      <li><strong>Secrets:</strong> credentials and API keys are stored as server-side environment variables
+        and are never exposed to the browser or committed to source control.</li>
+    </ul>
+
+    <h2>5. Service providers (sub-processors)</h2>
+    <p>The App relies on the following providers to function. Each processes data only as needed to provide its service:</p>
+    <table>
+      <tr><th>Provider</th><th>Purpose</th></tr>
+      <tr><td>Supabase</td><td>Application database (project, client, and billing records)</td></tr>
+      <tr><td>Vercel</td><td>Application hosting</td></tr>
+      <tr><td>Clerk</td><td>Staff authentication</td></tr>
+      <tr><td>Google (Drive &amp; Calendar)</td><td>Document storage and calendar</td></tr>
+      <tr><td>Resend</td><td>Transactional email</td></tr>
+      <tr><td>Intuit / QuickBooks Online</td><td>Accounting and invoicing</td></tr>
+    </table>
+
+    <h2>6. Data retention</h2>
+    <p>
+      We retain business records for as long as needed to run the firm and meet our legal, tax, and accounting
+      obligations. QuickBooks remains the firm&rsquo;s system of record for accounting data and is governed by
+      Intuit&rsquo;s own terms and privacy policy.
+    </p>
+
+    <h2>7. Your choices and rights</h2>
+    <p>
+      Because the App is an internal firm tool, the people whose information appears in it are primarily the
+      firm&rsquo;s clients and staff. If you believe Room 117 holds information about you and you wish to access,
+      correct, or delete it, contact us using the details below and we will respond consistent with applicable law.
+    </p>
+
+    <h2>8. Children&rsquo;s privacy</h2>
+    <p>The App is a business tool and is not directed to children under 13, and we do not knowingly collect their information.</p>
+
+    <h2>9. Changes to this policy</h2>
+    <p>
+      We may update this Privacy Policy from time to time. We will revise the effective date above when we do, and
+      material changes will be reflected on this page.
+    </p>
+
+    <h2>10. Contact us</h2>
+    <p>
+      Room 117 Architecture &amp; Design LLC<br />
+      836 Galloping Hill Road, Roselle Park, NJ 07204<br />
+      Email: <a href="mailto:raymond@rm117.com">raymond@rm117.com</a><br />
+      Phone: 908.451.4633
+    </p>
+
+    <footer>
+      &copy; 2026 Room 117 Architecture &amp; Design LLC. &middot;
+      <a href="/terms.html">Terms of Service</a>
+    </footer>
+  </div>
+</body>
+</html>
