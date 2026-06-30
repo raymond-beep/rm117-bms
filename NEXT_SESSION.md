@@ -2,6 +2,15 @@
 **Last updated:** 2026-06-29 (end of session)
 
 ## ⭐ START HERE NEXT (2026-06-29)
+- **🎯 NORTH STAR (Ray, 2026-06-29) — the Job ID is the connective tissue; "New Job" provisions everything.**
+  Ang's whole ask: creating a job should automatically set up everything it needs, all linked by the one Job ID
+  (`YY_NNN_[FF_]LastName`): (1) the app/Supabase job record ✅ *(today)*; (2) the **Google Drive job folder +
+  subfolders** (Files Sent / Files Received / Proposal) — auto-created; (3) the **QuickBooks customer**
+  (Display Name = Job ID) — auto-created so billing tracks against it. Goal = centralize, everything connects.
+  **Drive auto-folder = buildable NOW** (write access exists; add a `createFolder` + provision step to
+  `api/jobs/create.js`; verify the `drive.file` scope can create a folder under an existing archive parent —
+  if not, may need the broader `drive` scope). **QBO auto-customer = Phase E** (parked `findOrCreateCustomer`,
+  blocked on Intuit creds). Build the Drive half independently; snap in the QBO half when keys land.
 - **Repo state:** clean + in sync with origin. Workflow = `git push origin main` (test gate runs Vitest, then
   auto-deploys). Today's pushes: `5d35b45` (legal docs live), `331393e` (QBO Phase C record).
 - **▶ QBO TWO-WAY SYNC — WAITING ON INTUIT.** Phases B + C are **DONE & SUBMITTED** (2026-06-29). The legal docs
