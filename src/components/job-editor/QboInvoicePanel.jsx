@@ -13,18 +13,27 @@ import React, { useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { money } from '../../lib/format.js';
 
-// QBO service items on the real company (by name — the API resolves the id).
-// Mirrors the catalog noted in api/_lib/qbo.js; "Custom…" lets staff type any name.
+// QBO service/non-inventory items on the real company — names must match the
+// QuickBooks catalog EXACTLY (the API resolves the id by name), so these are the
+// verbatim item names pulled from QBO (incl. their "(DP3)" / "(CA)" suffixes),
+// ordered by typical project phase. "Custom…" lets staff type any other name.
 const KNOWN_ITEMS = [
   'Project Retainer',
+  'Survey + Existing Conditions Investigation',
+  'Preliminary Design',
+  'Design Development',
+  'Design Phase I (DP1)',
+  'Design Phase II (DPII)',
+  'Design Phase III (DP3)',
   'Final Design',
-  'Design Phase III',
+  'Zoning Board of Adjustment (ZBA)',
+  'Zoning Coordination',
+  'variance package',
+  'Preliminary Construction Documents',
   'Architectural Construction Documents',
   'Final Construction Documents',
-  'Zoning Board of Adjustment',
-  'Zoning Coordination',
   'Structural Engineer Engagement',
-  'Construction Administration',
+  'Construction Administration (CA)',
   'Hours',
 ];
 
