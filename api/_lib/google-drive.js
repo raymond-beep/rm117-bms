@@ -203,11 +203,11 @@ export async function createFolder(name, parentId) {
 
 // The standard subfolder set a new job folder gets (Ray, 2026-06-29). Photos is
 // nested inside "Field Measure" rather than at the top level.
-const JOB_SUBFOLDERS = ['Files Sent', 'Files Received', 'Proposal', 'Checksets', 'Field Measure'];
+const JOB_SUBFOLDERS = ['Files Sent', 'Files Received', 'Proposal', 'Checksets', 'Field Measure', 'Archive'];
 const NESTED_SUBFOLDERS = { 'Field Measure': ['Photos'] };
 
 // Provision a brand-new job's Drive folder tree at the Shared Drive root:
-//   <Job ID>/  Files Sent · Files Received · Proposal · Checksets · Field Measure/Photos
+//   <Job ID>/  Files Sent · Files Received · Proposal · Checksets · Field Measure/Photos · Archive
 // Idempotent: if a folder for this Job ID already exists (by exact name or a
 // "<Job ID> <address>" variant) it is reused, never duplicated. Returns
 // { ok, created, folderId, filesSentId, reason? }. Best-effort by design — the
