@@ -1,5 +1,5 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-29 (end of session)
+**Last updated:** 2026-06-29 (end of session — Archive subfolder added)
 
 ## ⭐ START HERE NEXT (2026-06-29)
 - **🎯 NORTH STAR (Ray, 2026-06-29) — the Job ID is the connective tissue; "New Job" provisions everything.**
@@ -9,13 +9,15 @@
   (Display Name = Job ID) — auto-created so billing tracks against it. Goal = centralize, everything connects.
   **✅ Drive auto-folder = DONE 2026-06-29 (commit `806d929`).** Creating a job now provisions its Drive folder
   at the Shared Drive root, keyed by Job ID, with subfolders **Files Sent · Files Received · Proposal · Checksets ·
-  Field Measure (Photos nested inside Field Measure)** — Ray's chosen structure. `provisionJobFolders()` +
+  Field Measure (Photos nested inside Field Measure) · Archive** — Ray's chosen structure. (`Archive` added
+  2026-06-29, commit `53a3f8a` — NEW jobs only; missing Archive folders on existing jobs are added manually by
+  Ray, by design.) `provisionJobFolders()` +
   `createFolder()` in `google-drive.js` (idempotent: reuses an existing Job-ID folder, never duplicates), wired
   into `api/jobs/create.js` best-effort (non-fatal; persists `drive_files_sent_folder_id`). `drive.file` scope +
   Content-manager role create folders fine (verified live, then cleaned up). **QBO auto-customer = Phase E**
   (parked `findOrCreateCustomer`, blocked on Intuit creds) — snap it into the same create flow when keys land.
 - **Repo state:** clean + in sync with origin. Workflow = `git push origin main` (test gate runs Vitest, then
-  auto-deploys). Today's pushes: `5d35b45` (legal docs live), `331393e` (QBO Phase C record).
+  auto-deploys). Today's pushes: `5d35b45` (legal docs live), `331393e` (QBO Phase C record), `53a3f8a` (Archive subfolder).
 - **▶ QBO TWO-WAY SYNC — WAITING ON INTUIT.** Phases B + C are **DONE & SUBMITTED** (2026-06-29). The legal docs
   are LIVE (`/privacy.html` + `/terms.html`) and the **full Intuit production-keys application + Compliance
   questionnaire is submitted** — every answer + the reasoning is recorded in **`QBO_INTUIT_PLAN.md`** (read it).
