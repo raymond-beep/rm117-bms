@@ -1,7 +1,47 @@
 # QuickBooks Two-Way Sync — Intuit Production Plan & Checklist
 
-**Created:** 2026-06-28 · **Owner:** Ray · **Status:** IN PROGRESS — Phase B (legal docs) DONE & LIVE
-(2026-06-29). Next = Phase C (Ray applies for Intuit production keys using the live URLs below).
+**Created:** 2026-06-28 · **Owner:** Ray · **Status:** IN PROGRESS — Phases B + C DONE (2026-06-29).
+Production-keys application + full Compliance questionnaire SUBMITTED to Intuit. Now WAITING on Intuit
+review. Next = Phase D (paste production creds, build connection helper, mint refresh token) once keys issue.
+
+### ✅ DONE 2026-06-29 (Phase C — app assessment + Compliance questionnaire, all SUBMITTED)
+- **App details (100%):** EULA URL = `…/terms.html`, Privacy URL = `…/privacy.html`; host domain
+  `rm117-bms.vercel.app`; launch/disconnect/connect URLs = `https://rm117-bms.vercel.app`; category = Invoicing
+  (+ Project Management); regulated industries = **None of the above**; hosting = United States, IPs
+  216.198.79.67 + 64.29.17.67 (Vercel edge; informational for an internal app).
+- **Regulated industries — KEY FIX:** the questionnaire first showed a **Payments/Money Movement** section.
+  Removed it via Settings → Regulated industries → unchecked Payments + checked "None of the above". The app
+  is **accounting/invoicing only** (`com.intuit.quickbooks.accounting`) — it creates invoices/customers and
+  reads payment status; it does NOT process cards/ACH or move money. Angelena's "bill from the app" = invoicing
+  (Accounting API), NOT payments. (Important distinction for any future review.)
+- **Compliance questionnaire answers (as submitted):**
+  - *General:* no regulator complaints; no legal counsel engaged; confirmed security-policy compliance;
+    app facilitates a business process (syncs QBO data) = Yes; no sanctions; **no generative AI** (verified:
+    zero AI deps/usage in the app — using Claude to *build* it doesn't count).
+  - *App Information:* built from scratch (own code); platform = **Web/SaaS** (server-side API calls);
+    interacts with Intuit data = **reads + writes** (no delete); **private app**; users = **only the QBO
+    company admin who connected the app**; integrates with other platforms = **Yes** (listed Supabase, Vercel,
+    Clerk, Google, Resend).
+  - *Authorization & Auth:* tested connect/disconnect/reconnect = **No** (pre-launch, will test in build);
+    refresh tokens refreshed **only when access tokens expire**; retries failed auth = Yes; ask to reconnect
+    on auth error = Yes; used discovery doc = No (endpoint hardcoded, fine); handles expired access/refresh
+    tokens + invalid_grant + CSRF = **Yes**; relies on OAuth playground = **No** (own OAuth flow).
+  - *API Usage:* category = **Accounting API** only; frequency = **Weekly + Monthly**.
+  - *Accounting API:* versions = **all four** (Simple Start/Essentials/Plus/Advanced — uses only core
+    features); handles version changes = Yes (+ explanatory text); features used = **None** (no multicurrency,
+    no sales tax); webhooks = **No** (inbound reconcile is via Zapier, not Intuit webhooks); CDC = **No**.
+  - *Error Handling:* tested API-error handling = **No** (pre-launch); capture `intuit_tid` = **No**;
+    store errors in logs = **Yes** (Vercel function logs); in-app support contact = **No**.
+  - *Security:* breach = No; security team = No; client ID/secret stored securely (server-side env) = **Yes**;
+    **MFA = Yes** (Ray enabling Clerk MFA before submit — see below); Captcha = No; WebSocket = No; Intuit data
+    used only for the original customer = **Yes** (first option).
+- **MFA (Clerk):** answered Q4 = Yes; to make it truthful Ray is enabling **Multi-factor** in the Clerk
+  **Development** instance (the live app runs `pk_test` dev keys) — User & authentication → Multi-factor →
+  Authenticator app (TOTP) + Backup codes; recommended requiring it for staff + enrolling.
+- **BUILD COMMITMENTS captured for Phase E (from honest questionnaire answers):** (1) implement the OAuth
+  connect flow with a `state` param (CSRF) + a reconnect path; (2) add `intuit_tid` capture/logging on QBO
+  errors; (3) optionally add an in-app "Contact support" link; (4) validate connect/disconnect/reconnect +
+  API-error handling during the build (answered No = untested today).
 
 ### ✅ DONE 2026-06-29
 - **Decisions:** legal/privacy contact = **raymond@rm117.com**; app scope described as an **internal firm tool**
@@ -97,11 +137,11 @@ With creds live (`hasQbo()` → true), the parked code wakes up. Work:
 - [ ] [Ray + Tom] Review wording (optional lawyer check) — pages are LIVE; review in parallel, amend anytime
 - [x] [Claude] Commit + push → confirmed both URLs load publicly (HTTP 200, no login)
 
-**Phase C — Intuit production keys**
-- [ ] [Ray] developer.intuit.com → RM117 App → "Get production keys" / Keys and credentials → Production
-- [ ] [Ray] Fill app assessment (name, logo, host domain, launch URL, EULA URL, Privacy URL, redirect URI)
-- [ ] [Ray] Complete the **Compliance** questionnaire (use the Q&A below)
-- [ ] [Ray] Submit; wait for production keys to be issued
+**Phase C — Intuit production keys** ✅ SUBMITTED 2026-06-29 (see the detailed DONE block above)
+- [x] [Ray] developer.intuit.com → RM117 App → app assessment
+- [x] [Ray] Fill app assessment (name, host domain, launch URL, EULA URL, Privacy URL); redirect URI left for Phase D
+- [x] [Ray] Complete the **Compliance** questionnaire (all 7 sections answered)
+- [ ] [Ray] Submit (pending Clerk MFA enable) → **WAITING on Intuit review for production keys to be issued**
 
 **Phase D — credentials**
 - [ ] [Ray] Paste production `QBO_CLIENT_ID` + `QBO_CLIENT_SECRET` into `.env`
