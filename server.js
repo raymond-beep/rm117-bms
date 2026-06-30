@@ -38,6 +38,10 @@ const routes = {
   // Outbound QBO (app → QBO): create customers + invoices. Two-way sync, Stage B.
   '/api/qbo/create-customer': () => import('./api/qbo/create-customer.js'),
   '/api/qbo/create-invoice': () => import('./api/qbo/create-invoice.js'),
+  // QBO OAuth connect/reconnect (mints the seed refresh token).
+  '/api/qbo/connect': () => import('./api/qbo/connect.js'),
+  '/api/qbo/callback': () => import('./api/qbo/callback.js'),
+  '/api/qbo/status': () => import('./api/qbo/status.js'),
 };
 
 for (const [path, load] of Object.entries(routes)) {

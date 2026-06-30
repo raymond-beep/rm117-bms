@@ -1,8 +1,35 @@
 # QuickBooks Two-Way Sync — Intuit Production Plan & Checklist
 
-**Created:** 2026-06-28 · **Owner:** Ray · **Status:** IN PROGRESS — Phases B + C DONE (2026-06-29).
-Production-keys application + full Compliance questionnaire SUBMITTED to Intuit. Now WAITING on Intuit
-review. Next = Phase D (paste production creds, build connection helper, mint refresh token) once keys issue.
+**Created:** 2026-06-28 · **Owner:** Ray · **Status:** Phases B + C DONE; **Phase E build CODE DONE (2026-06-30)**.
+Intuit **issued production credentials** (verified 2026-06-30 — Production tab on Keys & Credentials shows a
+real Client ID + secret). All remaining work is now Ray-side cred-seeding + a joint smoke test.
+
+### ✅ DONE 2026-06-30 (Phase E — code, all built/tested/built-green ahead of creds)
+The parked outbound (`create-customer`, `create-invoice`) + inbound (`payments/webhook.js`) were already
+complete. Added this session:
+- **`supabase/migrations/0006_qbo_tokens.sql`** — the singleton `qbo_tokens` rotation store `qbo.js` reads.
+  ⚠️ **Apply in Supabase** (along with 0005 if not yet applied) before the app rotates tokens.
+- **OAuth connect/reconnect** — `api/_lib/qbo-oauth.js` (signed-state CSRF, authorize-URL, code exchange) +
+  `api/qbo/connect.js` (302 → Intuit; localhost-open, prod needs `?key=QBO_CONNECT_KEY`) +
+  `api/qbo/callback.js` (verify state → exchange code → persist to `qbo_tokens` → show the refresh token once).
+  This is also the **reconnect path** promised in the Compliance questionnaire.
+- **`api/qbo/status.js`** — `{ configured, env, realm }` (no secrets) so the UI flag can hide QBO until seeded.
+- **`intuit_tid` capture** on every failed QBO call (questionnaire commitment).
+- **UI:** `QboInvoicePanel.jsx` ("Send to QuickBooks" — multi-line invoice, bill-in-full or per-milestone,
+  optional email) wired into `PaymentsTab`, shown only when `/api/qbo/status` reports configured.
+- **Tests:** `tests/qbo-oauth.test.js` (state CSRF round-trip, authorize URL, redirect URI). **75 green; build OK.**
+- All routes registered in `server.js`. **NOT yet committed** — held until the live smoke test passes.
+
+### ▶ WHAT RAY DOES NEXT (Phase D — seed creds, then we smoke-test together)
+1. **Rotate** the Production client secret (it was visible in a screenshot) → copy the new one.
+2. Paste into `.env`: `QBO_CLIENT_ID`, `QBO_CLIENT_SECRET` (rotated), `QBO_REALM_ID=193514517070094`.
+3. In **Supabase**, apply migrations **0006** (and 0005 if pending).
+4. In the **Intuit app → Settings → Redirect URIs (Production)**, add BOTH:
+   `http://localhost:3001/api/qbo/callback` and `https://rm117-bms.vercel.app/api/qbo/callback`.
+5. `npm run dev`, open **http://localhost:3001/api/qbo/connect**, authorize the real company → the page
+   prints `QBO_REFRESH_TOKEN` → paste it into `.env`, restart dev.
+6. Tell Claude → joint **smoke test** (create one test invoice on a real job, verify in QBO, clean up).
+7. Add the 4 `QBO_*` keys (+ `WEBHOOK_SECRET`) to **Vercel** production env, then `git push` (test gate → deploy).
 
 ### ✅ DONE 2026-06-29 (Phase C — app assessment + Compliance questionnaire, all SUBMITTED)
 - **App details (100%):** EULA URL = `…/terms.html`, Privacy URL = `…/privacy.html`; host domain

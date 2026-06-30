@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { money, shortDate } from '../../lib/format.js';
+import QboInvoicePanel from './QboInvoicePanel.jsx';
 
 // 'qb' is reserved for the Zapier→Supabase sync; QuickBooks payments arrive
 // automatically, so the manual form only offers payments received outside QBO.
@@ -23,6 +24,7 @@ export default function PaymentsTab({ job, onLogged }) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [qboConfigured, setQboConfigured] = useState(false);
 
   async function loadPayments() {
     const res = await apiFetch(`/api/payments?job_id=${encodeURIComponent(job.job_id)}`);
@@ -30,6 +32,17 @@ export default function PaymentsTab({ job, onLogged }) {
     setPayments(data.payments || []);
   }
   useEffect(() => { loadPayments(); }, [job.job_id]);
+
+  // Feature flag: only surface the "Send to QuickBooks" controls once QBO creds
+  // are seeded. Until then the endpoint reports configured:false and we hide it.
+  useEffect(() => {
+    let alive = true;
+    apiFetch('/api/qbo/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => { if (alive && s) setQboConfigured(Boolean(s.configured)); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   const paid = (payments || []).reduce((s, p) => s + Number(p.amount || 0), 0);
 
@@ -86,6 +99,8 @@ export default function PaymentsTab({ job, onLogged }) {
             </div>
           </>
         )}
+
+        {qboConfigured && <QboInvoicePanel job={job} onInvoiced={loadPayments} />}
 
         <div className="pay-form-title">Log a payment</div>
         <div className="placeholder-note" style={{ padding: '0 0 10px' }}>

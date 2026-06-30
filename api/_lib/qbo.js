@@ -120,8 +120,11 @@ async function refreshAccessToken() {
   const text = await resp.text();
   if (!resp.ok) {
     // 400 invalid_grant here almost always means the refresh token expired or was
-    // superseded — re-mint via the Intuit OAuth playground and reseed QBO_REFRESH_TOKEN.
-    throw new Error(`QBO token refresh failed (${resp.status}): ${text}`);
+    // superseded — re-mint via /api/qbo/connect and reseed QBO_REFRESH_TOKEN.
+    // intuit_tid is Intuit's request id — captured for support/debugging (a
+    // Compliance commitment) so we can quote it when reporting an API error.
+    const tid = resp.headers.get('intuit_tid');
+    throw new Error(`QBO token refresh failed (${resp.status}${tid ? `, intuit_tid ${tid}` : ''}): ${text}`);
   }
   const json = JSON.parse(text);
 
@@ -168,7 +171,13 @@ async function qboRequest(method, path, body, { retry = true } = {}) {
   }
 
   const text = await resp.text();
-  if (!resp.ok) throw new Error(`QBO ${method} ${path} failed (${resp.status}): ${text}`);
+  if (!resp.ok) {
+    // Capture intuit_tid (Intuit's request id) on every failed API call — lets us
+    // quote it to Intuit support and ties our logs to theirs (Compliance commitment).
+    const tid = resp.headers.get('intuit_tid');
+    if (tid) console.warn(`[qbo] ${method} ${path} -> ${resp.status} intuit_tid=${tid}`);
+    throw new Error(`QBO ${method} ${path} failed (${resp.status}${tid ? `, intuit_tid ${tid}` : ''}): ${text}`);
+  }
   return text ? JSON.parse(text) : null;
 }
 
