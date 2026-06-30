@@ -369,7 +369,7 @@ export default function BmsDashboard() {
         />
       )}
       {drawer?.mode === 'create' && (
-        <NewJobDrawer onClose={() => setDrawer(null)} onCreate={createJob} />
+        <NewJobDrawer onClose={() => setDrawer(null)} onCreate={createJob} jobs={jobs} />
       )}
     </div>
   );
