@@ -188,6 +188,57 @@ export function resolveProposalFolderId(jobId) {
   );
 }
 
+// ── New-job folder provisioning ───────────────────────────────────────────────
+// Create a subfolder under a parent. Returns { id, name }. Like uploads, this
+// 403s until the service account has content-writer (Content manager) access on
+// the Shared Drive; drive.file then lets it manage the folders it creates.
+export async function createFolder(name, parentId) {
+  const { data } = await drive().files.create({
+    requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
+    fields: 'id, name',
+    supportsAllDrives: true,
+  });
+  return data;
+}
+
+// The standard subfolder set a new job folder gets (Ray, 2026-06-29). Photos is
+// nested inside "Field Measure" rather than at the top level.
+const JOB_SUBFOLDERS = ['Files Sent', 'Files Received', 'Proposal', 'Checksets', 'Field Measure'];
+const NESTED_SUBFOLDERS = { 'Field Measure': ['Photos'] };
+
+// Provision a brand-new job's Drive folder tree at the Shared Drive root:
+//   <Job ID>/  Files Sent · Files Received · Proposal · Checksets · Field Measure/Photos
+// Idempotent: if a folder for this Job ID already exists (by exact name or a
+// "<Job ID> <address>" variant) it is reused, never duplicated. Returns
+// { ok, created, folderId, filesSentId, reason? }. Best-effort by design — the
+// caller treats failure as non-fatal so job creation never depends on Drive.
+export async function provisionJobFolders(jobId) {
+  if (!hasDrive() || !jobId) return { ok: false, reason: 'no-drive' };
+  const driveId = await resolveSharedDriveId();
+  if (!driveId) return { ok: false, reason: 'no-shared-drive' };
+
+  // Reuse an existing folder for this exact Job ID (don't duplicate). Only accept
+  // an exact name or a "<Job ID>…" name — not merely the same YY_NNN number.
+  const found = await findProjectFolder(driveId, jobId);
+  if (found && (found.name === jobId || found.name.startsWith(jobId))) {
+    const filesSentId = (await listChildFolders(found.id))
+      .find((s) => s.name.trim().toLowerCase() === CLIENT_SUBFOLDER)?.id || null;
+    return { ok: true, created: false, folderId: found.id, filesSentId };
+  }
+
+  // Create the job folder at the Shared Drive root, then its subfolders.
+  const jobFolder = await createFolder(jobId, driveId);
+  const made = {};
+  for (const name of JOB_SUBFOLDERS) {
+    const sub = await createFolder(name, jobFolder.id);
+    made[name] = sub.id;
+    for (const child of NESTED_SUBFOLDERS[name] || []) {
+      await createFolder(child, sub.id);
+    }
+  }
+  return { ok: true, created: true, folderId: jobFolder.id, filesSentId: made['Files Sent'] || null };
+}
+
 // Upload bytes as a NEW file into a Drive folder (always creates; the caller picks
 // a non-colliding name). Returns { id, name, webViewLink }.
 // 403s until the service account has content-writer access on the Shared Drive.

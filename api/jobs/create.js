@@ -3,6 +3,7 @@
 // the shared key across Drive, QBO, and Supabase.
 import { getDb, hasDb, JOB_ID_RE, PHASES } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
+import { hasDrive, provisionJobFolders } from '../_lib/google-drive.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -51,7 +52,32 @@ export default async function handler(req, res) {
       }
       throw error;
     }
-    res.status(201).json({ source: 'supabase', persisted: true, job: data });
+
+    // Best-effort: provision the job's Drive folder tree (keyed by Job ID) and
+    // persist its "Files Sent" id for the portal vault. Non-fatal — a Drive
+    // hiccup must never fail job creation; the self-heal can map it later.
+    let drive = null;
+    if (hasDrive()) {
+      try {
+        const prov = await provisionJobFolders(job_id);
+        if (prov.ok) {
+          drive = { created: prov.created, folderId: prov.folderId };
+          if (prov.filesSentId) {
+            await db.from('jobs')
+              .update({ drive_files_sent_folder_id: prov.filesSentId })
+              .eq('job_id', job_id);
+            data.drive_files_sent_folder_id = prov.filesSentId;
+          }
+        } else {
+          drive = { error: prov.reason };
+        }
+      } catch (e) {
+        console.warn('[api/jobs/create] Drive provisioning failed (job still created):', e.message);
+        drive = { error: e.message };
+      }
+    }
+
+    res.status(201).json({ source: 'supabase', persisted: true, job: data, drive });
   } catch (err) {
     console.error('[api/jobs/create]', err);
     res.status(500).json({ error: err.message });
