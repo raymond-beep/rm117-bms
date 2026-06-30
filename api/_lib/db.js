@@ -21,7 +21,9 @@ export function getDb() {
 }
 
 // Job ID format: YY_NNN_[FF_]LastName — must match the QBO Customer Display Name.
-export const JOB_ID_RE = /^\d{2}_\d{3}_(FF_)?\S+$/;
+// The name part may contain internal spaces (real Job IDs / QBO customer names do,
+// e.g. "26_011_Kuhn_352 Amherst"), but not lead or trail with whitespace.
+export const JOB_ID_RE = /^\d{2}_\d{3}_(FF_)?\S(.*\S)?$/;
 
 // Single phase field, Ang's vocabulary (see SCHEMA.md).
 export const PHASES = [

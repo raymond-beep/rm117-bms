@@ -43,10 +43,19 @@ describe('JOB_ID_RE — Job ID must match the QBO Customer Display Name format',
     expect(JOB_ID_RE.test('26_032_FF_Williams')).toBe(true);
   });
 
+  it('accepts ids with internal spaces (real Job IDs / QBO names have them)', () => {
+    expect(JOB_ID_RE.test('26_011_Kuhn_352 Amherst')).toBe(true);
+    expect(JOB_ID_RE.test('26_030_Rodriguez_1 Knapp Ave')).toBe(true);
+    expect(JOB_ID_RE.test('24_008_Dunn Fritchey')).toBe(true);
+    expect(JOB_ID_RE.test('24_074_Madden_Mantoloking*')).toBe(true);
+  });
+
   it('rejects malformed ids', () => {
     expect(JOB_ID_RE.test('2_11_Kuhn')).toBe(false);    // year/number wrong width
     expect(JOB_ID_RE.test('26-011-Kuhn')).toBe(false);  // wrong separators
     expect(JOB_ID_RE.test('Kuhn')).toBe(false);         // no id prefix
     expect(JOB_ID_RE.test('')).toBe(false);
+    expect(JOB_ID_RE.test('26_030_ Knapp')).toBe(false); // leading space in name
+    expect(JOB_ID_RE.test('26_030_Knapp ')).toBe(false); // trailing space
   });
 });

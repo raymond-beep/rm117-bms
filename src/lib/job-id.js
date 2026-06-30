@@ -5,7 +5,8 @@
 // sync. These are pure functions so they can be unit-tested without the DOM.
 
 // Mirror of api/_lib/db.js JOB_ID_RE (the server is the source of truth).
-export const JOB_ID_RE = /^\d{2}_\d{3}_(FF_)?\S+$/;
+// Name part may contain internal spaces (legacy/real Job IDs do), no lead/trail space.
+export const JOB_ID_RE = /^\d{2}_\d{3}_(FF_)?\S(.*\S)?$/;
 
 // Current year as a 2-digit string ('26').
 export function currentYY(now = new Date()) {
