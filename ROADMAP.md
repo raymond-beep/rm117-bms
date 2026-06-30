@@ -126,3 +126,29 @@ interior design / graphic design). This is a **multi-tenant SaaS pivot** — a v
 - QBO: which company (sandbox/prod); is the refresh token still valid.
 - Wix: who controls the rm117.com domain/DNS account.
 - Website: stay on Wix vs rebuild on Vercel.
+
+---
+
+## Financial tab — "QuickBooks inside the app" (Angelena's ask, captured 2026-06-29)
+**Goal:** give Angelena a Financial tab where she can do most of what she does in QuickBooks, without
+leaving the app — including **quarterly reports** and other accounting views. **Gated on the QBO two-way
+sync** (needs the live connection + Intuit prod creds — see `QBO_INTUIT_PLAN.md`); build after that lands.
+
+**Strategy — surface, don't rebuild.** QuickBooks stays the system of record. The Financial tab READS
+QBO's own reports via the API and pairs them with the app's job-level data (per-job billed/outstanding,
+Forefront commissions, milestone schedules) that QBO doesn't structure the same way. Far less work than
+re-implementing a ledger.
+
+**Likely sections (pick/prioritize with Ang):**
+- **Overview:** A/R outstanding (already computed), revenue YTD, billed vs collected, by phase.
+- **Quarterly reports:** P&L by quarter + export to PDF/CSV. (QBO `profit_loss` report API.)
+- **A/R aging:** who owes what and how overdue. (QBO AR-aging summary/detail.)
+- **Cash flow:** (QBO cash-flow report API.)
+- **Sales by customer / by job type / by referrer:** RM117-flavored revenue cuts.
+- **Per-job financials:** contract value, billed, outstanding, payment timeline (app already has most).
+- **Forefront commissions roll-up:** owed vs paid (the Forefront tracker, surfaced financially).
+- **Invoice controls:** create/send invoices + payment links from the job (the two-way sync UI).
+
+**Notes:** the connected Intuit QuickBooks MCP already exposes P&L, balance sheet, AR aging, cash flow,
+and sales-by-customer reports — useful to prototype the views' shape before/while the app's own QBO
+connection is built. Quarterly-report export can reuse the existing `pdf-lib` doc engine.
