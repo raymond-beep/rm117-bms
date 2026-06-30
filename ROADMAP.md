@@ -131,8 +131,11 @@ interior design / graphic design). This is a **multi-tenant SaaS pivot** — a v
 
 ## Financial tab — "QuickBooks inside the app" (Angelena's ask, captured 2026-06-29)
 **Goal:** give Angelena a Financial tab where she can do most of what she does in QuickBooks, without
-leaving the app — including **quarterly reports** and other accounting views. **Gated on the QBO two-way
-sync** (needs the live connection + Intuit prod creds — see `QBO_INTUIT_PLAN.md`); build after that lands.
+leaving the app — including **quarterly reports** and other accounting views. **✅ UNBLOCKED 2026-06-30** —
+the QBO two-way sync is live (see `QBO_INTUIT_PLAN.md`), so this is now the next big build.
+**First step:** a 10-min talk with Angelena on which numbers she reads per job daily (contract value vs
+invoiced-to-date vs paid vs outstanding) — that shapes the data model. Then pull QBO invoices/balances/
+reports into Supabase on a Vercel Cron + an on-demand "Refresh from QuickBooks".
 
 **Strategy — surface, don't rebuild.** QuickBooks stays the system of record. The Financial tab READS
 QBO's own reports via the API and pairs them with the app's job-level data (per-job billed/outstanding,
