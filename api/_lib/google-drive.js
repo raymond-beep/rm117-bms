@@ -213,6 +213,18 @@ export async function renameFolder(folderId, newName) {
   return data;
 }
 
+// Move a file/folder to the trash. drive.file scope lets the service account
+// trash items it created (e.g. a delivered PDF "unsend", or test cleanup).
+export async function trashFile(fileId) {
+  const { data } = await drive().files.update({
+    fileId,
+    requestBody: { trashed: true },
+    fields: 'id',
+    supportsAllDrives: true,
+  });
+  return data;
+}
+
 // ── New-job folder provisioning ───────────────────────────────────────────────
 // Create a subfolder under a parent. Returns { id, name }. Like uploads, this
 // 403s until the service account has content-writer (Content manager) access on
