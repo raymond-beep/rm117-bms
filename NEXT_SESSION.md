@@ -1,22 +1,25 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-28 (end of session)
+**Last updated:** 2026-06-29 (end of session)
 
-## ⭐ START HERE NEXT (planned 2026-06-28 for the next session)
-- **Repo state:** clean + in sync with origin. Live = commit `704a93a` (latest). Workflow = `git push origin main`
-  (test gate runs 50 Vitest, then auto-deploys). Everything below this session is shipped + verified live.
-- **▶ PRIMARY TASK — QuickBooks two-way sync, Intuit production unlock.** A full step-by-step plan + checklist
-  lives in **`QBO_INTUIT_PLAN.md`** (read it first). The immediate, do-able piece (small Claude budget, no Intuit
-  creds needed): **draft the EULA + Privacy Policy** as `public/privacy.html` + `public/terms.html` — Ray confirmed
-  he has **neither** today, and Intuit's production checklist requires both as public URLs. Before drafting, Claude
-  needs the answers in the plan's "What Claude needs to generate the legal docs" section (entity name, contact
-  email, internal-only?, sub-processor disclosure OK). The big sync **build** (Phase E) is gated on Intuit creds —
-  save it for a fresh budget.
-- **▶ QUEUED (Ray asked to do next session) — New-job creation quick wins.** From the user-test pass (see
-  **`USER_TEST_FINDINGS.md`** §1): build the **Job-ID builder** (auto-suggest next free `NNN` for the year +
-  assemble `YY_NNN_[FF_]LastName` from parts) + **live format validation/preview** in `NewJobDrawer.jsx`.
-  Self-contained, no schema change, no one else needed — good first build of the session. Follow-on:
-  **link a new job to a client record** (`client_id` is null today; offer pick-existing-or-create + optional
-  referrer) — **DECIDED (Ray 2026-06-28): client-linking is OPTIONAL** (don't force it).
+## ⭐ START HERE NEXT (2026-06-29)
+- **Repo state:** clean + in sync with origin. Workflow = `git push origin main` (test gate runs Vitest, then
+  auto-deploys). Today's pushes: `5d35b45` (legal docs live), `331393e` (QBO Phase C record).
+- **▶ QBO TWO-WAY SYNC — WAITING ON INTUIT.** Phases B + C are **DONE & SUBMITTED** (2026-06-29). The legal docs
+  are LIVE (`/privacy.html` + `/terms.html`) and the **full Intuit production-keys application + Compliance
+  questionnaire is submitted** — every answer + the reasoning is recorded in **`QBO_INTUIT_PLAN.md`** (read it).
+  Ray is checking the Intuit dashboard periodically; **Claude should proactively ask Ray for an Intuit status
+  update at the start of future sessions.** When production keys appear (Keys and credentials → Production):
+  **Phase D** = Ray pastes prod Client ID/Secret + `QBO_REALM_ID=193514517070094` into `.env` + Vercel → Claude
+  builds the OAuth connection helper (with `state`/CSRF + reconnect, + `intuit_tid` logging — the Phase-E build
+  commitments in the plan) → Ray clicks Authorize once (mints `QBO_REFRESH_TOKEN`) → **Phase E** = the big sync
+  build (`qbo_tokens` rotation table, outbound customer/invoice, inbound payment reconcile, per-job "Send to
+  QuickBooks" UI for pay-in-full AND per-milestone). Parked code ready in `api/_lib/qbo.js` + `api/qbo/create-*`.
+  One open Ray item: finish enabling Clerk MFA (Development instance) + hit Submit if not already done.
+- **▶ IN PROGRESS — New-job creation quick wins** (the small win while waiting on Intuit). From the user-test
+  pass (`USER_TEST_FINDINGS.md` §1): **Job-ID builder** (auto-suggest next free `NNN` for the year + assemble
+  `YY_NNN_[FF_]LastName` from parts) + **live format validation/preview** in `NewJobDrawer.jsx`. Self-contained,
+  no schema change. Follow-on: **link a new job to a client record** (`client_id` null today; offer
+  pick-existing-or-create + optional referrer) — **DECIDED (Ray 2026-06-28): client-linking is OPTIONAL.**
 - **OTHER THINGS Ray can also work on (not blocked):**
   - Review/sign-off on letter + proposal output with **Angelena** (Ray already eyeballed; her review is the last gate).
   - More user-test backlog in `USER_TEST_FINDINGS.md`: "Sent documents view + un-send" (also the document half of an
