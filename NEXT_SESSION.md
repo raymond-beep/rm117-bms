@@ -7,10 +7,13 @@
   (`YY_NNN_[FF_]LastName`): (1) the app/Supabase job record ✅ *(today)*; (2) the **Google Drive job folder +
   subfolders** (Files Sent / Files Received / Proposal) — auto-created; (3) the **QuickBooks customer**
   (Display Name = Job ID) — auto-created so billing tracks against it. Goal = centralize, everything connects.
-  **Drive auto-folder = buildable NOW** (write access exists; add a `createFolder` + provision step to
-  `api/jobs/create.js`; verify the `drive.file` scope can create a folder under an existing archive parent —
-  if not, may need the broader `drive` scope). **QBO auto-customer = Phase E** (parked `findOrCreateCustomer`,
-  blocked on Intuit creds). Build the Drive half independently; snap in the QBO half when keys land.
+  **✅ Drive auto-folder = DONE 2026-06-29 (commit `806d929`).** Creating a job now provisions its Drive folder
+  at the Shared Drive root, keyed by Job ID, with subfolders **Files Sent · Files Received · Proposal · Checksets ·
+  Field Measure (Photos nested inside Field Measure)** — Ray's chosen structure. `provisionJobFolders()` +
+  `createFolder()` in `google-drive.js` (idempotent: reuses an existing Job-ID folder, never duplicates), wired
+  into `api/jobs/create.js` best-effort (non-fatal; persists `drive_files_sent_folder_id`). `drive.file` scope +
+  Content-manager role create folders fine (verified live, then cleaned up). **QBO auto-customer = Phase E**
+  (parked `findOrCreateCustomer`, blocked on Intuit creds) — snap it into the same create flow when keys land.
 - **Repo state:** clean + in sync with origin. Workflow = `git push origin main` (test gate runs Vitest, then
   auto-deploys). Today's pushes: `5d35b45` (legal docs live), `331393e` (QBO Phase C record).
 - **▶ QBO TWO-WAY SYNC — WAITING ON INTUIT.** Phases B + C are **DONE & SUBMITTED** (2026-06-29). The legal docs
