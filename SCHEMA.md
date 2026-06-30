@@ -219,6 +219,22 @@ Internal users (Clerk-backed).
 | `is_active` | boolean | default `true` |
 | `created_at` | timestamptz | |
 
+### `qbo_tokens` (migration `0006`)
+Single-row store for the rotating QuickBooks refresh token, so local + prod share one token (QBO
+re-issues the refresh token on most refreshes). `api/_lib/qbo.js` reads this first, falling back to the
+`QBO_REFRESH_TOKEN` env seed.
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | text PK | always `'singleton'` |
+| `refresh_token` | text not null | current QBO refresh token (rotates) |
+| `realm_id` | text | connected company (`193514517070094`) |
+| `updated_at` | timestamptz | |
+
+> **Job ID rename safety (migration `0007`):** every FK that references `jobs(job_id)` (payments,
+> invoices, proposals, letters, field_notes, job_phase_events, file_records) now uses **`ON UPDATE
+> CASCADE`**, so renaming a job's id moves all its child rows atomically. This is what makes
+> `api/jobs/rename.js` (the "Correct Job ID" tool, which also renames the QBO customer + Drive folder) safe.
+
 ---
 
 ## Client-tier tables (built/used from Phase 7)

@@ -1,8 +1,30 @@
 # QuickBooks Two-Way Sync — Intuit Production Plan & Checklist
 
-**Created:** 2026-06-28 · **Owner:** Ray · **Status:** Phases B + C DONE; **Phase E build CODE DONE (2026-06-30)**.
-Intuit **issued production credentials** (verified 2026-06-30 — Production tab on Keys & Credentials shows a
-real Client ID + secret). All remaining work is now Ray-side cred-seeding + a joint smoke test.
+**Created:** 2026-06-28 · **Owner:** Ray · **Status:** ✅ **COMPLETE — QBO TWO-WAY SYNC IS LIVE (2026-06-30).**
+
+### ✅ DONE 2026-06-30 — Phases D + E shipped, live, end-to-end verified
+- **Connected to the real company** `Room 117 Architecture & Design LLC` (Realm `193514517070094`).
+- **Creds:** uses Intuit's dashboard-"Development" keys (`ABYas…`) — legit for a private single-company app
+  (they connect to the production company; verified via CompanyInfo). The "Production"-labeled keys (`AB6whTti…`)
+  are only for marketplace publishing — not used. **Minting gotcha:** the OAuth Playground's app labels are
+  INVERTED vs the dashboard — use its **"(Production)"** entry (connects to the real company); the "(Sandbox)"
+  entry hits a fake sandbox company. Refresh token minted via the Playground (accounting scope), seeded into the
+  shared `qbo_tokens` row (migration `0006`); `.env` + Vercel hold `QBO_CLIENT_ID/SECRET/REALM_ID` + `QBO_CONNECT_KEY`.
+- **Built:** `api/_lib/qbo-oauth.js` (CSRF state + exchange), `api/qbo/connect.js`/`callback.js`/`status.js`,
+  `intuit_tid` capture, `QboInvoicePanel` ("Send to QuickBooks"), `api/jobs/rename.js` + `CorrectJobIdModal`
+  (the 3-system "Correct Job ID" rename), migration `0007` (FK ON UPDATE CASCADE). Commits `b601a87`, `13c0c30`,
+  `2177307`, `e9016e5`, `86aa9c6`.
+- **Verified:** library smoke test (create→read→delete $1 invoice) + a real UI→API→QBO test on `26_042_Gonzalez`
+  (invoice #1303 created in QuickBooks, then deleted; customer kept) + a full 3-system rename test (all cleaned up).
+- **Reconciliation:** `QBO_JOBID_AUDIT.md` — most jobs already matched once spaces were allowed in Job IDs; the
+  only open item is the Dunn `24_008` duplicate pair (a data question for Ray). Inbound payments already flow via Zapier.
+- **⚠️ TODO:** rotate the `95YW…` Development secret (shown in a screenshot) — won't break the refresh token.
+- **NEXT:** the **Financial tab** (read QBO reports/balances into the app) — now unblocked. See `ROADMAP.md` + `NEXT_SESSION.md`.
+
+---
+
+#### (historical) pre-launch status
+Phases B + C were DONE; Phase E code done 2026-06-30; Intuit issued production-capable credentials.
 
 ### ✅ DONE 2026-06-30 (Phase E — code, all built/tested/built-green ahead of creds)
 The parked outbound (`create-customer`, `create-invoice`) + inbound (`payments/webhook.js`) were already

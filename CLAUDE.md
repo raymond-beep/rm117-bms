@@ -3,8 +3,11 @@
 ## What this is
 Job + client management platform for **Room 117 Architecture & Design LLC** (RM117, Ray's firm) —
 jobs, billing, payments, proposals, Forefront commissions, correspondence. **Second-gen:** Supabase
-is the source of truth; the Google Sheet is the migration seed + read-only fallback through Phase 3;
-QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
+is the source of truth; the Google Sheet is the migration seed + read-only fallback through Phase 3.
+QuickBooks is the **accounting** system of record; the app is its clean front-end via a **live two-way
+sync** (2026-06-30): the app creates QBO customers/invoices, and paid QBO invoices flow back as
+`payments`. The **Job ID is the connective tissue** — it must equal the QBO Customer Display Name and
+the Google Drive folder name exactly (the "Correct Job ID" tool renames all three together).
 
 ## Stack
 - **Frontend:** React 19 + Vite — app shell `src/rm117-app-shell-v1.jsx` hosting the BMS dashboard
@@ -42,6 +45,15 @@ QuickBooks is a payment/invoice-delivery channel, not a record-keeper.
 | `api/jobs/update.js` | POST — `saveJob()` writes job edits; stamps a `job_phase_events` row on phase change |
 | `api/clients.js` | GET list + **POST (update/create)** — client records; powers the Details-tab picker + the editable client-contact card |
 | `api/payments.js` | Payment records per job (Phase 4); webhook dedups on `qbo_invoice_id` |
+| `api/payments/webhook.js` | Inbound: Zapier POSTs here when a QBO invoice is paid → inserts a `payments` row (matched by Job ID = QBO Customer Display Name); shared-secret + idempotent |
+| `api/_lib/qbo.js` | QBO API client: OAuth refresh + token rotation (`qbo_tokens`), find/create customer, `renameCustomer`, create/send invoice, `intuit_tid` capture |
+| `api/_lib/qbo-oauth.js` | OAuth2 connect/reconnect helper — signed-state CSRF, authorize URL, code→token exchange |
+| `api/qbo/connect.js` / `callback.js` | Mint/refresh the seed refresh token (the reconnect path); connect is localhost-open, prod-gated by `QBO_CONNECT_KEY` |
+| `api/qbo/create-customer.js` / `create-invoice.js` | Outbound: find-or-create the job's QBO customer / create (+ optionally email) an invoice, mirrored to `invoices` |
+| `api/qbo/status.js` | `{configured,env,realm}` (no secrets) — the UI flag-gates the "Send to QuickBooks" panel on it |
+| `api/jobs/rename.js` | **"Correct Job ID"** — renames a job across App (cascade) + QBO customer + Drive folder together, with dry-run preview + rollback |
+| `src/components/job-editor/QboInvoicePanel.jsx` | "Send to QuickBooks" invoice UI (in PaymentsTab; shown only when QBO configured) |
+| `src/components/job-editor/CorrectJobIdModal.jsx` | Preview→retype-confirm UI for the 3-system rename (the `✎ ID` button in JobEditor) |
 | `api/phase-events.js` | GET/POST/DELETE — per-job phase-reached timeline (Progress tab) |
 | `api/field-notes.js` | GET/POST/PATCH/DELETE — on-site field notes (staff-only; author from Clerk token); GET signs attachment URLs |
 | `api/field-notes/upload.js` | POST base64 photo/voice → private `field-notes` Storage bucket; returns the storage path |
@@ -63,15 +75,21 @@ each `api/` file deploys directly as a function.
 
 ## Environment
 `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `RESEND_API_KEY` (or `POSTMARK_*`), `DOCUSIGN_*`,
-`QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_REFRESH_TOKEN`, `COMPANY_CALENDAR_ID`, plus existing
-`SHEET_ID` + Google service-account creds (for the import + Drive broker).
+`QBO_CLIENT_ID`, `QBO_CLIENT_SECRET`, `QBO_REALM_ID` (`193514517070094`), `QBO_CONNECT_KEY`
+(gates the prod `/api/qbo/connect` reconnect route), `WEBHOOK_SECRET` (inbound Zapier),
+`COMPANY_CALENDAR_ID`, plus existing `SHEET_ID` + Google service-account creds (for the import +
+Drive broker). `QBO_REFRESH_TOKEN` is optional locally — the rotating token lives in the shared
+`qbo_tokens` table (read DB-first, env seed as fallback).
 - **Use a personal Gmail for Google Cloud** — the rm117.com org's
   `iam.disableServiceAccountKeyCreation` blocks service-account key downloads.
 
 ## Data model
 Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `proposals`, `letters`,
-`templates`, `forefront_commissions`, `staff`, `job_phase_events`, `field_notes`. Client tier
+`templates`, `forefront_commissions`, `staff`, `job_phase_events`, `field_notes`, `qbo_tokens`
+(migration `0006`: singleton rotating QBO refresh token). Client tier
 (Phase 7): `clients`, `threads`, `messages`, `file_records`, `notifications`.
+- **`jobs(job_id)` FKs use `ON UPDATE CASCADE`** (migration `0007`) so a Job ID rename moves all child
+  rows atomically — this is what makes `api/jobs/rename.js` (the "Correct Job ID" tool) safe.
 - **`proposals` / `letters`** = saved document drafts (fields-only): the generator's form state in a
   `content` jsonb, `job_id` nullable (a proposal can precede its job). No files/PDFs stored — the PDF
   regenerates on reopen and attachments are re-added. (The *delivered* PDF → Drive "Files Sent" is a
@@ -102,9 +120,17 @@ Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold
 "Active" = finishing touches before completion. `phase_override` wins when set.
 
 ## Integrations
-- **QBO outbound:** app creates invoices via API; `qbo_invoice_id` links back. **QBO inbound:**
-  on a paid invoice, Zapier webhook → Supabase edge fn creates a `payments` row, matched by Job ID
-  in the QBO **Customer Display Name**.
+- **QuickBooks two-way sync — LIVE (2026-06-30).** Connected to the real company
+  `Room 117 Architecture & Design LLC` (**Realm `193514517070094`**). **Outbound:** the app creates
+  QBO customers + invoices via API (`api/qbo/create-invoice`, "Send to QuickBooks" UI); `qbo_invoice_id`
+  links back. **Inbound:** when a QBO invoice is paid, a **Zapier** zap POSTs `api/payments/webhook` →
+  inserts a `payments` row, matched by Job ID = QBO **Customer Display Name**. Both directions depend on
+  that name invariant — keep it via the new-job builder + the "Correct Job ID" tool.
+  - **Creds note:** runs on Intuit's *dashboard-labeled "Development"* keys (`ABYas…`) — for a private,
+    single-company app these legitimately connect to the **production** company. The "Production"-labeled
+    keys (`AB6whTti…`) are only for marketplace publishing; not used. Refresh token lives in the shared
+    `qbo_tokens` row (rotates); `.env` + Vercel hold `QBO_CLIENT_ID/SECRET/REALM_ID` + `QBO_CONNECT_KEY`.
+  - **TODO:** rotate the `95YW…` Development secret (was shown in a screenshot) — won't break the token.
 - **DocuSign:** proposals sent for e-signature; status tracked in `proposals`.
 - **Email bridge:** outbound notify on new portal message; inbound parse appends client replies
   to the thread (validate Resend inbound parsing before Phase 7).

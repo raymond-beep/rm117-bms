@@ -1,7 +1,47 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-29 (end of session — Archive subfolder added)
+**Last updated:** 2026-06-30 (QuickBooks two-way sync LIVE + Job-ID reconciliation + "Correct Job ID" tool)
 
-## ⭐ START HERE NEXT (2026-06-29)
+## ⭐ START HERE NEXT (2026-06-30) — QuickBooks is LIVE; next big build = the Financial tab
+- **🎉 QBO TWO-WAY SYNC IS LIVE + PROVEN END-TO-END.** Intuit creds in; connected to the real company
+  `Room 117 Architecture & Design LLC` (Realm `193514517070094`). **Outbound:** "Send to QuickBooks" on a
+  job's Payments tab creates a real QBO customer + invoice (validated via a real UI test on `26_042_Gonzalez`,
+  then cleaned up). **Inbound:** paid QBO invoices already flow back as `payments` via a Zapier zap
+  (`api/payments/webhook.js`) — fired as recently as today. Commits: `b601a87` (sync + OAuth + invoice UI),
+  `13c0c30` (exact QBO item names), `2177307` (Job-ID spaces allowed), `e9016e5` (Correct Job ID), `86aa9c6`
+  (trashFile). Migrations `0006` (qbo_tokens) + `0007` (FK cascade) applied. **Full play-by-play in project
+  memory + `QBO_INTUIT_PLAN.md`.**
+  - **Creds reality:** running on Intuit's dashboard-"Development" keys (`ABYas…`) — legit for a private
+    single-company app (they connect to the *production* company). The "Production"-labeled keys (`AB6whTti…`)
+    are only for marketplace publishing. Refresh token lives in the shared `qbo_tokens` row (rotates). Vercel
+    has `QBO_CLIENT_ID/SECRET/REALM_ID` + `QBO_CONNECT_KEY`.
+  - **⚠️ Small TODO:** rotate the `95YW…` Development client secret (was shown in a Playground screenshot) on
+    Intuit's Development tab + update `QBO_CLIENT_SECRET` in `.env` + Vercel. Won't break the refresh token.
+- **✅ Job ID ↔ QBO reconciliation — essentially done.** Audit (`QBO_JOBID_AUDIT.md`) found most "mismatches"
+  were just our too-strict format check; **relaxed `JOB_ID_RE` to allow internal spaces** (matches real
+  QBO/Drive names). Ray aligned the real ones (Rodriguez, Odunlami, Madden). **Only leftover = the Dunn pair**
+  (`24_008_Dunn Fritchey` [Craig Fritchey, completed] vs `24_008_Dunn_Fritchey` [Jeff Dunn, on_hold]) — two
+  records sharing job # `24_008`. **A data question only Ray can answer** (same job or two jobs that collided?),
+  parked on purpose. The underscore one matches QBO + syncs; the space one is completed (no harm).
+- **✅ NEW: "Correct Job ID" tool** (`✎ ID` button in JobEditor → `api/jobs/rename.js`). Renames a Job ID across
+  **App + QuickBooks customer + Drive folder together**, with a dry-run preview, retype-to-confirm, and rollback
+  on partial failure. The safe answer to "renaming in one place desyncs the three." Fully validated live
+  (throwaway create→rename→verify→delete across all three). Backed by `0007` (ON UPDATE CASCADE on jobs FKs).
+- **▶ NEXT BIG BUILD — the FINANCIAL TAB ("QuickBooks without the clutter," Angelena's ask), now UNBLOCKED.**
+  Goal: the app becomes the clean front-end so Ang relies on it over QBO's UI. Principle: **QBO stays the ledger
+  of record; the app surfaces it.** Plan (see `ROADMAP.md`): pull all QBO invoices/balances/reports into Supabase
+  on a schedule (Vercel Cron) + on-demand "Refresh from QuickBooks"; per-job billed/paid/outstanding from QBO;
+  A/R aging, P&L, quarterly reports via the QBO Reports API. **First step = a 10-min talk with Angelena:** which
+  numbers per job does she read daily (contract value vs invoiced-to-date vs paid vs outstanding)? That shapes
+  the data model. The connected Intuit QBO MCP can prototype the report shapes.
+- **Repo state:** clean + in sync with origin. Workflow unchanged: `git push origin main` → test gate (76 tests)
+  → auto-deploy. Do NOT run `vercel --prod`.
+- **Smaller follow-ups:** resolve the Dunn pair (Ray decision); auto-create the QBO customer on *new-job*
+  creation too (mirror the Drive auto-provision in `api/jobs/create.js`); wire the planned "unsend" using the
+  new `trashFile` helper.
+
+---
+
+## (history) START HERE NEXT (2026-06-29)
 - **🎯 NORTH STAR (Ray, 2026-06-29) — the Job ID is the connective tissue; "New Job" provisions everything.**
   Ang's whole ask: creating a job should automatically set up everything it needs, all linked by the one Job ID
   (`YY_NNN_[FF_]LastName`): (1) the app/Supabase job record ✅ *(today)*; (2) the **Google Drive job folder +
