@@ -212,6 +212,23 @@ export async function findOrCreateCustomer(fields) {
   return { customer, created: true };
 }
 
+// Rename a customer's DisplayName (used by the "Correct Job ID" flow to keep the
+// QBO customer name === Job ID). Sparse update so only DisplayName changes. Returns
+// { renamed:false, reason:'not-found' } if no customer currently has oldDisplayName
+// (e.g. the job was never invoiced), or throws if QBO rejects (e.g. the new name
+// already belongs to another customer — DisplayName must be unique in QBO).
+export async function renameCustomer(oldDisplayName, newDisplayName) {
+  const existing = await findCustomerByDisplayName(oldDisplayName);
+  if (!existing) return { renamed: false, reason: 'not-found' };
+  const res = await qboRequest('POST', 'customer', {
+    Id: existing.Id,
+    SyncToken: existing.SyncToken,
+    sparse: true,
+    DisplayName: newDisplayName,
+  });
+  return { renamed: true, customerId: existing.Id, customer: res?.Customer || null };
+}
+
 // ── Service catalog (line items are billed by Item Id) ────────────────────────
 // Known item ids on the real company (from live invoices, 2026-06-23):
 //   4 Final Design · 5 Architectural Construction Documents · 7 Final Construction

@@ -15,6 +15,7 @@ const routes = {
   '/api/jobs': () => import('./api/jobs.js'),
   '/api/jobs/create': () => import('./api/jobs/create.js'),
   '/api/jobs/update': () => import('./api/jobs/update.js'),
+  '/api/jobs/rename': () => import('./api/jobs/rename.js'),
   '/api/payments': () => import('./api/payments.js'),
   '/api/clients': () => import('./api/clients.js'),
   '/api/phase-events': () => import('./api/phase-events.js'),

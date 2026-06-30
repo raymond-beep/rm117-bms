@@ -6,13 +6,15 @@ import { money, shortDate, PHASE_ORDER, PHASE_LABELS } from '../../lib/format.js
 import ProgressTab from './ProgressTab.jsx';
 import PaymentsTab from './PaymentsTab.jsx';
 import MessagesTab from './MessagesTab.jsx';
+import CorrectJobIdModal from './CorrectJobIdModal.jsx';
 
 // Field tags: which fields the client sees in the portal vs internal-only.
 const PortalTag = () => <span className="tag-portal" title="Visible to the client in the portal">👁 client</span>;
 const InternalTag = () => <span className="tag-internal" title="Internal only — never shown to clients">🔒 internal</span>;
 
-export default function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
+export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRenamed }) {
   const [tab, setTab] = useState('details');
+  const [renaming, setRenaming] = useState(false);
   const [form, setForm] = useState(() => ({
     client_id: job.client_id || '',
     client_name: job.client_name || '',
@@ -107,7 +109,13 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
       <div className="drawer" role="dialog" aria-label={`Edit ${job.job_id}`}>
         <div className="drawer-head">
           <div>
-            <h2>{job.job_id}</h2>
+            <h2>
+              {job.job_id}
+              {onRenamed && (
+                <button className="btn-link-tiny" onClick={() => setRenaming(true)}
+                  title="Rename this Job ID across the app, QuickBooks, and Drive">✎ ID</button>
+              )}
+            </h2>
             <div className="sub">
               <span className="out">{money(job.outstanding)} outstanding</span> · created {shortDate(job.created_at)}
             </div>
@@ -244,6 +252,13 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged }) {
           <MessagesTab job={job} />
         )}
       </div>
+      {renaming && (
+        <CorrectJobIdModal
+          job={job}
+          onClose={() => setRenaming(false)}
+          onRenamed={() => { setRenaming(false); onRenamed?.(); }}
+        />
+      )}
     </>
   );
 }

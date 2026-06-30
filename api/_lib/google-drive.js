@@ -188,6 +188,31 @@ export function resolveProposalFolderId(jobId) {
   );
 }
 
+// ── Folder rename (for the "Correct Job ID" flow) ─────────────────────────────
+// Locate a job's Drive folder for renaming. Returns { id, name, exact } where
+// `exact` means the folder name equals the Job ID precisely (vs. a "<Job ID> 123
+// Main St" variant). The rename step only acts on an exact match, so we never
+// strip an address suffix off a folder by accident.
+export async function findJobFolder(jobId) {
+  if (!hasDrive() || !jobId) return null;
+  const driveId = await resolveSharedDriveId();
+  if (!driveId) return null;
+  const f = await findProjectFolder(driveId, jobId);
+  if (!f) return null;
+  return { id: f.id, name: f.name, exact: f.name === jobId };
+}
+
+// Rename a Drive folder. Used to keep the job folder name === Job ID.
+export async function renameFolder(folderId, newName) {
+  const { data } = await drive().files.update({
+    fileId: folderId,
+    requestBody: { name: newName },
+    fields: 'id, name',
+    supportsAllDrives: true,
+  });
+  return data;
+}
+
 // ── New-job folder provisioning ───────────────────────────────────────────────
 // Create a subfolder under a parent. Returns { id, name }. Like uploads, this
 // 403s until the service account has content-writer (Content manager) access on

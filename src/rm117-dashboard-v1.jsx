@@ -366,6 +366,7 @@ export default function BmsDashboard() {
           onClose={() => setDrawer(null)}
           onSave={saveJob}
           onPaymentLogged={loadJobs}
+          onRenamed={() => { setDrawer(null); loadJobs(); }}
         />
       )}
       {drawer?.mode === 'create' && (
