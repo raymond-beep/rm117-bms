@@ -39,7 +39,7 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 ## Key files
 | File | Purpose |
 |------|---------|
-| `src/rm117-app-shell-v1.jsx` | App shell: sidebar, dashboard, calendar, inbox, BMS at `/bms` |
+| `src/rm117-app-shell-v1.jsx` | App shell: sidebar, dashboard, calendar, inbox, BMS at `/bms`. Mobile bottom tab bar = `MOBILE_TABS` (Home · Jobs · **Financial** · Portal — Forefront is desktop-sidebar-only) |
 | `src/rm117-dashboard-v1.jsx` | BMS job dashboard — data layer being swapped Sheet→Supabase (Phase 3) |
 | `api/jobs.js` | GET /api/jobs — reads jobs from Supabase, joins each job's `client` record |
 | `api/jobs/update.js` | POST — `saveJob()` writes job edits; stamps a `job_phase_events` row on phase change |
@@ -52,7 +52,9 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `api/qbo/create-customer.js` / `create-invoice.js` | Outbound: find-or-create the job's QBO customer / create (+ optionally email) an invoice, mirrored to `invoices` |
 | `api/qbo/status.js` | `{configured,env,realm}` (no secrets) — the UI flag-gates the "Send to QuickBooks" panel on it |
 | `api/jobs/rename.js` | **"Correct Job ID"** — renames a job across App (cascade) + QBO customer + Drive folder together, with dry-run preview + rollback |
-| `src/components/job-editor/QboInvoicePanel.jsx` | "Send to QuickBooks" invoice UI (in PaymentsTab; shown only when QBO configured) |
+| `src/components/job-editor/QboInvoicePanel.jsx` | "Send to QuickBooks" invoice UI (in PaymentsTab; shown only when QBO configured). Shows the job's app-generated proposal fee schedule (via `/api/proposals?job_id=`) as a **contract reference** with one-click "Use" → invoice line |
+| `api/jobs/proposal-docs.js` | GET — a job's **signed proposal(s)** from its Drive "Proposal" folder: `?jobId=` lists files; `?jobId=&fileId=` streams a chosen PDF through the app (staff-gated; fileId validated to live in that folder). The contract of record for **existing** jobs (whose proposals are Drive PDFs, not in the `proposals` table) |
+| `src/components/job-editor/ProposalDocs.jsx` | **Signed-proposal viewer** in the PaymentsTab — lists proposals + inline iframe viewer (blob fetch carries auth) + "Open full screen"; renders nothing when none on file |
 | `src/components/job-editor/CorrectJobIdModal.jsx` | Preview→retype-confirm UI for the 3-system rename (the `✎ ID` button in JobEditor) |
 | `api/qbo/financials.js` | GET — **Financial tab** data (staff-gated, read-only): open-invoice A/R + P&L (selected period) + quarter-summarized P&L (6 quarters) + top invoices; reads isolated via `Promise.allSettled`; **`?basis=sent\|cash\|accrual`** (default `sent`), `?ar=recent\|all`, `?start=&end=`. `sent` fetches the invoice book and overlays invoices-sent income (by real send date) on the accrual report's expenses; hides historical quarters with <30% send-date coverage (`sentQuartersHidden`) |
 | `api/_lib/qbo-reports.js` | Pure QBO report/query → normalized-shape transforms (no db/network): `summarizeReceivables` (aging buckets + `minJobYear` filter via `jobIdYear`), `parseProfitAndLoss`, `parseProfitAndLossColumns` (per-quarter), `toTopInvoices`, **`invoiceSendDate` + `sumSentInPeriod`** (invoices *sent* in a period by `DeliveryInfo.DeliveryTime`, with billed/paid/open split) |
