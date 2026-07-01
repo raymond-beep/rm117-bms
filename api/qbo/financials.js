@@ -61,6 +61,21 @@ const QUARTER_WINDOW = 6;
 // within a window we fetch invoices whose TxnDate reaches this many days earlier.
 const SENT_TXN_LOOKBACK_DAYS = 150;
 
+// Short-lived in-memory cache (per warm serverless instance). Each tab load fires
+// ~5 live QuickBooks calls (token refresh + reports + the invoice book), so without
+// this every click re-queries Intuit. QBO numbers don't change second-to-second, so
+// a small TTL is harmless and turns repeat visits instant. `?fresh=1` bypasses it
+// (the UI's manual refresh). Keyed by the inputs that change the result.
+const CACHE_TTL_MS = 90_000;
+const _cache = new Map(); // key -> { at:number, payload:object }
+
+function cacheGet(key) {
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit;
+  if (hit) _cache.delete(key); // expired
+  return null;
+}
+
 // The firm only began emailing invoices through QuickBooks in late 2025, so earlier
 // invoices carry no send-timestamp. In "Sent" mode we hide any historical quarter
 // where fewer than this fraction of its invoices have a send date — otherwise its
@@ -93,6 +108,13 @@ export default async function handler(req, res) {
   // Which QBO report basis backs the P&L. 'sent' reads the accrual report (for its
   // expenses + per-quarter columns) and overlays sent-invoice income on top.
   const qboMethod = basis === 'cash' ? 'Cash' : 'Accrual';
+
+  // Serve a warm cached result unless the caller forced a refresh (?fresh=1).
+  const cacheKey = `${basis}|${start}|${end}|${arScope}`;
+  if (req.query?.fresh !== '1') {
+    const hit = cacheGet(cacheKey);
+    if (hit) return res.status(200).json({ ...hit.payload, cached: true, cachedAt: new Date(hit.at).toISOString() });
+  }
 
   // Trailing quarter window: first day of the quarter (WINDOW-1) quarters ago →
   // last day of the current quarter, so the comparison shows exactly WINDOW full
@@ -184,7 +206,7 @@ export default async function handler(req, res) {
     ? toTopInvoices(topResult.value, 8)
     : { error: topResult.reason?.message || 'Top-invoice lookup failed' };
 
-  return res.status(200).json({
+  const payload = {
     configured: true,
     asOf: now.toISOString(),
     period: { start, end },
@@ -195,5 +217,11 @@ export default async function handler(req, res) {
     sentQuartersHidden,
     topInvoices,
     receivables,
-  });
+  };
+
+  // Only cache a clean result — if a QBO read failed, let the next visit retry live.
+  const anyError = [pnl, pnlQuarters, topInvoices, receivables].some((s) => s && s.error);
+  if (!anyError) _cache.set(cacheKey, { at: Date.now(), payload });
+
+  return res.status(200).json(payload);
 }

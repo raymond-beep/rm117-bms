@@ -30,26 +30,40 @@ function presetPeriod(key) {
 // Which aging buckets read as "overdue" (drives the warn tone / count).
 const OVERDUE_KEYS = new Set(['d1_30', 'd31_60', 'd61_90', 'd90_plus']);
 
+// Per-session cache of the last result for each query, so switching basis/period
+// (or leaving the tab and coming back) paints instantly while we revalidate in the
+// background — the server has its own short TTL cache too. Module-level so it
+// survives the component unmounting when you navigate away.
+const _finCache = new Map(); // qs -> data
+
 export default function Financial() {
   const [period, setPeriod] = useState(() => presetPeriod('ytd'));
   const [basis, setBasis] = useState('sent');        // 'sent' (billed) | 'cash' (received) | 'accrual' (created)
   const [arScope, setArScope] = useState('recent'); // 'recent' (2025+) | 'all'
   const [arSort, setArSort] = useState('overdue');   // 'overdue' | 'jobid'
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);   // first-paint spinner only (no cached data yet)
+  const [refreshing, setRefreshing] = useState(false); // background revalidate
   const [error, setError] = useState(null);
 
-  async function load(p, scope, b) {
-    setLoading(true);
+  // `fresh` forces past both caches (client + server) for the manual refresh.
+  async function load(p, scope, b, fresh = false) {
+    const qs = `start=${p.start}&end=${p.end}&ar=${scope}&basis=${b}`;
+    const cached = !fresh && _finCache.get(qs);
+    if (cached) { setData(cached); setLoading(false); } else { setLoading(true); }
     setError(null);
+    setRefreshing(true);
     try {
-      const res = await apiFetch(`/api/qbo/financials?start=${p.start}&end=${p.end}&ar=${scope}&basis=${b}`);
+      const res = await apiFetch(`/api/qbo/financials?${qs}${fresh ? '&fresh=1' : ''}`);
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
-      setData(await res.json());
+      const fresh_data = await res.json();
+      _finCache.set(qs, fresh_data);
+      setData(fresh_data);
     } catch (err) {
-      setError(err.message);
+      if (!cached) setError(err.message); // keep showing stale data if we have it
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }
   useEffect(() => { load(period, arScope, basis); }, [period, arScope, basis]);
@@ -86,9 +100,24 @@ export default function Financial() {
           <h1 className="greeting">Financial</h1>
         </div>
         <div className="page-meta">
-          {data?.configured === false
-            ? <span className="mock">Not connected</span>
-            : <>Live from QuickBooks<br />{data?.asOf ? `as of ${fmtDateOnly(data.asOf.slice(0, 10))}` : ''}</>}
+          {data?.configured === false ? (
+            <span className="mock">Not connected</span>
+          ) : (
+            <>
+              Live from QuickBooks<br />
+              {data?.asOf ? `as of ${fmtDateOnly(data.asOf.slice(0, 10))}` : ''}
+              {data && (
+                <button
+                  className="fin-refresh"
+                  onClick={() => load(period, arScope, basis, true)}
+                  disabled={refreshing}
+                  title="Reload live from QuickBooks"
+                >
+                  {refreshing ? 'Refreshing…' : '↻ Refresh'}
+                </button>
+              )}
+            </>
+          )}
         </div>
       </div>
 
