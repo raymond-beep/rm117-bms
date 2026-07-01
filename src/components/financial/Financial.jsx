@@ -5,7 +5,7 @@
 // report), and top invoices / top expenses. Accounts receivable ("who owes us")
 // sits underneath: outstanding total + aging buckets + the open-invoice list
 // (sortable, filterable to 2025+). Data: GET /api/qbo/financials.
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { money, fmtDateOnly } from '../../lib/format.js';
 
@@ -27,14 +27,41 @@ function presetPeriod(key) {
   return { key: p.key, label: p.label, start: isoDate(s), end: isoDate(e) };
 }
 
+// Income bases — one row per toggle button; the caption tag and chart title read
+// from here too, so a basis is named in exactly one place.
+const BASES = [
+  {
+    key: 'sent', label: 'Sent', chartTitle: 'Billed by quarter',
+    tag: 'Sent — billed for completed work',
+    title: 'Invoices sent — billed for completed work, whether or not paid yet (how the firm tracks its books)',
+  },
+  {
+    key: 'cash', label: 'Paid', chartTitle: 'Received by quarter',
+    tag: 'Paid — money received',
+    title: 'Money actually received',
+  },
+  {
+    key: 'accrual', label: 'All invoiced', chartTitle: 'Invoiced by quarter',
+    tag: 'All invoiced — every invoice created',
+    title: 'Every invoice created, including ones drafted in advance',
+  },
+];
+
 // Which aging buckets read as "overdue" (drives the warn tone / count).
 const OVERDUE_KEYS = new Set(['d1_30', 'd31_60', 'd61_90', 'd90_plus']);
 
 // Per-session cache of the last result for each query, so switching basis/period
 // (or leaving the tab and coming back) paints instantly while we revalidate in the
 // background — the server has its own short TTL cache too. Module-level so it
-// survives the component unmounting when you navigate away.
-const _finCache = new Map(); // qs -> data
+// survives the component unmounting when you navigate away. Bounded: `end` moves
+// daily and quarter clicks add keys, so the oldest entries roll off.
+const FIN_CACHE_MAX = 12;
+const _finCache = new Map(); // qs -> data (insertion-ordered)
+function finCacheSet(qs, data) {
+  _finCache.delete(qs); // re-inserting moves it to newest
+  _finCache.set(qs, data);
+  while (_finCache.size > FIN_CACHE_MAX) _finCache.delete(_finCache.keys().next().value);
+}
 
 export default function Financial() {
   const [period, setPeriod] = useState(() => presetPeriod('ytd'));
@@ -47,7 +74,11 @@ export default function Financial() {
   const [error, setError] = useState(null);
 
   // `fresh` forces past both caches (client + server) for the manual refresh.
+  // A sequence counter drops superseded responses: rapid toggling leaves older
+  // fetches in flight, and a late arrival must not paint over the newest one.
+  const loadSeq = useRef(0);
   async function load(p, scope, b, fresh = false) {
+    const seq = ++loadSeq.current;
     const qs = `start=${p.start}&end=${p.end}&ar=${scope}&basis=${b}`;
     const cached = !fresh && _finCache.get(qs);
     if (cached) { setData(cached); setLoading(false); } else { setLoading(true); }
@@ -57,17 +88,17 @@ export default function Financial() {
       const res = await apiFetch(`/api/qbo/financials?${qs}${fresh ? '&fresh=1' : ''}`);
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
       const freshData = await res.json();
-      _finCache.set(qs, freshData);
-      setData(freshData);
+      finCacheSet(qs, freshData);
+      if (seq === loadSeq.current) setData(freshData);
     } catch (err) {
-      if (!cached) setError(err.message); // keep showing stale data if we have it
+      if (seq === loadSeq.current && !cached) setError(err.message); // keep showing stale data if we have it
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (seq === loadSeq.current) { setLoading(false); setRefreshing(false); }
     }
   }
   useEffect(() => { load(period, arScope, basis); }, [period, arScope, basis]);
 
+  const activeBasis = BASES.find((b) => b.key === basis) || BASES[0];
   const pnl = data?.pnl;
   const quarters = Array.isArray(data?.pnlQuarters) ? data.pnlQuarters : null;
   const topInvoices = Array.isArray(data?.topInvoices) ? data.topInvoices : [];
@@ -137,27 +168,16 @@ export default function Financial() {
             <h2>Profit &amp; loss</h2>
             <div className="fin-controls">
               <div className="fin-period" role="group" aria-label="Income basis">
-                <button
-                  className={`fin-period-btn${basis === 'sent' ? ' active' : ''}`}
-                  onClick={() => setBasis('sent')}
-                  title="Invoices sent — billed for completed work, whether or not paid yet (how the firm tracks its books)"
-                >
-                  Sent
-                </button>
-                <button
-                  className={`fin-period-btn${basis === 'cash' ? ' active' : ''}`}
-                  onClick={() => setBasis('cash')}
-                  title="Money actually received"
-                >
-                  Paid
-                </button>
-                <button
-                  className={`fin-period-btn${basis === 'accrual' ? ' active' : ''}`}
-                  onClick={() => setBasis('accrual')}
-                  title="Every invoice created, including ones drafted in advance"
-                >
-                  All invoiced
-                </button>
+                {BASES.map((b) => (
+                  <button
+                    key={b.key}
+                    className={`fin-period-btn${basis === b.key ? ' active' : ''}`}
+                    onClick={() => setBasis(b.key)}
+                    title={b.title}
+                  >
+                    {b.label}
+                  </button>
+                ))}
               </div>
               <div className="fin-period" role="group" aria-label="P&L period">
                 {PRESETS.map((p) => (
@@ -180,55 +200,33 @@ export default function Financial() {
               <div className="fin-period-caption">
                 {period.label} · {fmtDateOnly(period.start)} – {fmtDateOnly(period.end)}
                 {' · '}
-                <span className="fin-basis-tag">
-                  {basis === 'sent' ? 'Sent — billed for completed work'
-                    : basis === 'cash' ? 'Paid — money received'
-                    : 'All invoiced — every invoice created'}
-                </span>
+                <span className="fin-basis-tag">{activeBasis.tag}</span>
               </div>
+              {/* One layout for every basis; Sent adds the Unpaid-invoices cell.
+                  (pnl.income === pnl.sent.income on the sent basis by construction.) */}
               <div className="stat-strip fin-pnl-strip">
-                {basis === 'sent' && pnl.sent ? (
-                  <>
-                    <div className="stat-cell">
-                      <div className="stat-top"><div className="label">Total billed</div></div>
-                      <div className="value">{money(pnl.sent.income)}</div>
-                      <div className="hint">{pnl.sent.count} invoice{pnl.sent.count === 1 ? '' : 's'} sent</div>
-                    </div>
-                    <div className="stat-cell">
-                      <div className="stat-top"><div className="label">Expenses</div></div>
-                      <div className="value">{money(expensesShown)}</div>
-                      <div className="hint">all costs (incl. COGS)</div>
-                    </div>
-                    <div className="stat-cell">
-                      <div className="stat-top"><div className="label">Unpaid<br />invoices</div></div>
-                      <div className={`value${pnl.sent.open > 0 ? ' warn' : ''}`}>{money(pnl.sent.open)}</div>
-                      <div className="hint">{money(pnl.sent.paid)} collected</div>
-                    </div>
-                    <div className="stat-cell">
-                      <div className="stat-top"><div className="label">Net income</div></div>
-                      <div className={`value${pnl.netIncome < 0 ? ' warn' : ''}`}>{money(pnl.netIncome)}</div>
-                      <div className="hint">{margin != null ? `${margin}% margin` : '—'}</div>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="stat-cell">
-                      <div className="stat-top"><div className="label">Income</div></div>
-                      <div className="value">{money(pnl.income)}</div>
-                      <div className="hint">{basis === 'cash' ? 'received' : 'invoiced'}</div>
-                    </div>
-                    <div className="stat-cell">
-                      <div className="stat-top"><div className="label">Expenses</div></div>
-                      <div className="value">{money(expensesShown)}</div>
-                      <div className="hint">all costs (incl. COGS)</div>
-                    </div>
-                    <div className="stat-cell">
-                      <div className="stat-top"><div className="label">Net income</div></div>
-                      <div className={`value${pnl.netIncome < 0 ? ' warn' : ''}`}>{money(pnl.netIncome)}</div>
-                      <div className="hint">{margin != null ? `${margin}% margin` : '—'}</div>
-                    </div>
-                  </>
+                <StatCell
+                  label={pnl.sent ? 'Total billed' : 'Income'}
+                  value={money(pnl.income)}
+                  hint={pnl.sent
+                    ? `${pnl.sent.count} invoice${pnl.sent.count === 1 ? '' : 's'} sent`
+                    : basis === 'cash' ? 'received' : 'invoiced'}
+                />
+                <StatCell label="Expenses" value={money(expensesShown)} hint="all costs (incl. COGS)" />
+                {pnl.sent && (
+                  <StatCell
+                    label={<>Unpaid<br />invoices</>}
+                    value={money(pnl.sent.open)}
+                    warn={pnl.sent.open > 0}
+                    hint={`${money(pnl.sent.paid)} collected`}
+                  />
                 )}
+                <StatCell
+                  label="Net income"
+                  value={money(pnl.netIncome)}
+                  warn={pnl.netIncome < 0}
+                  hint={margin != null ? `${margin}% margin` : '—'}
+                />
               </div>
 
               {/* Revenue-per-quarter comparison (billed/received/invoiced — no expenses) */}
@@ -236,7 +234,7 @@ export default function Financial() {
                 <QuarterChart
                   quarters={quarters}
                   selected={period}
-                  title={basis === 'sent' ? 'Billed by quarter' : basis === 'cash' ? 'Received by quarter' : 'Invoiced by quarter'}
+                  title={activeBasis.chartTitle}
                   onSelect={(q) => setPeriod({ key: `q:${q.start}`, label: q.label, start: q.start, end: q.end })}
                 />
               )}
@@ -345,6 +343,17 @@ export default function Financial() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// One P&L stat-strip cell (label over value over hint).
+function StatCell({ label, value, hint, warn = false }) {
+  return (
+    <div className="stat-cell">
+      <div className="stat-top"><div className="label">{label}</div></div>
+      <div className={`value${warn ? ' warn' : ''}`}>{value}</div>
+      <div className="hint">{hint}</div>
     </div>
   );
 }

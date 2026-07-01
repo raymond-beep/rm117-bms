@@ -12,6 +12,9 @@ import {
   toTopInvoices,
   invoiceSendDate,
   sumSentInPeriod,
+  quarterSendCoverage,
+  buildSentPnl,
+  buildSentQuarters,
 } from '../api/_lib/qbo-reports.js';
 
 // Fixed "today" so days-past-due is deterministic.
@@ -342,5 +345,70 @@ describe('sumSentInPeriod', () => {
   it('handles an empty / missing list', () => {
     expect(sumSentInPeriod([], '2026-01-01', '2026-12-31')).toEqual({ income: 0, paid: 0, open: 0, count: 0 });
     expect(sumSentInPeriod(null, '2026-01-01', '2026-12-31').income).toBe(0);
+  });
+});
+
+describe('quarterSendCoverage', () => {
+  const invs = [
+    { TxnDate: '2025-01-10', DeliveryInfo: { DeliveryTime: '2025-01-12T09:00:00-05:00' } },
+    { TxnDate: '2025-02-01' },
+    { TxnDate: '2025-02-20' },
+    { TxnDate: '2025-05-01', DeliveryInfo: { DeliveryTime: '2025-05-02T09:00:00-04:00' } },
+  ];
+  it("is the fraction of a window's invoices (by TxnDate) carrying a send date", () => {
+    expect(quarterSendCoverage(invs, '2025-01-01', '2025-03-31')).toBeCloseTo(1 / 3);
+    expect(quarterSendCoverage(invs, '2025-04-01', '2025-06-30')).toBe(1);
+  });
+  it('is 0 for a window with no invoices at all', () => {
+    expect(quarterSendCoverage(invs, '2024-01-01', '2024-03-31')).toBe(0);
+    expect(quarterSendCoverage([], '2025-01-01', '2025-03-31')).toBe(0);
+  });
+});
+
+describe('buildSentPnl', () => {
+  const sentBook = [
+    { TotalAmt: 4300, Balance: 0,    TxnDate: '2026-03-06', DeliveryInfo: { DeliveryTime: '2026-04-23T10:00:00-04:00' } },
+    { TotalAmt: 3000, Balance: 3000, TxnDate: '2026-06-29', DeliveryInfo: { DeliveryTime: '2026-06-29T09:00:00-04:00' } },
+    { TotalAmt: 9999, Balance: 9999, TxnDate: '2026-05-01' }, // created, never sent
+  ];
+  it("overlays sent-invoice income on the accrual report's expenses", () => {
+    const p = buildSentPnl(pnlReport, sentBook, '2026-04-01', '2026-06-30');
+    expect(p.income).toBe(7300); // by send date — not the accrual 612400
+    expect(p.netIncome).toBe(7300 - 438900); // sent income − accrual expenses (612400 − 173500)
+    expect(p.sent).toEqual({ income: 7300, paid: 4300, open: 3000, count: 2 });
+    expect(p.expenseAccounts[0].label).toBe('Payroll'); // expense detail passes through
+  });
+});
+
+describe('buildSentQuarters', () => {
+  const TODAY = '2025-05-15'; // inside Q2 2025 → Q2 is the partial, current quarter
+
+  it('hides a historical quarter with no reliable send data, keeps the partial one', () => {
+    const book = [
+      // Q1: three invoices, none sent → coverage 0 → hidden
+      { TotalAmt: 100, Balance: 100, TxnDate: '2025-01-10' },
+      { TotalAmt: 100, Balance: 100, TxnDate: '2025-02-10' },
+      { TotalAmt: 100, Balance: 100, TxnDate: '2025-03-10' },
+      // Q2: one sent invoice
+      { TotalAmt: 5000, Balance: 0, TxnDate: '2025-04-20', DeliveryInfo: { DeliveryTime: '2025-05-01T09:00:00-04:00' } },
+    ];
+    const { quarters, hidden } = buildSentQuarters(qtrReport, book, TODAY);
+    expect(hidden).toBe(1);
+    expect(quarters).toHaveLength(1);
+    expect(quarters[0]).toMatchObject({ label: 'Q2 2025', partial: true, income: 5000 });
+    // net = sent income − the quarter's accrual expenses (162133.74 − 102838.05)
+    expect(quarters[0].netIncome).toBeCloseTo(5000 - 59295.69, 2);
+  });
+
+  it('keeps a historical quarter once send coverage clears the threshold', () => {
+    const book = [
+      { TotalAmt: 2000, Balance: 0,    TxnDate: '2025-01-10', DeliveryInfo: { DeliveryTime: '2025-01-12T09:00:00-05:00' } },
+      { TotalAmt: 1000, Balance: 1000, TxnDate: '2025-02-10', DeliveryInfo: { DeliveryTime: '2025-02-11T09:00:00-05:00' } },
+      { TotalAmt: 100,  Balance: 100,  TxnDate: '2025-03-10' }, // unsent (coverage 2/3)
+    ];
+    const { quarters, hidden } = buildSentQuarters(qtrReport, book, TODAY);
+    expect(hidden).toBe(0);
+    expect(quarters.map((q) => q.label)).toEqual(['Q1 2025', 'Q2 2025']);
+    expect(quarters[0]).toMatchObject({ partial: false, income: 3000 }); // re-dated by send date
   });
 });

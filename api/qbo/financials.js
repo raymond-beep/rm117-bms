@@ -39,8 +39,8 @@ import {
   summarizeReceivables,
   parseProfitAndLoss,
   parseProfitAndLossColumns,
-  sumSentInPeriod,
-  invoiceSendDate,
+  buildSentPnl,
+  buildSentQuarters,
   toTopInvoices,
 } from '../_lib/qbo-reports.js';
 
@@ -48,7 +48,6 @@ import {
 function isoDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
 // The A/R "recent" filter cutoff: hide jobs with a Job-ID year below this (2-digit).
 // 25 = 2025 → invoices for 24_… and older jobs are hidden by default.
@@ -76,19 +75,10 @@ function cacheGet(key) {
   return null;
 }
 
-// The firm only began emailing invoices through QuickBooks in late 2025, so earlier
-// invoices carry no send-timestamp. In "Sent" mode we hide any historical quarter
-// where fewer than this fraction of its invoices have a send date — otherwise its
-// income collapses to near-zero and the chart shows a misleading loss. (The current,
-// still-open quarter is always kept.)
-const SENT_QUARTER_MIN_COVERAGE = 0.3;
-
-// Fraction of a quarter's invoices (by TxnDate) that carry a real send date — our
-// proxy for "was QuickBooks send-tracking in use this quarter?"
-function quarterSendCoverage(invoices, start, end) {
-  const inQ = (invoices || []).filter((i) => i.TxnDate >= start && i.TxnDate <= (end || start));
-  if (inQ.length === 0) return 0;
-  return inQ.filter((i) => invoiceSendDate(i)).length / inQ.length;
+function cacheSet(key, payload) {
+  const at = Date.now();
+  for (const [k, v] of _cache) if (at - v.at >= CACHE_TTL_MS) _cache.delete(k); // sweep expired
+  _cache.set(key, { at, payload });
 }
 
 export default async function handler(req, res) {
@@ -148,58 +138,38 @@ export default async function handler(req, res) {
     : { error: arResult.reason?.message || 'A/R lookup failed' };
 
   // Sent invoices: fail loudly on this section only if we needed them and the fetch failed.
-  const sentInvoices = sentResult.status === 'fulfilled' ? sentResult.value : null;
+  const sentInvoices = sentResult.status === 'fulfilled' ? (sentResult.value || []) : [];
   const sentError = basis === 'sent' && sentResult.status === 'rejected'
     ? (sentResult.reason?.message || 'Invoice lookup failed')
     : null;
 
   // Period P&L. For 'sent', overlay sent-invoice income on the accrual report's
-  // expenses (so Income − Expenses = Net stays consistent for the UI).
+  // expenses (buildSentPnl). `sentError` is only ever set on the 'sent' basis.
   let pnl;
   if (pnlResult.status !== 'fulfilled') {
     pnl = { error: pnlResult.reason?.message || 'P&L lookup failed' };
+  } else if (sentError) {
+    pnl = { error: sentError };
   } else if (basis === 'sent') {
-    if (sentError) {
-      pnl = { error: sentError };
-    } else {
-      const acc = parseProfitAndLoss(pnlResult.value);
-      const expenses = round2(acc.income - acc.netIncome);
-      const s = sumSentInPeriod(sentInvoices || [], start, end);
-      pnl = {
-        income: s.income,
-        netIncome: round2(s.income - expenses),
-        expenseAccounts: acc.expenseAccounts,
-        sent: s, // { income, paid, open, count } — billed vs collected split
-      };
-    }
+    pnl = buildSentPnl(pnlResult.value, sentInvoices, start, end);
   } else {
     pnl = parseProfitAndLoss(pnlResult.value);
   }
 
-  // Quarter comparison. Flag the in-progress quarter (extends past today) as "so far".
+  // Quarter comparison. Flag the in-progress quarter (extends past today) as "so
+  // far". On 'sent', quarters without reliable send data are hidden (buildSentQuarters).
   let pnlQuarters;
   let sentQuartersHidden = 0;
   if (qtrResult.status !== 'fulfilled') {
     pnlQuarters = { error: qtrResult.reason?.message || 'Quarterly P&L lookup failed' };
-  } else if (basis === 'sent' && sentError) {
+  } else if (sentError) {
     pnlQuarters = { error: sentError };
+  } else if (basis === 'sent') {
+    const built = buildSentQuarters(qtrResult.value, sentInvoices, today);
+    pnlQuarters = built.quarters;
+    sentQuartersHidden = built.hidden;
   } else {
-    const cols = parseProfitAndLossColumns(qtrResult.value);
-    if (basis === 'sent') {
-      const built = cols.map((q) => {
-        const partial = !!q.end && q.end > today;
-        const si = sumSentInPeriod(sentInvoices || [], q.start, q.end).income;
-        const expenses = round2(q.income - q.netIncome);
-        const coverage = quarterSendCoverage(sentInvoices || [], q.start, q.end);
-        return { start: q.start, end: q.end, label: q.label, income: si, netIncome: round2(si - expenses), partial, coverage };
-      });
-      // Hide historical quarters with no reliable send data (keep the current one).
-      const kept = built.filter((q) => q.partial || q.coverage >= SENT_QUARTER_MIN_COVERAGE);
-      sentQuartersHidden = built.length - kept.length;
-      pnlQuarters = kept.map(({ coverage, ...q }) => q); // drop the internal coverage field
-    } else {
-      pnlQuarters = cols.map((q) => ({ ...q, partial: !!q.end && q.end > today }));
-    }
+    pnlQuarters = parseProfitAndLossColumns(qtrResult.value).map((q) => ({ ...q, partial: !!q.end && q.end > today }));
   }
 
   const topInvoices = topResult.status === 'fulfilled'
@@ -221,7 +191,7 @@ export default async function handler(req, res) {
 
   // Only cache a clean result — if a QBO read failed, let the next visit retry live.
   const anyError = [pnl, pnlQuarters, topInvoices, receivables].some((s) => s && s.error);
-  if (!anyError) _cache.set(cacheKey, { at: Date.now(), payload });
+  if (!anyError) cacheSet(cacheKey, payload);
 
   return res.status(200).json(payload);
 }

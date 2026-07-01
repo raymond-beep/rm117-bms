@@ -151,24 +151,17 @@ export default function QboInvoicePanel({ job, onInvoiced }) {
             <span className="qbo-ref-title">Contract fee schedule</span>
             <span className="qbo-ref-meta">from the {proposal.status} proposal</span>
           </div>
-          {feeItems.map((f, i) => (
-            <div key={i} className="qbo-fee-row">
+          {[
+            ...feeItems.map((f, i) => ({ key: `f${i}`, fee: f, due: f.due ? String(f.due).replace(/^\s*[.:]?\s*/, '') : null })),
+            ...addlServices.map((a, i) => ({ key: `a${i}`, fee: a, due: 'additional service' })),
+          ].map(({ key, fee, due }) => (
+            <div key={key} className="qbo-fee-row">
               <div className="qbo-fee-main">
-                <span className="qbo-fee-label">{f.label}</span>
-                {f.due ? <span className="qbo-fee-due">{String(f.due).replace(/^\s*[.:]?\s*/, '')}</span> : null}
+                <span className="qbo-fee-label">{fee.label}</span>
+                {due ? <span className="qbo-fee-due">{due}</span> : null}
               </div>
-              <span className="qbo-fee-amt">{money(f.amount, { cents: true })}</span>
-              <button type="button" className="chip" onClick={() => useFee(f)} title="Add this phase as an invoice line">Use</button>
-            </div>
-          ))}
-          {addlServices.map((a, i) => (
-            <div key={`a${i}`} className="qbo-fee-row">
-              <div className="qbo-fee-main">
-                <span className="qbo-fee-label">{a.label}</span>
-                <span className="qbo-fee-due">additional service</span>
-              </div>
-              <span className="qbo-fee-amt">{money(a.amount, { cents: true })}</span>
-              <button type="button" className="chip" onClick={() => useFee(a)} title="Add as an invoice line">Use</button>
+              <span className="qbo-fee-amt">{money(fee.amount, { cents: true })}</span>
+              <button type="button" className="chip" onClick={() => useFee(fee)} title="Add this phase as an invoice line">Use</button>
             </div>
           ))}
           <div className="qbo-fee-total"><span>Contract total</span><span>{money(contractTotal, { cents: true })}</span></div>

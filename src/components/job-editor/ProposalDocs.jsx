@@ -3,19 +3,9 @@
 // right where they invoice. The PDF is fetched through the staff-gated backend
 // (which brokers Drive) as a blob, so auth rides on the fetch and the bytes render
 // in an inline iframe. Renders nothing when there's no proposal on file.
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
-
-function fmtSize(n) {
-  if (n == null) return '';
-  const kb = n / 1024;
-  return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(kb))} KB`;
-}
-function fmtDate(iso) {
-  if (!iso) return '';
-  try { return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); }
-  catch { return ''; }
-}
+import { shortDate, fileSize } from '../../lib/format.js';
 
 export default function ProposalDocs({ job }) {
   const [state, setState] = useState({ loading: true });
@@ -40,31 +30,39 @@ export default function ProposalDocs({ job }) {
     return () => { alive = false; };
   }, [job.job_id]);
 
-  // Free the blob URL when it's replaced or the panel unmounts.
+  // Free the blob URL when it's replaced or the panel unmounts — the effect
+  // cleanup is the single revoke path (view() only ever sets the state).
   useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
+
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
 
   async function view(file) {
     if (openId === file.id) { // toggle closed
       setOpenId(null);
-      if (blobUrl) { URL.revokeObjectURL(blobUrl); setBlobUrl(null); }
+      setBlobUrl(null);
       return;
     }
     setViewErr(null);
     setViewLoading(true);
     setOpenId(file.id);
-    if (blobUrl) { URL.revokeObjectURL(blobUrl); setBlobUrl(null); }
+    setBlobUrl(null);
     try {
       const res = await apiFetch(
         `/api/jobs/proposal-docs?jobId=${encodeURIComponent(job.job_id)}&fileId=${encodeURIComponent(file.id)}`,
       );
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
       const blob = await res.blob();
-      setBlobUrl(URL.createObjectURL(blob));
+      const url = URL.createObjectURL(blob);
+      // Unmounted mid-fetch: the cleanup effect never saw this URL, revoke it here.
+      if (!mounted.current) { URL.revokeObjectURL(url); return; }
+      setBlobUrl(url);
     } catch (err) {
+      if (!mounted.current) return;
       setViewErr(err.message);
       setOpenId(null);
     } finally {
-      setViewLoading(false);
+      if (mounted.current) setViewLoading(false);
     }
   }
 
@@ -84,7 +82,7 @@ export default function ProposalDocs({ job }) {
             <span className="pdoc-icon">▧</span>
             <div className="pdoc-main">
               <span className="pdoc-name">{f.name}</span>
-              <span className="pdoc-meta">{[fmtDate(f.modifiedTime), fmtSize(f.size)].filter(Boolean).join(' · ')}</span>
+              <span className="pdoc-meta">{[f.modifiedTime && shortDate(f.modifiedTime), fileSize(f.size)].filter(Boolean).join(' · ')}</span>
             </div>
             {f.viewable
               ? <button type="button" className="chip" onClick={() => view(f)}>{openId === f.id ? 'Hide' : 'View'}</button>

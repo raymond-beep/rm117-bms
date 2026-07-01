@@ -9,7 +9,7 @@
 // backends built — until then their panels render an on-brand empty state.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth, useClerk } from '@clerk/clerk-react';
-import { shortDate } from './lib/format.js';
+import { shortDate, fileSize } from './lib/format.js';
 
 const fmtMsgTime = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
@@ -192,12 +192,6 @@ const fileKind = (name = '', mime = '') => {
   if (['dwg', 'dxf'].includes(ext)) return 'CAD';
   if (['doc', 'docx'].includes(ext) || mime.includes('word')) return 'DOC';
   return (ext || 'FILE').slice(0, 4).toUpperCase();
-};
-const fileSize = (bytes) => {
-  if (!bytes && bytes !== 0) return null;
-  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
-  if (bytes >= 1e3) return `${Math.round(bytes / 1e3)} KB`;
-  return `${bytes} B`;
 };
 
 // Document vault — lists the job's "Files Sent" Drive folder via the backend

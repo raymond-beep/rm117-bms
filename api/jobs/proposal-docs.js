@@ -11,8 +11,23 @@ import {
   hasDrive,
   resolveProposalFolderId,
   listFolderFiles,
+  getFileMeta,
   streamFileTo,
 } from '../_lib/google-drive.js';
+
+// A job's proposal-folder id essentially never changes, but resolving it costs 2–3
+// serial Drive calls — memoize per warm instance. Only found folders are cached, so
+// a newly created Proposal subfolder shows up on the next request.
+const FOLDER_TTL_MS = 10 * 60_000;
+const _folderCache = new Map(); // jobId -> { at:number, folderId:string }
+
+async function proposalFolderId(jobId) {
+  const hit = _folderCache.get(jobId);
+  if (hit && Date.now() - hit.at < FOLDER_TTL_MS) return hit.folderId;
+  const folderId = await resolveProposalFolderId(jobId);
+  if (folderId) _folderCache.set(jobId, { at: Date.now(), folderId });
+  return folderId;
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'GET only' });
@@ -26,7 +41,7 @@ export default async function handler(req, res) {
 
   let folderId;
   try {
-    folderId = await resolveProposalFolderId(jobId);
+    folderId = await proposalFolderId(jobId);
   } catch (err) {
     console.error('[proposal-docs] resolve folder', err);
     return res.status(502).json({ error: 'Could not reach Google Drive' });
@@ -36,20 +51,21 @@ export default async function handler(req, res) {
     return res.status(200).json({ configured: true, folder: null, files: [] });
   }
 
-  let files;
-  try {
-    files = await listFolderFiles(folderId);
-  } catch (err) {
-    console.error('[proposal-docs] list files', err);
-    return res.status(502).json({ error: 'Could not list the proposal folder' });
-  }
-
-  // Stream one file (validated to live in this job's proposal folder).
+  // Stream one file (validated to live in this job's proposal folder — same
+  // parents check as portal/download, one metadata call instead of a folder list).
   if (fileId) {
-    const match = files.find((f) => f.id === fileId);
-    if (!match) return res.status(404).json({ error: 'File not in this job’s proposal folder' });
-    res.setHeader('Content-Type', match.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(match.name)}"`);
+    let meta;
+    try {
+      meta = await getFileMeta(fileId);
+    } catch (err) {
+      console.error('[proposal-docs] file meta', err);
+      return res.status(404).json({ error: 'File not in this job’s proposal folder' });
+    }
+    if (!meta?.parents?.includes(folderId)) {
+      return res.status(404).json({ error: 'File not in this job’s proposal folder' });
+    }
+    res.setHeader('Content-Type', meta.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(meta.name)}"`);
     res.setHeader('Cache-Control', 'private, max-age=300');
     try {
       await streamFileTo(fileId, res);
@@ -61,6 +77,14 @@ export default async function handler(req, res) {
   }
 
   // List (most-recent first; the Drive helper already orders by modifiedTime desc).
+  let files;
+  try {
+    files = await listFolderFiles(folderId);
+  } catch (err) {
+    console.error('[proposal-docs] list files', err);
+    return res.status(502).json({ error: 'Could not list the proposal folder' });
+  }
+  res.setHeader('Cache-Control', 'private, max-age=60');
   return res.status(200).json({
     configured: true,
     folder: folderId,

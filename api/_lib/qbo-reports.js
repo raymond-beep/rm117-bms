@@ -124,7 +124,7 @@ export function summarizeReceivables(rawInvoices = [], asOf = new Date(), { minJ
   };
 }
 
-function round2(n) {
+export function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
@@ -227,6 +227,60 @@ export function sumSentInPeriod(invoices = [], start, end) {
     count += 1;
   }
   return { income: round2(income), paid: round2(paid), open: round2(open), count };
+}
+
+// The firm only began emailing invoices through QuickBooks in late 2025, so earlier
+// invoices carry no send-timestamp. In "Sent" mode a historical quarter where fewer
+// than this fraction of its invoices have a send date is hidden — otherwise its
+// income collapses to near-zero and the chart shows a misleading loss.
+export const SENT_QUARTER_MIN_COVERAGE = 0.3;
+
+// Fraction of a quarter's invoices (by TxnDate) that carry a real send date — our
+// proxy for "was QuickBooks send-tracking in use this quarter?"
+export function quarterSendCoverage(invoices = [], start, end) {
+  let inQuarter = 0, withSendDate = 0;
+  for (const inv of invoices || []) {
+    if (inv.TxnDate < start || inv.TxnDate > (end || start)) continue;
+    inQuarter += 1;
+    if (invoiceSendDate(inv)) withSendDate += 1;
+  }
+  return inQuarter === 0 ? 0 : withSendDate / inQuarter;
+}
+
+// Period P&L on the "sent" basis: sent-invoice income overlaid on the accrual
+// report's expenses (so Income − Expenses = Net stays consistent for the UI).
+// `sent` carries the billed vs collected split ({ income, paid, open, count }).
+export function buildSentPnl(accrualReport, invoices = [], start, end) {
+  const acc = parseProfitAndLoss(accrualReport);
+  const expenses = round2(acc.income - acc.netIncome);
+  const s = sumSentInPeriod(invoices, start, end);
+  return {
+    income: s.income,
+    netIncome: round2(s.income - expenses),
+    expenseAccounts: acc.expenseAccounts,
+    sent: s,
+  };
+}
+
+// Quarter columns on the "sent" basis: each quarter's income re-dated by real send
+// date, net recomputed against the accrual quarter's expenses. Historical quarters
+// below `minCoverage` send-date coverage are dropped (the current, still-partial
+// quarter is always kept). Returns { quarters, hidden } — hidden = how many were
+// dropped, so the UI can say "N earlier quarters hidden".
+export function buildSentQuarters(quarterReport, invoices = [], today, { minCoverage = SENT_QUARTER_MIN_COVERAGE } = {}) {
+  const quarters = [];
+  let hidden = 0;
+  for (const q of parseProfitAndLossColumns(quarterReport)) {
+    const partial = !!q.end && q.end > today;
+    if (!partial && quarterSendCoverage(invoices, q.start, q.end) < minCoverage) {
+      hidden += 1;
+      continue;
+    }
+    const income = sumSentInPeriod(invoices, q.start, q.end).income;
+    const expenses = round2(q.income - q.netIncome);
+    quarters.push({ start: q.start, end: q.end, label: q.label, income, netIncome: round2(income - expenses), partial });
+  }
+  return { quarters, hidden };
 }
 
 // Map raw QBO invoices to a compact "top invoices" display shape, ranked by

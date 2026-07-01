@@ -55,6 +55,14 @@ export function shortDate(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+// Pretty-print a byte count the way Drive does (decimal units).
+export function fileSize(bytes) {
+  if (!bytes && bytes !== 0) return null;
+  if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`;
+  if (bytes >= 1e3) return `${Math.round(bytes / 1e3)} KB`;
+  return `${bytes} B`;
+}
+
 // Format a date-only string ('YYYY-MM-DD') in local time without a TZ shift.
 // (shortDate parses through Date(iso), which reads a bare date as UTC midnight
 // and can display the day before in negative-offset zones — use this for the

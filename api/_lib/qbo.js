@@ -292,21 +292,26 @@ export async function createInvoice(args) {
 }
 
 // ── Reads for the Financial tab (read-only reporting) ─────────────────────────
-// Open invoices = everything still owed. DisplayName === Job ID, so CustomerRef.name
-// is the Job ID. Ordered oldest-due first; the pure summarizer (qbo-reports.js)
-// derives aging buckets from DueDate. Paginated defensively in case the book of
-// open A/R ever exceeds one page (QBO caps a query at 1000 rows).
-export async function listOpenInvoices() {
+// Fetch every page of an Invoice query (QBO caps a query page at 1000 rows).
+// `whereOrderBy` is the query tail after `select * from Invoice`.
+async function queryAllInvoices(whereOrderBy) {
   const all = [];
   const PAGE = 1000;
   for (let start = 1; ; start += PAGE) {
-    const q = `select * from Invoice where Balance > '0' order by DueDate startposition ${start} maxresults ${PAGE}`;
+    const q = `select * from Invoice ${whereOrderBy} startposition ${start} maxresults ${PAGE}`;
     const res = await qboRequest('GET', `query?query=${encodeURIComponent(q)}`);
     const page = res?.QueryResponse?.Invoice || [];
     all.push(...page);
     if (page.length < PAGE) break;
   }
   return all;
+}
+
+// Open invoices = everything still owed. DisplayName === Job ID, so CustomerRef.name
+// is the Job ID. Ordered oldest-due first; the pure summarizer (qbo-reports.js)
+// derives aging buckets from DueDate.
+export async function listOpenInvoices() {
+  return queryAllInvoices(`where Balance > '0' order by DueDate`);
 }
 
 // Largest invoices billed within a date range (by original TotalAmt), for the
@@ -329,16 +334,7 @@ export async function listInvoicesInPeriod(startDate, endDate, limit = 10) {
 // window (an invoice is often dated weeks before it's sent) and the pure parser
 // (qbo-reports.js sumSentInPeriod) filters on the real send date.
 export async function listInvoicesByTxnWindow(startDate, endDate) {
-  const all = [];
-  const PAGE = 100;
-  for (let start = 1; ; start += PAGE) {
-    const q = `select * from Invoice where TxnDate >= '${esc(startDate)}' and TxnDate <= '${esc(endDate)}' order by TxnDate startposition ${start} maxresults ${PAGE}`;
-    const res = await qboRequest('GET', `query?query=${encodeURIComponent(q)}`);
-    const page = res?.QueryResponse?.Invoice || [];
-    all.push(...page);
-    if (page.length < PAGE) break;
-  }
-  return all;
+  return queryAllInvoices(`where TxnDate >= '${esc(startDate)}' and TxnDate <= '${esc(endDate)}' order by TxnDate`);
 }
 
 // Profit & Loss report for a date range. Dates are 'YYYY-MM-DD'; omit for QBO's
