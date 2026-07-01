@@ -54,9 +54,9 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `api/jobs/rename.js` | **"Correct Job ID"** — renames a job across App (cascade) + QBO customer + Drive folder together, with dry-run preview + rollback |
 | `src/components/job-editor/QboInvoicePanel.jsx` | "Send to QuickBooks" invoice UI (in PaymentsTab; shown only when QBO configured) |
 | `src/components/job-editor/CorrectJobIdModal.jsx` | Preview→retype-confirm UI for the 3-system rename (the `✎ ID` button in JobEditor) |
-| `api/qbo/financials.js` | GET — **Financial tab** data (staff-gated, read-only): open-invoice A/R + P&L (selected period) + quarter-summarized P&L (6 quarters) + top invoices; 4 QBO reads isolated via `Promise.allSettled`; `?ar=recent\|all`, `?start=&end=` |
-| `api/_lib/qbo-reports.js` | Pure QBO report/query → normalized-shape transforms (no db/network): `summarizeReceivables` (aging buckets + `minJobYear` filter via `jobIdYear`), `parseProfitAndLoss`, `parseProfitAndLossColumns` (per-quarter), `toTopInvoices` |
-| `src/components/financial/Financial.jsx` | **Financial tab** UI (`/financial`): P&L on top (Income/Expenses/Net + margin, period toggle, **net-income-by-quarter bar chart** — click a quarter to load it), Top invoices + Top expenses, then A/R aging below (sort: Most overdue\|Job ID; scope: 2025+\|All). `.fin-*` styles in `styles.css` |
+| `api/qbo/financials.js` | GET — **Financial tab** data (staff-gated, read-only): open-invoice A/R + P&L (selected period) + quarter-summarized P&L (6 quarters) + top invoices; reads isolated via `Promise.allSettled`; **`?basis=sent\|cash\|accrual`** (default `sent`), `?ar=recent\|all`, `?start=&end=`. `sent` fetches the invoice book and overlays invoices-sent income (by real send date) on the accrual report's expenses; hides historical quarters with <30% send-date coverage (`sentQuartersHidden`) |
+| `api/_lib/qbo-reports.js` | Pure QBO report/query → normalized-shape transforms (no db/network): `summarizeReceivables` (aging buckets + `minJobYear` filter via `jobIdYear`), `parseProfitAndLoss`, `parseProfitAndLossColumns` (per-quarter), `toTopInvoices`, **`invoiceSendDate` + `sumSentInPeriod`** (invoices *sent* in a period by `DeliveryInfo.DeliveryTime`, with billed/paid/open split) |
+| `src/components/financial/Financial.jsx` | **Financial tab** UI (`/financial`): P&L on top with a **`Sent \| Paid \| All invoiced` basis toggle** (default **Sent** = invoices billed for completed work = how the firm tracks income). Sent shows 4 tiles (Total billed · Expenses · Unpaid invoices · Net income) + a **"Billed by quarter" revenue chart** (click a quarter to load it); other bases keep 3 tiles (Income/Expenses/Net). Top invoices + Top expenses, then A/R aging below (sort: Most overdue\|Job ID; scope: 2025+\|All). `.fin-*` styles in `styles.css` |
 | `api/phase-events.js` | GET/POST/DELETE — per-job phase-reached timeline (Progress tab) |
 | `api/field-notes.js` | GET/POST/PATCH/DELETE — on-site field notes (staff-only; author from Clerk token); GET signs attachment URLs |
 | `api/field-notes/upload.js` | POST base64 photo/voice → private `field-notes` Storage bucket; returns the storage path |
@@ -134,6 +134,12 @@ Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold
     Reports/Query API (`api/qbo/financials.js` → pure parsers in `api/_lib/qbo-reports.js`). A/R defaults to a
     "2025 & newer" view because pre-2025 QBO invoices are still being cleaned up (Job-ID-year filter, never a
     delete; "All" shows everything). Reads QBO live on each load (no caching yet).
+  - **Income basis (2026-07-01 eve): the P&L defaults to "Sent" — invoices *billed for completed work*, which is
+    how the firm actually tracks income** (Angelena's method). Distinct from QBO's accrual (every invoice created,
+    incl. drafts) and cash (paid). "Sent" dates each invoice by its real send timestamp (`DeliveryInfo.DeliveryTime`),
+    not TxnDate. **Caveat: the firm only began emailing invoices through QBO in ~late 2025**, so pre-Q4-2025 invoices
+    have no send date — the Sent view hides those quarters (they'd read as phantom losses). Q2 2026 sanity check:
+    accrual $188K · sent $106K (≈ Angelena's manual $105.8K) · cash $77K.
   - **Creds note:** runs on Intuit's *dashboard-labeled "Development"* keys (`ABYas…`) — for a private,
     single-company app these legitimately connect to the **production** company. The "Production"-labeled
     keys (`AB6whTti…`) are only for marketplace publishing; not used. Refresh token lives in the shared
