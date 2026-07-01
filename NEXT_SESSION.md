@@ -1,5 +1,5 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-01 (FINANCIAL TAB SHIPPED + LIVE — P&L + quarter comparison + A/R aging; Angelena onboarding)
+**Last updated:** 2026-07-01 (FINANCIAL TAB SHIPPED + LIVE — P&L + quarter comparison + A/R aging; Angelena now using the app, feedback imminent → likely next-session focus)
 
 ## ⭐ START HERE NEXT (2026-07-01) — Financial tab is LIVE; next = act on Angelena's feedback
 - **🎉 FINANCIAL TAB SHIPPED + LIVE + verified against the real company.** New staff **Financial** tab (sidebar,
@@ -24,12 +24,18 @@
     delete; "All" restores the full book, and a transparent line shows how much is hidden ($ + count). On the full
     book there's ~$368K open A/R with a large 90+ tail; the 2025+ view (~$291K) is the trustworthy one. **Even
     2025+ has a real ~$176K in 90+; Q4 2025 shows a genuine −$3,130 net-income quarter** — surface, don't hide.
-- **👤 ANGELENA ONBOARDING — in motion.** She finally offered to use the app (never has before). She was already
-  invited to Clerk on **2026-06-13** (`angelena@rm117.com`) but never logged in, so that invite likely expired —
-  **Ray is re-sending the Clerk invite manually.** Staff access needs no role config: the gate
-  (`api/_lib/require-staff.js`) grants staff to **any `@rm117.com` email**. A **welcome email draft** sits in
-  Ray's Gmail (subject "The RM117 app is ready for you — start with the new Financial tab") — review + send.
-  **NEXT SESSION should ask Ray how Angelena's first use went** and turn her reactions into the next work.
+- **👤 ANGELENA IS NOW USING THE APP — feedback imminent (this is the likely next-session focus).** She finally
+  offered to use it (never had before), Ray sent the welcome email (2026-07-01), and **she has started looking
+  through the app.** Ray expects her feedback soon. **▶ NEXT SESSION = triage Angelena's feedback and turn it
+  into work** (Financial tab first, then wherever she points). Ask Ray at the top: what did Ang say?
+  - **Clerk access — resolved, no invite needed.** She already exists as a Clerk user (`angelena@rm117.com`,
+    joined 2026-06-13, hadn't signed in); she just signs in at the app with her email + the **email one-time
+    code** (no password, no admin invite). Staff access needs no role config — the gate
+    (`api/_lib/require-staff.js`) grants staff to **any `@rm117.com` email**.
+  - **For reference (where the Clerk invite lives, since it was hard to find):** Clerk Dashboard → **Users** tab →
+    **Invitations** sub-tab → **"Invite user"** button. ("Create User" on that dialog makes an account with a
+    password instead of emailing a link.) Not needed for Ang (she's already a user); if she ever truly can't get
+    in, delete her user under Users → All, then re-invite.
 - **✅ (prior) QBO two-way sync LIVE, Job-ID reconciliation, "Correct Job ID" tool** — see the 2026-06-30 section
   below. Unchanged. Dunn `24_008` pair still a parked Ray data decision.
 - **Repo state:** clean + in sync with origin (`991271c`). Workflow unchanged: `git push origin main` → test gate
