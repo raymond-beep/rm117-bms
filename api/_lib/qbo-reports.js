@@ -155,6 +155,65 @@ function collectLeafRows(rowContainer, out) {
   }
 }
 
+// 'YYYY-MM-DD' (quarter start) → 'Q3 2026'.
+export function quarterLabel(startISO) {
+  const [y, m] = String(startISO || '').slice(0, 10).split('-').map(Number);
+  if (!y || !m) return '';
+  return `Q${Math.floor((m - 1) / 3) + 1} ${y}`;
+}
+
+// Parse a period-summarized ProfitAndLoss (summarize_column_by=Quarter/Month) into
+// one row per period column: [{ start, end, label, income, expense, netIncome }].
+// QBO lays the report out as columns — column 0 is the account label, then one
+// Money column per period (each carrying StartDate/EndDate in MetaData), then a
+// grand "Total" column (which has no StartDate — that's how we skip it). Section
+// totals live on each top-level section's Summary.ColData, index-aligned to the
+// columns. Newest period last (QBO's order).
+export function parseProfitAndLossColumns(report) {
+  const cols = report?.Columns?.Column || [];
+  const periods = [];
+  cols.forEach((c, index) => {
+    if (c.ColType !== 'Money') return;
+    const md = Object.fromEntries((c.MetaData || []).map((m) => [m.Name, m.Value]));
+    if (!md.StartDate) return; // the grand-Total column has no StartDate — skip it
+    periods.push({ index, start: md.StartDate, end: md.EndDate || null });
+  });
+
+  const summaryByGroup = {};
+  for (const section of report?.Rows?.Row || []) {
+    if (section.group && section.Summary?.ColData) summaryByGroup[section.group] = section.Summary.ColData;
+  }
+  const valAt = (group, index) => Number(summaryByGroup[group]?.[index]?.value || 0);
+
+  return periods.map((p) => {
+    const income = round2(valAt('Income', p.index));
+    const cogs = round2(valAt('COGS', p.index));
+    const expense = round2(valAt('Expenses', p.index));
+    const netIncome = summaryByGroup.NetIncome
+      ? round2(valAt('NetIncome', p.index))
+      : round2(income - cogs - expense);
+    return { start: p.start, end: p.end, label: quarterLabel(p.start), income, expense, netIncome };
+  });
+}
+
+// Map raw QBO invoices to a compact "top invoices" display shape, ranked by
+// original amount (TotalAmt) descending. Used for the P&L section's "Top invoices"
+// widget — the biggest billings in the selected period. `paid` = fully settled
+// (open Balance is zero). By the invariant, the customer name is the Job ID.
+export function toTopInvoices(rawInvoices = [], limit = 8) {
+  return (rawInvoices || [])
+    .map((inv) => ({
+      id: inv.Id != null ? String(inv.Id) : null,
+      docNumber: inv.DocNumber || null,
+      jobId: inv.CustomerRef?.name || inv.CustomerRef?.value || '—',
+      date: inv.TxnDate || null,
+      amount: round2(Number(inv.TotalAmt || 0)),
+      paid: Number(inv.Balance || 0) <= 0,
+    }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, limit);
+}
+
 export function parseProfitAndLoss(report) {
   const header = report?.Header || {};
   const topRows = report?.Rows?.Row || [];

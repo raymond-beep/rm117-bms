@@ -309,13 +309,29 @@ export async function listOpenInvoices() {
   return all;
 }
 
+// Largest invoices billed within a date range (by original TotalAmt), for the
+// P&L section's "Top invoices" widget. Dates ('YYYY-MM-DD') filter on TxnDate;
+// QBO caps `maxresults` and we only want the top few anyway.
+export async function listInvoicesInPeriod(startDate, endDate, limit = 10) {
+  const clauses = [];
+  if (startDate) clauses.push(`TxnDate >= '${startDate}'`);
+  if (endDate) clauses.push(`TxnDate <= '${endDate}'`);
+  const where = clauses.length ? `where ${clauses.join(' and ')} ` : '';
+  const q = `select * from Invoice ${where}order by TotalAmt desc maxresults ${limit}`;
+  const res = await qboRequest('GET', `query?query=${encodeURIComponent(q)}`);
+  return res?.QueryResponse?.Invoice || [];
+}
+
 // Profit & Loss report for a date range (accrual basis, QBO default). Dates are
-// 'YYYY-MM-DD'; omit for QBO's default period. Returns the raw report JSON — the
-// pure parser (qbo-reports.js → parseProfitAndLoss) normalizes it.
-export async function getProfitAndLoss(startDate, endDate) {
+// 'YYYY-MM-DD'; omit for QBO's default period. `summarizeBy` (optional) splits the
+// report into period columns — 'Quarter' | 'Month' | 'Year' — used for the
+// quarter-over-quarter comparison; omit for a single Total column. Returns the raw
+// report JSON — the pure parsers (qbo-reports.js) normalize it.
+export async function getProfitAndLoss(startDate, endDate, summarizeBy) {
   const params = new URLSearchParams();
   if (startDate) params.set('start_date', startDate);
   if (endDate) params.set('end_date', endDate);
+  if (summarizeBy) params.set('summarize_column_by', summarizeBy);
   const qs = params.toString();
   return qboRequest('GET', `reports/ProfitAndLoss${qs ? `?${qs}` : ''}`);
 }

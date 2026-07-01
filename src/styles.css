@@ -480,8 +480,40 @@ input, select, textarea { font: inherit; }
 .fin-age.warn { color: var(--warn); font-weight: 600; }
 .fin-amt { font-family: var(--mono); font-weight: 600; font-size: 13.5px; color: var(--ink); }
 
+/* P&L period caption + section spacing */
+.fin-period-caption { font-size: 12px; color: var(--ink3); margin: 2px 0 12px; }
+.fin-ar-head { margin-top: 30px; }
+.fin-controls { display: flex; gap: 14px; flex-wrap: wrap; }
+
+/* Quarter-over-quarter comparison chart */
+.fin-qcard { margin-top: 16px; }
+.fin-quarters { display: flex; gap: 8px; align-items: stretch; padding: 4px 0 2px; }
+.fin-q {
+  flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  background: none; border: 1px solid transparent; border-radius: 10px; padding: 8px 4px 6px; cursor: pointer;
+}
+.fin-q:hover { background: var(--inset); }
+.fin-q.active { background: var(--accent-soft); border-color: var(--accent); }
+.fin-q-net { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--success); }
+.fin-q-net.neg { color: var(--warn); }
+.fin-q-chart { height: 96px; width: 100%; display: flex; flex-direction: column; }
+.fin-q-pos { flex: 1; display: flex; align-items: flex-end; justify-content: center; }
+.fin-q-neg { flex: 1; display: flex; align-items: flex-start; justify-content: center; }
+.fin-q-base { height: 1px; background: var(--border); }
+.fin-q-bar { width: 62%; max-width: 40px; border-radius: 4px 4px 0 0; }
+.fin-q-bar.pos { background: var(--success); }
+.fin-q-bar.neg { background: var(--warn); border-radius: 0 0 4px 4px; }
+.fin-q-label { font-size: 11.5px; font-weight: 600; color: var(--ink2); text-align: center; line-height: 1.25; }
+.fin-q-label small { font-weight: 500; color: var(--ink3); font-size: 10px; }
+
+/* P&L detail: Top invoices (small) + Top expenses (large) */
+.fin-pnl-detail {
+  margin-top: 16px; display: grid; gap: 16px;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.3fr);
+}
+@media (max-width: 760px) { .fin-pnl-detail { grid-template-columns: 1fr; } }
+
 /* P&L account cards */
-.fin-accounts { margin-top: 16px; }
 .fin-acct-row {
   display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
   border-top: 1px solid var(--divider); font-size: 13px;
@@ -490,6 +522,11 @@ input, select, textarea { font: inherit; }
 .fin-acct-row.muted { color: var(--ink3); }
 .fin-acct-name { color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fin-acct-amt { font-family: var(--mono); font-weight: 600; color: var(--ink); flex: none; }
+.fin-paid-tag {
+  margin-left: 8px; font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: 0.3px;
+  text-transform: uppercase; color: var(--success); background: var(--success-soft);
+  padding: 1px 6px; border-radius: 99px; vertical-align: middle;
+}
 
 @media (max-width: 760px) {
   .fin-colhead { display: none; }

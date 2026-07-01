@@ -1,56 +1,47 @@
 // Financial tab — firm-level money view, read from QuickBooks (read-only).
-// Leads with A/R aging ("who owes us"): total outstanding + aging buckets +
-// the open-invoice list, most-overdue first. Below that, a Profit & Loss summary
-// for a selectable period. Data comes from GET /api/qbo/financials; the tab shows
-// a friendly connect state when QBO isn't configured.
+// Leads with Profit & Loss: the period stat strip, a quarter-over-quarter
+// comparison chart (click a quarter to load its report), and top invoices /
+// top expenses. Accounts receivable ("who owes us") sits underneath: outstanding
+// total + aging buckets + the open-invoice list (sortable, filterable to 2025+).
+// Data: GET /api/qbo/financials.
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { money, fmtDateOnly } from '../../lib/format.js';
 
-// P&L period presets → [start, end] as 'YYYY-MM-DD' (local). A/R is always as-of-now.
+// 'YYYY-MM-DD' in local time.
 function isoDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-const PERIODS = [
-  {
-    key: 'ytd', label: 'This year',
-    range: (now) => [isoDate(new Date(now.getFullYear(), 0, 1)), isoDate(now)],
-  },
-  {
-    key: 'this_month', label: 'This month',
-    range: (now) => [isoDate(new Date(now.getFullYear(), now.getMonth(), 1)), isoDate(now)],
-  },
-  {
-    key: 'last_month', label: 'Last month',
-    range: (now) => [
-      isoDate(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
-      isoDate(new Date(now.getFullYear(), now.getMonth(), 0)),
-    ],
-  },
-  {
-    key: 'this_quarter', label: 'This quarter',
-    range: (now) => [isoDate(new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)), isoDate(now)],
-  },
+
+// P&L period presets → { key, label, start, end }. A/R is always as-of-now.
+const PRESETS = [
+  { key: 'ytd', label: 'This year', range: (n) => [new Date(n.getFullYear(), 0, 1), n] },
+  { key: 'this_quarter', label: 'This quarter', range: (n) => [new Date(n.getFullYear(), Math.floor(n.getMonth() / 3) * 3, 1), n] },
+  { key: 'this_month', label: 'This month', range: (n) => [new Date(n.getFullYear(), n.getMonth(), 1), n] },
+  { key: 'last_month', label: 'Last month', range: (n) => [new Date(n.getFullYear(), n.getMonth() - 1, 1), new Date(n.getFullYear(), n.getMonth(), 0)] },
 ];
+function presetPeriod(key) {
+  const p = PRESETS.find((x) => x.key === key) || PRESETS[0];
+  const [s, e] = p.range(new Date());
+  return { key: p.key, label: p.label, start: isoDate(s), end: isoDate(e) };
+}
 
 // Which aging buckets read as "overdue" (drives the warn tone / count).
 const OVERDUE_KEYS = new Set(['d1_30', 'd31_60', 'd61_90', 'd90_plus']);
 
 export default function Financial() {
-  const [periodKey, setPeriodKey] = useState('ytd');
-  // A/R scope: 'recent' (2025+ jobs, default — pre-2025 QBO data is being cleaned
-  // up and may be stale) or 'all' (the full open A/R book).
-  const [arScope, setArScope] = useState('recent');
+  const [period, setPeriod] = useState(() => presetPeriod('ytd'));
+  const [arScope, setArScope] = useState('recent'); // 'recent' (2025+) | 'all'
+  const [arSort, setArSort] = useState('overdue');   // 'overdue' | 'jobid'
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  async function load(key, scope) {
+  async function load(p, scope) {
     setLoading(true);
     setError(null);
     try {
-      const [start, end] = (PERIODS.find((p) => p.key === key) || PERIODS[0]).range(new Date());
-      const res = await apiFetch(`/api/qbo/financials?start=${start}&end=${end}&ar=${scope}`);
+      const res = await apiFetch(`/api/qbo/financials?start=${p.start}&end=${p.end}&ar=${scope}`);
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
       setData(await res.json());
     } catch (err) {
@@ -59,10 +50,17 @@ export default function Financial() {
       setLoading(false);
     }
   }
-  useEffect(() => { load(periodKey, arScope); }, [periodKey, arScope]);
+  useEffect(() => { load(period, arScope); }, [period, arScope]);
 
-  const ar = data?.receivables;
   const pnl = data?.pnl;
+  const quarters = Array.isArray(data?.pnlQuarters) ? data.pnlQuarters : null;
+  const topInvoices = Array.isArray(data?.topInvoices) ? data.topInvoices : [];
+  const ar = data?.receivables;
+
+  // Expenses shown = income − net income, so Income − Expenses = Net exactly
+  // (folds in COGS and anything else between the top and bottom line).
+  const expensesShown = pnl && !pnl.error ? Math.max(0, pnl.income - pnl.netIncome) : 0;
+  const margin = pnl && pnl.income > 0 ? Math.round((pnl.netIncome / pnl.income) * 100) : null;
 
   const overdue = useMemo(() => {
     if (!ar?.buckets) return { amount: 0, count: 0 };
@@ -70,6 +68,13 @@ export default function Financial() {
       .filter((b) => OVERDUE_KEYS.has(b.key))
       .reduce((acc, b) => ({ amount: acc.amount + b.amount, count: acc.count + b.count }), { amount: 0, count: 0 });
   }, [ar]);
+
+  // Client-side A/R sort (no refetch): most-overdue (server order) or by Job ID.
+  const sortedInvoices = useMemo(() => {
+    const list = ar?.invoices ? [...ar.invoices] : [];
+    if (arSort === 'jobid') list.sort((a, b) => String(a.jobId).localeCompare(String(b.jobId), undefined, { numeric: true }));
+    return list;
+  }, [ar, arSort]);
 
   return (
     <div className="page">
@@ -92,26 +97,80 @@ export default function Financial() {
       ) : data?.configured === false ? (
         <div className="card"><div className="empty">
           QuickBooks isn’t connected yet. Once the QBO credentials are set, this tab
-          shows outstanding A/R and profit &amp; loss live from the company books.
+          shows profit &amp; loss and outstanding A/R live from the company books.
         </div></div>
       ) : (
         <>
-          {/* ── A/R aging ─────────────────────────────────────────────── */}
+          {/* ── Profit & Loss (top) ───────────────────────────────────── */}
           <div className="fin-section-head">
-            <h2>Accounts receivable</h2>
+            <h2>Profit &amp; loss</h2>
             <div className="fin-period">
-              <button
-                className={`fin-period-btn${arScope === 'recent' ? ' active' : ''}`}
-                onClick={() => setArScope('recent')}
-              >
-                2025 &amp; newer
-              </button>
-              <button
-                className={`fin-period-btn${arScope === 'all' ? ' active' : ''}`}
-                onClick={() => setArScope('all')}
-              >
-                All invoices
-              </button>
+              {PRESETS.map((p) => (
+                <button
+                  key={p.key}
+                  className={`fin-period-btn${period.key === p.key ? ' active' : ''}`}
+                  onClick={() => setPeriod(presetPeriod(p.key))}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {pnl?.error ? (
+            <div className="card"><div className="empty">Couldn’t load P&amp;L: {pnl.error}</div></div>
+          ) : (
+            <>
+              <div className="fin-period-caption">
+                {period.label} · {fmtDateOnly(period.start)} – {fmtDateOnly(period.end)}
+              </div>
+              <div className="stat-strip fin-pnl-strip">
+                <div className="stat-cell">
+                  <div className="stat-top"><div className="label">Income</div></div>
+                  <div className="value">{money(pnl.income)}</div>
+                  <div className="hint">total revenue</div>
+                </div>
+                <div className="stat-cell">
+                  <div className="stat-top"><div className="label">Expenses</div></div>
+                  <div className="value">{money(expensesShown)}</div>
+                  <div className="hint">all costs (incl. COGS)</div>
+                </div>
+                <div className="stat-cell">
+                  <div className="stat-top"><div className="label">Net income</div></div>
+                  <div className={`value${pnl.netIncome < 0 ? ' warn' : ''}`}>{money(pnl.netIncome)}</div>
+                  <div className="hint">{margin != null ? `${margin}% margin` : '—'}</div>
+                </div>
+              </div>
+
+              {/* Quarter-over-quarter comparison */}
+              {quarters && quarters.length > 0 && (
+                <QuarterChart
+                  quarters={quarters}
+                  selected={period}
+                  onSelect={(q) => setPeriod({ key: `q:${q.start}`, label: q.label, start: q.start, end: q.end })}
+                />
+              )}
+
+              {/* Top invoices (small) · Top expenses (large) */}
+              <div className="fin-pnl-detail">
+                <TopInvoices invoices={topInvoices} />
+                <AccountList title="Top expenses" accounts={pnl.expenseAccounts} large />
+              </div>
+            </>
+          )}
+
+          {/* ── Accounts receivable (below) ───────────────────────────── */}
+          <div className="fin-section-head fin-ar-head">
+            <h2>Accounts receivable</h2>
+            <div className="fin-controls">
+              <div className="fin-period" role="group" aria-label="A/R sort">
+                <button className={`fin-period-btn${arSort === 'overdue' ? ' active' : ''}`} onClick={() => setArSort('overdue')}>Most overdue</button>
+                <button className={`fin-period-btn${arSort === 'jobid' ? ' active' : ''}`} onClick={() => setArSort('jobid')}>Job ID</button>
+              </div>
+              <div className="fin-period" role="group" aria-label="A/R scope">
+                <button className={`fin-period-btn${arScope === 'recent' ? ' active' : ''}`} onClick={() => setArScope('recent')}>2025 &amp; newer</button>
+                <button className={`fin-period-btn${arScope === 'all' ? ' active' : ''}`} onClick={() => setArScope('all')}>All</button>
+              </div>
             </div>
           </div>
 
@@ -157,7 +216,7 @@ export default function Financial() {
                 </div>
               )}
 
-              {ar.invoices.length === 0 ? (
+              {sortedInvoices.length === 0 ? (
                 <div className="card"><div className="empty">No open invoices — everything’s paid up. 🎉</div></div>
               ) : (
                 <div className="fin-table">
@@ -168,7 +227,7 @@ export default function Financial() {
                     <span className="r">Age</span>
                     <span className="r">Open balance</span>
                   </div>
-                  {ar.invoices.map((inv) => (
+                  {sortedInvoices.map((inv) => (
                     <div key={inv.id || `${inv.docNumber}-${inv.dueDate}`} className="fin-row">
                       <span className="fin-job">{inv.jobId}</span>
                       <span className="fin-doc">{inv.docNumber ? `#${inv.docNumber}` : '—'}</span>
@@ -185,66 +244,81 @@ export default function Financial() {
               )}
             </>
           )}
-
-          {/* ── Profit & Loss ─────────────────────────────────────────── */}
-          <div className="fin-section-head">
-            <h2>Profit &amp; loss</h2>
-            <div className="fin-period">
-              {PERIODS.map((p) => (
-                <button
-                  key={p.key}
-                  className={`fin-period-btn${periodKey === p.key ? ' active' : ''}`}
-                  onClick={() => setPeriodKey(p.key)}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {pnl?.error ? (
-            <div className="card"><div className="empty">Couldn’t load P&amp;L: {pnl.error}</div></div>
-          ) : (
-            <>
-              <div className="stat-strip fin-pnl-strip">
-                <div className="stat-cell">
-                  <div className="stat-top"><div className="label">Income</div></div>
-                  <div className="value">{money(pnl.income)}</div>
-                  <div className="hint">{data?.period ? `${fmtDateOnly(data.period.start)} – ${fmtDateOnly(data.period.end)}` : ''}</div>
-                </div>
-                <div className="stat-cell">
-                  <div className="stat-top"><div className="label">Expenses</div></div>
-                  <div className="value">{money(pnl.expense)}</div>
-                  <div className="hint">including cost of goods sold</div>
-                </div>
-                <div className="stat-cell">
-                  <div className="stat-top"><div className="label">Net income</div></div>
-                  <div className={`value${pnl.netIncome < 0 ? ' warn' : ''}`}>{money(pnl.netIncome)}</div>
-                  <div className="hint">{pnl.income > 0 ? `${Math.round((pnl.netIncome / pnl.income) * 100)}% margin` : '—'}</div>
-                </div>
-              </div>
-
-              <div className="grid-2 fin-accounts">
-                <AccountList title="Top income" accounts={pnl.incomeAccounts} />
-                <AccountList title="Top expenses" accounts={pnl.expenseAccounts} />
-              </div>
-            </>
-          )}
         </>
       )}
     </div>
   );
 }
 
-// A compact ranked account list (top 6 by amount) with the rest folded into a
-// remainder row so a long chart of accounts stays readable.
-function AccountList({ title, accounts }) {
-  const rows = accounts || [];
-  const top = rows.slice(0, 6);
-  const rest = rows.slice(6);
-  const restTotal = rest.reduce((s, a) => s + a.amount, 0);
+// Quarter-over-quarter net-income bars around a zero baseline: green above (good
+// quarter), warn below (a loss). Click a quarter to load its P&L into the section
+// above. Heights scale to the largest absolute net in the window.
+function QuarterChart({ quarters, selected, onSelect }) {
+  const maxAbs = Math.max(1, ...quarters.map((q) => Math.abs(q.netIncome)));
+  return (
+    <div className="card fin-qcard">
+      <div className="card-head"><h3>Net income by quarter</h3><span className="head-meta">CLICK TO OPEN</span></div>
+      <div className="card-body">
+        <div className="fin-quarters">
+          {quarters.map((q) => {
+            const active = selected.start === q.start && selected.end === q.end;
+            const h = Math.round((Math.abs(q.netIncome) / maxAbs) * 44);
+            const neg = q.netIncome < 0;
+            return (
+              <button
+                key={q.start}
+                className={`fin-q${active ? ' active' : ''}`}
+                onClick={() => onSelect(q)}
+                title={`${q.label}: income ${money(q.income)}, expenses ${money(q.income - q.netIncome)}, net ${money(q.netIncome)}`}
+              >
+                <div className={`fin-q-net${neg ? ' neg' : ''}`}>{money(q.netIncome)}</div>
+                <div className="fin-q-chart">
+                  <div className="fin-q-pos">{!neg && q.netIncome > 0 && <span className="fin-q-bar pos" style={{ height: `${h}px` }} />}</div>
+                  <div className="fin-q-base" />
+                  <div className="fin-q-neg">{neg && <span className="fin-q-bar neg" style={{ height: `${h}px` }} />}</div>
+                </div>
+                <div className="fin-q-label">{q.label}{q.partial ? <><br /><small>so far</small></> : ''}</div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Biggest invoices billed in the selected period (the smaller P&L widget).
+function TopInvoices({ invoices }) {
   return (
     <div className="card fin-acct-card">
+      <div className="card-head"><h3>Top invoices</h3></div>
+      <div className="card-body">
+        {invoices.length === 0 ? (
+          <div className="empty">No invoices in this period.</div>
+        ) : (
+          invoices.map((inv) => (
+            <div key={inv.id || inv.docNumber} className="fin-acct-row">
+              <span className="fin-acct-name">
+                {inv.jobId}
+                {inv.paid ? <span className="fin-paid-tag">paid</span> : null}
+              </span>
+              <span className="fin-acct-amt">{money(inv.amount)}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// A ranked account list (top 8 by amount) with the remainder folded into one row.
+function AccountList({ title, accounts, large = false }) {
+  const rows = accounts || [];
+  const top = rows.slice(0, large ? 10 : 6);
+  const rest = rows.slice(large ? 10 : 6);
+  const restTotal = rest.reduce((s, a) => s + a.amount, 0);
+  return (
+    <div className={`card fin-acct-card${large ? ' fin-acct-large' : ''}`}>
       <div className="card-head"><h3>{title}</h3></div>
       <div className="card-body">
         {rows.length === 0 ? (

@@ -7,6 +7,9 @@ import {
   normalizeInvoice,
   summarizeReceivables,
   parseProfitAndLoss,
+  parseProfitAndLossColumns,
+  quarterLabel,
+  toTopInvoices,
 } from '../api/_lib/qbo-reports.js';
 
 // Fixed "today" so days-past-due is deterministic.
@@ -228,5 +231,82 @@ describe('parseProfitAndLoss', () => {
   it('does not throw on an empty/garbage report', () => {
     expect(parseProfitAndLoss({})).toMatchObject({ income: 0, expense: 0, netIncome: 0 });
     expect(parseProfitAndLoss(null)).toMatchObject({ income: 0, expense: 0 });
+  });
+});
+
+describe('quarterLabel', () => {
+  it('maps a quarter start date to a Q# YYYY label', () => {
+    expect(quarterLabel('2025-01-01')).toBe('Q1 2025');
+    expect(quarterLabel('2025-04-01')).toBe('Q2 2025');
+    expect(quarterLabel('2026-07-01')).toBe('Q3 2026');
+    expect(quarterLabel('2026-10-15')).toBe('Q4 2026');
+  });
+  it('returns empty on junk', () => {
+    expect(quarterLabel('')).toBe('');
+    expect(quarterLabel(null)).toBe('');
+  });
+});
+
+// Structurally faithful to the real quarter-summarized report shape (probed live):
+// column 0 = Account label, then one Money column per quarter carrying
+// MetaData StartDate/EndDate, then a grand "Total" column with no StartDate.
+const qtrReport = {
+  Columns: {
+    Column: [
+      { ColTitle: '', ColType: 'Account' },
+      { ColTitle: 'Jan - Mar, 2025', ColType: 'Money', MetaData: [{ Name: 'StartDate', Value: '2025-01-01' }, { Name: 'EndDate', Value: '2025-03-31' }] },
+      { ColTitle: 'Apr - Jun, 2025', ColType: 'Money', MetaData: [{ Name: 'StartDate', Value: '2025-04-01' }, { Name: 'EndDate', Value: '2025-06-30' }] },
+      { ColTitle: 'Total', ColType: 'Money', MetaData: [] },
+    ],
+  },
+  Rows: {
+    Row: [
+      { group: 'Income', Summary: { ColData: [{ value: 'Total Income' }, { value: '60400.00' }, { value: '162133.74' }, { value: '222533.74' }] } },
+      { group: 'COGS', Summary: { ColData: [{ value: 'Total COGS' }, { value: '12858.27' }, { value: '14713.35' }, { value: '27571.62' }] } },
+      { group: 'Expenses', Summary: { ColData: [{ value: 'Total Expenses' }, { value: '43685.12' }, { value: '44582.34' }, { value: '88267.46' }] } },
+      { group: 'NetIncome', Summary: { ColData: [{ value: 'Net Income' }, { value: '3856.61' }, { value: '102838.05' }, { value: '106694.66' }] } },
+    ],
+  },
+};
+
+describe('parseProfitAndLossColumns', () => {
+  it('returns one row per quarter column, skipping the grand Total column', () => {
+    const rows = parseProfitAndLossColumns(qtrReport);
+    expect(rows).toHaveLength(2); // two quarters, not the Total column
+    expect(rows.map((r) => r.label)).toEqual(['Q1 2025', 'Q2 2025']);
+  });
+
+  it('reads income / expense / net per column (index-aligned to Summary.ColData)', () => {
+    const [q1, q2] = parseProfitAndLossColumns(qtrReport);
+    expect(q1).toMatchObject({ income: 60400, expense: 43685.12, netIncome: 3856.61, start: '2025-01-01', end: '2025-03-31' });
+    expect(q2).toMatchObject({ income: 162133.74, expense: 44582.34, netIncome: 102838.05 });
+  });
+
+  it('carries a negative net income through (a bad quarter)', () => {
+    const bad = JSON.parse(JSON.stringify(qtrReport));
+    bad.Rows.Row.find((r) => r.group === 'NetIncome').Summary.ColData[1].value = '-3130.29';
+    expect(parseProfitAndLossColumns(bad)[0].netIncome).toBe(-3130.29);
+  });
+
+  it('does not throw on an empty report', () => {
+    expect(parseProfitAndLossColumns({})).toEqual([]);
+    expect(parseProfitAndLossColumns(null)).toEqual([]);
+  });
+});
+
+describe('toTopInvoices', () => {
+  const raw = [
+    { Id: '1', DocNumber: '1071', CustomerRef: { name: '25_044_FF_Luebenow-Suchy' }, TxnDate: '2026-02-01', TotalAmt: 12400, Balance: 12400 },
+    { Id: '2', DocNumber: '1076', CustomerRef: { name: '25_047_Costello' }, TxnDate: '2026-03-01', TotalAmt: 10500, Balance: 0 },
+    { Id: '3', DocNumber: '1064', CustomerRef: { name: '25_037_Smith' }, TxnDate: '2026-01-15', TotalAmt: 8800, Balance: 8800 },
+  ];
+  it('ranks by TotalAmt desc and flags paid (zero balance)', () => {
+    const top = toTopInvoices(raw, 2);
+    expect(top).toHaveLength(2);
+    expect(top[0]).toMatchObject({ jobId: '25_044_FF_Luebenow-Suchy', amount: 12400, paid: false });
+    expect(top[1]).toMatchObject({ jobId: '25_047_Costello', amount: 10500, paid: true });
+  });
+  it('handles an empty list', () => {
+    expect(toTopInvoices([])).toEqual([]);
   });
 });
