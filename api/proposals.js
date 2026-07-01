@@ -1,6 +1,9 @@
 // /api/proposals — saved proposals for the generator (internal, staff-only).
 //   GET                 -> list (newest-edited first; id, job_id, title, status, dates)
 //   GET ?id=...         -> one proposal with its full `content` (to reopen)
+//   GET ?job_id=...     -> that job's proposals WITH full `content` (newest-edited
+//                          first) — powers the invoice panel's contract fee-schedule
+//                          reference
 //   POST { id?, job_id?, status?, content }
 //                       -> create (no id) or update (id); returns the row
 //   DELETE { id }       -> remove a saved proposal
@@ -24,6 +27,7 @@ export default async function handler(req, res) {
 async function list(req, res) {
   if (!(await requireStaff(req, res))) return;
   const id = req.query.id;
+  const jobId = req.query.job_id;
   try {
     if (!hasDb()) return res.status(200).json({ source: 'mock', proposals: id ? null : [] });
     const db = getDb();
@@ -32,6 +36,14 @@ async function list(req, res) {
       if (error && error.code !== 'PGRST116') throw error;
       if (!data) return res.status(404).json({ error: 'Proposal not found' });
       return res.status(200).json({ source: 'supabase', proposal: data });
+    }
+    if (jobId) {
+      // A job's proposals with full content (the invoice panel reads the fee schedule).
+      const { data, error } = await db
+        .from('proposals').select(COLS).eq('job_id', jobId)
+        .order('updated_at', { ascending: false });
+      if (error) throw error;
+      return res.status(200).json({ source: 'supabase', proposals: data || [] });
     }
     const { data, error } = await db
       .from('proposals')

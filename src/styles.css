@@ -837,6 +837,42 @@ input, select, textarea { font: inherit; }
   background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); font-weight: 600;
 }
 
+/* Contract fee-schedule reference in the "Send to QuickBooks" panel */
+.qbo-proposal-ref {
+  background: var(--inset); border: 1px solid var(--border); border-radius: 10px;
+  padding: 11px 13px; margin-bottom: 12px;
+}
+.qbo-ref-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.qbo-ref-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+.qbo-ref-meta { font-size: 11px; color: var(--ink3); }
+.qbo-fee-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-top: 1px solid var(--border); }
+.qbo-fee-main { flex: 1; min-width: 0; }
+.qbo-fee-label { display: block; font-size: 13px; color: var(--ink); }
+.qbo-fee-due { display: block; font-size: 11px; color: var(--ink3); margin-top: 1px; }
+.qbo-fee-amt { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.qbo-fee-total {
+  display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid var(--border); font-size: 12px; color: var(--ink3); font-weight: 600;
+}
+
+/* Signed-proposal viewer (Payments tab) */
+.proposal-docs { margin-bottom: 16px; }
+.pdoc-list { list-style: none; margin: 0; padding: 0; }
+.pdoc-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 9px; background: var(--inset); margin-bottom: 6px;
+}
+.pdoc-icon { color: var(--ink3); font-size: 15px; }
+.pdoc-main { flex: 1; min-width: 0; }
+.pdoc-name { display: block; font-size: 13px; color: var(--ink); word-break: break-word; }
+.pdoc-meta { display: block; font-size: 11px; color: var(--ink3); margin-top: 1px; }
+.pdoc-viewer { margin-top: 8px; }
+.pdoc-frame {
+  width: 100%; height: 560px; border: 1px solid var(--border); border-radius: 10px; background: #fff;
+}
+.pdoc-open { display: inline-block; margin-top: 8px; text-decoration: none; }
+@media (max-width: 640px) { .pdoc-frame { height: 62vh; } }
+
 /* ---------- Calendar widget (month grid + agenda) ---------- */
 .cal2 { display: grid; grid-template-columns: minmax(230px, 280px) 1fr; }
 .cal2 .cal-month { padding: 16px 18px; border-right: 1px solid var(--divider); }

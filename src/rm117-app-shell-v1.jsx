@@ -27,11 +27,12 @@ const ProposalGenerator = lazy(() => import('./components/templates/ProposalGene
 
 const RouteFallback = () => <div className="page"><div className="card"><div className="empty">Loading…</div></div></div>;
 
-// Bottom tab bar (mobile) — the live workspace surfaces.
+// Bottom tab bar (mobile) — the live workspace surfaces. Forefront lives in the
+// desktop sidebar only; the mobile bar surfaces Financial in its slot instead.
 const MOBILE_TABS = [
   { to: '/', label: 'Home', icon: '⌂', end: true },
   { to: '/bms', label: 'Jobs', icon: '▤' },
-  { to: '/forefront', label: 'Forefront', icon: '◈' },
+  { to: '/financial', label: 'Financial', icon: '$' },
   { to: '/portal', label: 'Portal', icon: '◱' },
 ];
 

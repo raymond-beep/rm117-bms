@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { money, shortDate } from '../../lib/format.js';
 import QboInvoicePanel from './QboInvoicePanel.jsx';
+import ProposalDocs from './ProposalDocs.jsx';
 
 // 'qb' is reserved for the Zapier→Supabase sync; QuickBooks payments arrive
 // automatically, so the manual form only offers payments received outside QBO.
@@ -99,6 +100,8 @@ export default function PaymentsTab({ job, onLogged }) {
             </div>
           </>
         )}
+
+        <ProposalDocs job={job} />
 
         {qboConfigured && <QboInvoicePanel job={job} onInvoiced={loadPayments} />}
 

@@ -9,7 +9,7 @@
 //
 // Billing modes both work here (Ray, 2026-06-28): one line = pay-in-full; several
 // lines = per-milestone. Lines bill against QBO service items by name.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { money } from '../../lib/format.js';
 
@@ -38,6 +38,19 @@ const KNOWN_ITEMS = [
 ];
 
 const blankLine = () => ({ item_name: KNOWN_ITEMS[0], custom_name: '', amount: '', description: '' });
+const isBlankLine = (l) => !l.amount && !l.description && !l.custom_name && l.item_name === KNOWN_ITEMS[0];
+
+// Prefer a signed contract, then a sent one, then the most recently edited draft.
+const STATUS_RANK = { signed: 2, sent: 1, draft: 0 };
+function pickProposal(list = []) {
+  return [...list].sort((a, b) =>
+    (STATUS_RANK[b.status] || 0) - (STATUS_RANK[a.status] || 0) ||
+    String(b.updated_at).localeCompare(String(a.updated_at)),
+  )[0] || null;
+}
+// A proposal fee line's label → the exact QBO catalog item, if one matches by name.
+const matchItem = (label) =>
+  KNOWN_ITEMS.find((n) => n.toLowerCase() === String(label || '').trim().toLowerCase()) || null;
 
 export default function QboInvoicePanel({ job, onInvoiced }) {
   const [lines, setLines] = useState([blankLine()]);
@@ -46,11 +59,46 @@ export default function QboInvoicePanel({ job, onInvoiced }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [proposal, setProposal] = useState(null); // the job's contract, for the fee-schedule reference
+
+  // Pull the job's saved proposal (if any) so staff can see the contracted fee
+  // schedule while invoicing — the reference is best-effort and never blocks.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/proposals?job_id=${encodeURIComponent(job.job_id)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (alive) setProposal(pickProposal(data.proposals || []));
+      } catch { /* the reference is optional */ }
+    })();
+    return () => { alive = false; };
+  }, [job.job_id]);
 
   const setLine = (i, patch) =>
     setLines((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
   const addLine = () => setLines((ls) => [...ls, blankLine()]);
   const removeLine = (i) => setLines((ls) => (ls.length > 1 ? ls.filter((_, idx) => idx !== i) : ls));
+
+  // Drop a contracted fee into the invoice: fill the first blank line, else append.
+  const useFee = (fee) => {
+    const known = matchItem(fee.label);
+    const filled = {
+      item_name: known || '__custom__',
+      custom_name: known ? '' : (fee.label || ''),
+      amount: fee.amount != null ? String(fee.amount) : '',
+      description: '',
+    };
+    setLines((ls) => {
+      const i = ls.findIndex(isBlankLine);
+      return i >= 0 ? ls.map((l, idx) => (idx === i ? filled : l)) : [...ls, filled];
+    });
+  };
+
+  const feeItems = Array.isArray(proposal?.content?.feeItems) ? proposal.content.feeItems : [];
+  const addlServices = Array.isArray(proposal?.content?.additionalServices) ? proposal.content.additionalServices : [];
+  const contractTotal = feeItems.reduce((s, f) => s + (Number(f.amount) || 0), 0);
 
   const total = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
   const ready = lines.every((l) => Number(l.amount) > 0 && (l.item_name !== '__custom__' || l.custom_name.trim()));
@@ -96,6 +144,36 @@ export default function QboInvoicePanel({ job, onInvoiced }) {
         Creates a real QuickBooks invoice for <code>{job.job_id}</code> (customer auto-created if needed).
         Add one line to bill in full, or several to bill by milestone.
       </div>
+
+      {feeItems.length > 0 && (
+        <div className="qbo-proposal-ref">
+          <div className="qbo-ref-head">
+            <span className="qbo-ref-title">Contract fee schedule</span>
+            <span className="qbo-ref-meta">from the {proposal.status} proposal</span>
+          </div>
+          {feeItems.map((f, i) => (
+            <div key={i} className="qbo-fee-row">
+              <div className="qbo-fee-main">
+                <span className="qbo-fee-label">{f.label}</span>
+                {f.due ? <span className="qbo-fee-due">{String(f.due).replace(/^\s*[.:]?\s*/, '')}</span> : null}
+              </div>
+              <span className="qbo-fee-amt">{money(f.amount, { cents: true })}</span>
+              <button type="button" className="chip" onClick={() => useFee(f)} title="Add this phase as an invoice line">Use</button>
+            </div>
+          ))}
+          {addlServices.map((a, i) => (
+            <div key={`a${i}`} className="qbo-fee-row">
+              <div className="qbo-fee-main">
+                <span className="qbo-fee-label">{a.label}</span>
+                <span className="qbo-fee-due">additional service</span>
+              </div>
+              <span className="qbo-fee-amt">{money(a.amount, { cents: true })}</span>
+              <button type="button" className="chip" onClick={() => useFee(a)} title="Add as an invoice line">Use</button>
+            </div>
+          ))}
+          <div className="qbo-fee-total"><span>Contract total</span><span>{money(contractTotal, { cents: true })}</span></div>
+        </div>
+      )}
 
       {result && (
         <div className="placeholder-note" style={{ color: '#15803d', padding: '0 0 10px' }}>
