@@ -291,6 +291,35 @@ export async function createInvoice(args) {
   return res?.Invoice || null;
 }
 
+// ── Reads for the Financial tab (read-only reporting) ─────────────────────────
+// Open invoices = everything still owed. DisplayName === Job ID, so CustomerRef.name
+// is the Job ID. Ordered oldest-due first; the pure summarizer (qbo-reports.js)
+// derives aging buckets from DueDate. Paginated defensively in case the book of
+// open A/R ever exceeds one page (QBO caps a query at 1000 rows).
+export async function listOpenInvoices() {
+  const all = [];
+  const PAGE = 1000;
+  for (let start = 1; ; start += PAGE) {
+    const q = `select * from Invoice where Balance > '0' order by DueDate startposition ${start} maxresults ${PAGE}`;
+    const res = await qboRequest('GET', `query?query=${encodeURIComponent(q)}`);
+    const page = res?.QueryResponse?.Invoice || [];
+    all.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return all;
+}
+
+// Profit & Loss report for a date range (accrual basis, QBO default). Dates are
+// 'YYYY-MM-DD'; omit for QBO's default period. Returns the raw report JSON — the
+// pure parser (qbo-reports.js → parseProfitAndLoss) normalizes it.
+export async function getProfitAndLoss(startDate, endDate) {
+  const params = new URLSearchParams();
+  if (startDate) params.set('start_date', startDate);
+  if (endDate) params.set('end_date', endDate);
+  const qs = params.toString();
+  return qboRequest('GET', `reports/ProfitAndLoss${qs ? `?${qs}` : ''}`);
+}
+
 // Emails a created invoice. If `email` is omitted QBO uses the invoice's BillEmail.
 export async function sendInvoice(invoiceId, email) {
   const path = email

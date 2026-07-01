@@ -16,6 +16,7 @@ const BmsDashboard = lazy(() => import('./rm117-dashboard-v1.jsx'));
 const ForefrountView = lazy(() => import('./rm117-forefront-v1.jsx'));
 const Home = lazy(() => import('./components/dashboard/Home.jsx'));
 const StaffPortalPreview = lazy(() => import('./components/portal/StaffPortalPreview.jsx'));
+const Financial = lazy(() => import('./components/financial/Financial.jsx'));
 const Settings = lazy(() => import('./components/settings/Settings.jsx'));
 const MobileThemeSheet = lazy(() => import('./components/settings/MobileThemeSheet.jsx'));
 const FieldNoteSheet = lazy(() => import('./components/field-note-sheet/FieldNoteSheet.jsx'));
@@ -43,6 +44,7 @@ const NAV_GROUPS = [
       { to: '/', label: 'Dashboard', end: true },
       { to: '/bms', label: 'BMS' },
       { to: '/forefront', label: 'Forefront' },
+      { to: '/financial', label: 'Financial' },
       { to: '/templates', label: 'Templates' },
       { to: '/portal', label: 'Client Portal' },
     ],
@@ -126,6 +128,7 @@ export default function AppShell() {
                     <Route path="/" element={<Home />} />
                     <Route path="/bms" element={<BmsDashboard />} />
                     <Route path="/forefront" element={<ForefrountView />} />
+                    <Route path="/financial" element={<Financial />} />
                     <Route path="/templates" element={<TemplatesHome />} />
                     <Route path="/templates/letter" element={<LetterGenerator />} />
                     <Route path="/templates/proposal" element={<ProposalGenerator />} />

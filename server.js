@@ -43,6 +43,8 @@ const routes = {
   '/api/qbo/connect': () => import('./api/qbo/connect.js'),
   '/api/qbo/callback': () => import('./api/qbo/callback.js'),
   '/api/qbo/status': () => import('./api/qbo/status.js'),
+  // Read-only financial snapshot (A/R aging + P&L) for the Financial tab.
+  '/api/qbo/financials': () => import('./api/qbo/financials.js'),
 };
 
 for (const [path, load] of Object.entries(routes)) {

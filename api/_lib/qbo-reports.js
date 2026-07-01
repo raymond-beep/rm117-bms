@@ -1,0 +1,196 @@
+// Pure QBO report/query → normalized-shape transforms for the Financial tab.
+//
+// Kept dependency-free (no db, no network) so it unit-tests cleanly and the API
+// endpoint (api/qbo/financials.js) stays a thin fetch-then-transform wrapper.
+// Two inputs, from api/_lib/qbo.js:
+//   • summarizeReceivables() ← the raw Invoice list from `Invoice where Balance > 0`
+//   • parseProfitAndLoss()   ← QBO's ProfitAndLoss report JSON (reports/ProfitAndLoss)
+//
+// We derive A/R aging ourselves from open invoices rather than parse QBO's
+// AgedReceivableDetail report — the invoice query is a clean structured list, and
+// computing buckets from DueDate gives us the invoice-level list AND the bucket
+// totals from one call, matching exactly what the UI renders.
+
+// Aging buckets, in display order. `test(days)` decides which bucket a given
+// days-past-due lands in (only one matches; evaluated top → bottom).
+export const AGING_BUCKETS = [
+  { key: 'current', label: 'Current',    test: (d) => d <= 0 },
+  { key: 'd1_30',   label: '1–30 days',  test: (d) => d >= 1 && d <= 30 },
+  { key: 'd31_60',  label: '31–60 days', test: (d) => d >= 31 && d <= 60 },
+  { key: 'd61_90',  label: '61–90 days', test: (d) => d >= 61 && d <= 90 },
+  { key: 'd90_plus', label: '90+ days',  test: (d) => d > 90 },
+];
+
+// Parse a 'YYYY-MM-DD' (or ISO) date to a local midnight Date, so day-count math
+// isn't skewed by a UTC parse in a negative-offset timezone. Returns null on junk.
+function localMidnight(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = String(dateStr).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+// Whole days from `due` to `asOf` (positive = past due, negative = not yet due).
+function daysBetween(due, asOf) {
+  const ms = asOf.getTime() - due.getTime();
+  return Math.floor(ms / 86_400_000);
+}
+
+// Normalize one raw QBO Invoice into the flat shape the UI table wants. By the
+// Job-ID invariant the QBO Customer DisplayName === the Job ID, so `jobId` is the
+// customer name. `amount` is the still-open Balance (not the original TotalAmt).
+export function normalizeInvoice(inv, asOf) {
+  const dueRaw = inv.DueDate || inv.TxnDate || null;
+  const due = localMidnight(dueRaw);
+  const daysPastDue = due ? daysBetween(due, asOf) : 0;
+  const bucket = (AGING_BUCKETS.find((b) => b.test(daysPastDue)) || AGING_BUCKETS[0]).key;
+  const customer = inv.CustomerRef?.name || inv.CustomerRef?.value || '—';
+  return {
+    id: inv.Id != null ? String(inv.Id) : null,
+    docNumber: inv.DocNumber || null,
+    customer,
+    jobId: customer, // invariant: DisplayName === Job ID
+    txnDate: inv.TxnDate || null,
+    dueDate: dueRaw,
+    total: Number(inv.TotalAmt || 0),
+    amount: Number(inv.Balance || 0), // open balance
+    daysPastDue,
+    bucket,
+  };
+}
+
+// Extract the two-digit year prefix of a Job ID (the QBO Customer DisplayName):
+// '25_054_McCalla' → 25, '24_008_Dunn_Fritchey' → 24. Returns null for a customer
+// name that doesn't follow the Job-ID convention (legacy / one-off QBO entries).
+// Used by the Financial tab's "recent invoices" filter — pre-2025 (24 & older)
+// QBO data is being cleaned up and may be stale, so it's hidden by default.
+export function jobIdYear(name) {
+  const m = /^(\d{2})_/.exec(String(name || '').trim());
+  return m ? Number(m[1]) : null;
+}
+
+// Roll a raw open-invoice list into { total, buckets, invoices, hidden }.
+//   total    — sum of open balances (of the *shown* invoices)
+//   buckets  — [{ key, label, amount, count }] in AGING_BUCKETS order
+//   invoices — normalized + shown, most-overdue first (largest amount breaks ties)
+//   hidden   — { count, amount } filtered out by minJobYear (0/0 when no filter)
+// `asOf` defaults to today; pass a fixed Date in tests. When `minJobYear` is set,
+// invoices whose Job ID year is below it — or that have no Job-ID year at all
+// (legacy/one-off customers) — are excluded from totals/buckets and rolled into
+// `hidden` instead, so the caller can show "N older invoices hidden — $X".
+export function summarizeReceivables(rawInvoices = [], asOf = new Date(), { minJobYear = null } = {}) {
+  const open = (rawInvoices || [])
+    .map((inv) => normalizeInvoice(inv, asOf))
+    .filter((inv) => inv.amount > 0);
+
+  let invoices = open;
+  let hidden = { count: 0, amount: 0 };
+  if (minJobYear != null) {
+    const shown = [];
+    let hiddenAmount = 0;
+    let hiddenCount = 0;
+    for (const inv of open) {
+      const yr = jobIdYear(inv.jobId);
+      if (yr != null && yr >= minJobYear) {
+        shown.push(inv);
+      } else {
+        hiddenCount += 1;
+        hiddenAmount += inv.amount;
+      }
+    }
+    invoices = shown;
+    hidden = { count: hiddenCount, amount: round2(hiddenAmount) };
+  }
+
+  const bucketMap = new Map(AGING_BUCKETS.map((b) => [b.key, { key: b.key, label: b.label, amount: 0, count: 0 }]));
+  let total = 0;
+  for (const inv of invoices) {
+    total += inv.amount;
+    const b = bucketMap.get(inv.bucket);
+    b.amount += inv.amount;
+    b.count += 1;
+  }
+
+  invoices.sort((a, b) => b.daysPastDue - a.daysPastDue || b.amount - a.amount);
+
+  return {
+    total: round2(total),
+    buckets: AGING_BUCKETS.map((b) => {
+      const v = bucketMap.get(b.key);
+      return { ...v, amount: round2(v.amount) };
+    }),
+    invoices: invoices.map((inv) => ({ ...inv, amount: round2(inv.amount), total: round2(inv.total) })),
+    hidden,
+  };
+}
+
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+// ── Profit & Loss ─────────────────────────────────────────────────────────────
+// QBO's ProfitAndLoss report is a tree of sections keyed by a `group` field
+// ('Income', 'COGS', 'GrossProfit', 'Expenses', 'NetOperatingIncome',
+// 'OtherIncome', 'OtherExpense', 'NetOtherIncome', 'NetIncome'). Section totals
+// live on `section.Summary.ColData`; leaf account rows are `type:'Data'` rows.
+// We pull the top-level section totals plus the leaf income/expense accounts (for
+// the "top accounts" breakdown). Amount is always the last column.
+
+const lastColValue = (colData) => {
+  if (!Array.isArray(colData) || colData.length === 0) return 0;
+  return Number(colData[colData.length - 1]?.value || 0);
+};
+
+// Recursively collect leaf Data rows (label + amount) under a section.
+function collectLeafRows(rowContainer, out) {
+  const rows = rowContainer?.Row;
+  if (!Array.isArray(rows)) return;
+  for (const row of rows) {
+    if (row.type === 'Data' && Array.isArray(row.ColData)) {
+      const label = row.ColData[0]?.value || '';
+      const amount = lastColValue(row.ColData);
+      if (label) out.push({ label, amount: round2(amount) });
+    }
+    if (row.Rows) collectLeafRows(row.Rows, out); // nested sub-sections
+  }
+}
+
+export function parseProfitAndLoss(report) {
+  const header = report?.Header || {};
+  const topRows = report?.Rows?.Row || [];
+
+  const sectionTotal = {}; // group -> total from its Summary row
+  const incomeAccounts = [];
+  const expenseAccounts = [];
+
+  for (const section of topRows) {
+    const group = section.group;
+    if (group && section.Summary?.ColData) {
+      sectionTotal[group] = round2(lastColValue(section.Summary.ColData));
+    }
+    if (group === 'Income') collectLeafRows(section.Rows, incomeAccounts);
+    if (group === 'Expenses') collectLeafRows(section.Rows, expenseAccounts);
+  }
+
+  const income = sectionTotal.Income || 0;
+  const cogs = sectionTotal.COGS || 0;
+  const expense = sectionTotal.Expenses || 0;
+  // Prefer QBO's own NetIncome; fall back to a plain income − cogs − expense.
+  const netIncome = sectionTotal.NetIncome != null
+    ? sectionTotal.NetIncome
+    : round2(income - cogs - expense);
+
+  const sortDesc = (a, b) => b.amount - a.amount;
+  return {
+    currency: header.Currency || 'USD',
+    start: header.StartPeriod || null,
+    end: header.EndPeriod || null,
+    income,
+    cogs,
+    expense,
+    grossProfit: sectionTotal.GrossProfit != null ? sectionTotal.GrossProfit : round2(income - cogs),
+    netIncome,
+    incomeAccounts: incomeAccounts.sort(sortDesc),
+    expenseAccounts: expenseAccounts.sort(sortDesc),
+  };
+}

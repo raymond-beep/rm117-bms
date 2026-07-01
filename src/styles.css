@@ -432,6 +432,73 @@ input, select, textarea { font: inherit; }
   .ff-owed { grid-column: 2; }
 }
 
+/* ---------- Financial tab ---------- */
+.fin-section-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  margin: 26px 0 14px; flex-wrap: wrap;
+}
+.fin-section-head:first-child { margin-top: 4px; }
+.fin-section-head h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+.fin-sub { font-size: 12px; color: var(--ink3); }
+.fin-note {
+  display: flex; align-items: center; gap: 8px; margin: 14px 0 4px;
+  font-size: 12.5px; color: var(--ink2);
+}
+.fin-note.warn { color: var(--warn); }
+.fin-link {
+  background: none; border: none; padding: 0; margin-left: 2px; cursor: pointer;
+  color: var(--accent-ink); font-size: 12.5px; font-weight: 600; text-decoration: underline;
+}
+
+/* Period toggle (P&L) */
+.fin-period { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.fin-period-btn {
+  font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 99px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink2); cursor: pointer;
+}
+.fin-period-btn:hover { background: var(--inset); }
+.fin-period-btn.active { background: var(--accent-soft); color: var(--accent-ink); border-color: transparent; }
+
+/* Open-invoice table */
+.fin-table { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.fin-colhead, .fin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) 90px 120px 80px 140px;
+  gap: 14px; align-items: center;
+}
+.fin-colhead {
+  padding: 10px 18px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--ink3); background: var(--inset);
+}
+.fin-colhead .r, .fin-row .r { text-align: right; }
+.fin-row { padding: 12px 18px; background: var(--panel); border-top: 1px solid var(--divider); }
+.fin-row:hover { background: var(--inset); }
+.fin-job { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.fin-doc { font-family: var(--mono); font-size: 12.5px; color: var(--ink2); }
+.fin-due { font-size: 12.5px; color: var(--ink2); }
+.fin-age { font-family: var(--mono); font-size: 12px; color: var(--ink3); }
+.fin-age.warn { color: var(--warn); font-weight: 600; }
+.fin-amt { font-family: var(--mono); font-weight: 600; font-size: 13.5px; color: var(--ink); }
+
+/* P&L account cards */
+.fin-accounts { margin-top: 16px; }
+.fin-acct-row {
+  display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
+  border-top: 1px solid var(--divider); font-size: 13px;
+}
+.fin-acct-row:first-child { border-top: none; }
+.fin-acct-row.muted { color: var(--ink3); }
+.fin-acct-name { color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fin-acct-amt { font-family: var(--mono); font-weight: 600; color: var(--ink); flex: none; }
+
+@media (max-width: 760px) {
+  .fin-colhead { display: none; }
+  .fin-row { grid-template-columns: 1fr auto; gap: 4px 12px; }
+  .fin-due { display: none; }
+  .fin-doc { grid-column: 1; }
+  .fin-amt { grid-column: 2; grid-row: 1; }
+}
+
 /* ---------- Toolbar ---------- */
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
 .toolbar input[type="search"] {
