@@ -56,9 +56,9 @@ export default function Financial() {
     try {
       const res = await apiFetch(`/api/qbo/financials?${qs}${fresh ? '&fresh=1' : ''}`);
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
-      const fresh_data = await res.json();
-      _finCache.set(qs, fresh_data);
-      setData(fresh_data);
+      const freshData = await res.json();
+      _finCache.set(qs, freshData);
+      setData(freshData);
     } catch (err) {
       if (!cached) setError(err.message); // keep showing stale data if we have it
     } finally {
