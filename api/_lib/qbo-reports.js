@@ -196,6 +196,39 @@ export function parseProfitAndLossColumns(report) {
   });
 }
 
+// ── "Sent" income (how the firm actually tracks it) ───────────────────────────
+// The firm counts income when an invoice is *sent* to the client (work completed →
+// billed), whether or not it's been paid yet — distinct from QBO's cash basis
+// (paid) and accrual basis (every invoice created, incl. ones drafted in advance).
+// QBO stamps the real send timestamp on DeliveryInfo.DeliveryTime when it emails an
+// invoice, so we date each invoice by that, not TxnDate (an invoice is often dated
+// weeks before it's sent).
+
+// The date an invoice was actually sent to the client ('YYYY-MM-DD'), or null if
+// it hasn't been sent (created/draft only).
+export function invoiceSendDate(inv) {
+  const dt = inv?.DeliveryInfo?.DeliveryTime;
+  return dt ? String(dt).slice(0, 10) : null;
+}
+
+// Sum invoices *sent* within [start, end] (inclusive 'YYYY-MM-DD'), by send date.
+// Returns { income, paid, open, count } — income is the full billed amount (paid +
+// still-open), matching how the firm tallies a quarter.
+export function sumSentInPeriod(invoices = [], start, end) {
+  let income = 0, paid = 0, open = 0, count = 0;
+  for (const inv of invoices || []) {
+    const sd = invoiceSendDate(inv);
+    if (!sd || sd < start || sd > end) continue;
+    const amt = Number(inv.TotalAmt || 0);
+    const bal = Number(inv.Balance || 0);
+    income += amt;
+    open += bal;
+    paid += amt - bal;
+    count += 1;
+  }
+  return { income: round2(income), paid: round2(paid), open: round2(open), count };
+}
+
 // Map raw QBO invoices to a compact "top invoices" display shape, ranked by
 // original amount (TotalAmt) descending. Used for the P&L section's "Top invoices"
 // widget — the biggest billings in the selected period. `paid` = fully settled

@@ -1,9 +1,10 @@
 // Financial tab — firm-level money view, read from QuickBooks (read-only).
-// Leads with Profit & Loss: the period stat strip, a quarter-over-quarter
-// comparison chart (click a quarter to load its report), and top invoices /
-// top expenses. Accounts receivable ("who owes us") sits underneath: outstanding
-// total + aging buckets + the open-invoice list (sortable, filterable to 2025+).
-// Data: GET /api/qbo/financials.
+// Leads with Profit & Loss on a chosen income basis (Sent | Paid | All invoiced):
+// a period stat strip (Sent shows Total billed · Expenses · Unpaid invoices · Net
+// income), a revenue-per-quarter comparison chart (click a quarter to load its
+// report), and top invoices / top expenses. Accounts receivable ("who owes us")
+// sits underneath: outstanding total + aging buckets + the open-invoice list
+// (sortable, filterable to 2025+). Data: GET /api/qbo/financials.
 import React, { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import { money, fmtDateOnly } from '../../lib/format.js';
@@ -31,7 +32,7 @@ const OVERDUE_KEYS = new Set(['d1_30', 'd31_60', 'd61_90', 'd90_plus']);
 
 export default function Financial() {
   const [period, setPeriod] = useState(() => presetPeriod('ytd'));
-  const [basis, setBasis] = useState('cash');        // 'cash' (received) | 'accrual' (invoiced)
+  const [basis, setBasis] = useState('sent');        // 'sent' (billed) | 'cash' (received) | 'accrual' (created)
   const [arScope, setArScope] = useState('recent'); // 'recent' (2025+) | 'all'
   const [arSort, setArSort] = useState('overdue');   // 'overdue' | 'jobid'
   const [data, setData] = useState(null);
@@ -106,20 +107,27 @@ export default function Financial() {
           <div className="fin-section-head">
             <h2>Profit &amp; loss</h2>
             <div className="fin-controls">
-              <div className="fin-period" role="group" aria-label="Accounting basis">
+              <div className="fin-period" role="group" aria-label="Income basis">
+                <button
+                  className={`fin-period-btn${basis === 'sent' ? ' active' : ''}`}
+                  onClick={() => setBasis('sent')}
+                  title="Invoices sent — billed for completed work, whether or not paid yet (how the firm tracks its books)"
+                >
+                  Sent
+                </button>
                 <button
                   className={`fin-period-btn${basis === 'cash' ? ' active' : ''}`}
                   onClick={() => setBasis('cash')}
-                  title="Money actually received (matches how the firm tracks its books)"
+                  title="Money actually received"
                 >
-                  Cash
+                  Paid
                 </button>
                 <button
                   className={`fin-period-btn${basis === 'accrual' ? ' active' : ''}`}
                   onClick={() => setBasis('accrual')}
-                  title="Money invoiced, whether or not it's been paid"
+                  title="Every invoice created, including ones drafted in advance"
                 >
-                  Accrual
+                  All invoiced
                 </button>
               </div>
               <div className="fin-period" role="group" aria-label="P&L period">
@@ -144,34 +152,73 @@ export default function Financial() {
                 {period.label} · {fmtDateOnly(period.start)} – {fmtDateOnly(period.end)}
                 {' · '}
                 <span className="fin-basis-tag">
-                  {basis === 'cash' ? 'Cash basis — money received' : 'Accrual basis — money invoiced'}
+                  {basis === 'sent' ? 'Sent — billed for completed work'
+                    : basis === 'cash' ? 'Paid — money received'
+                    : 'All invoiced — every invoice created'}
                 </span>
               </div>
               <div className="stat-strip fin-pnl-strip">
-                <div className="stat-cell">
-                  <div className="stat-top"><div className="label">Income</div></div>
-                  <div className="value">{money(pnl.income)}</div>
-                  <div className="hint">{basis === 'cash' ? 'received' : 'invoiced'}</div>
-                </div>
-                <div className="stat-cell">
-                  <div className="stat-top"><div className="label">Expenses</div></div>
-                  <div className="value">{money(expensesShown)}</div>
-                  <div className="hint">all costs (incl. COGS)</div>
-                </div>
-                <div className="stat-cell">
-                  <div className="stat-top"><div className="label">Net income</div></div>
-                  <div className={`value${pnl.netIncome < 0 ? ' warn' : ''}`}>{money(pnl.netIncome)}</div>
-                  <div className="hint">{margin != null ? `${margin}% margin` : '—'}</div>
-                </div>
+                {basis === 'sent' && pnl.sent ? (
+                  <>
+                    <div className="stat-cell">
+                      <div className="stat-top"><div className="label">Total billed</div></div>
+                      <div className="value">{money(pnl.sent.income)}</div>
+                      <div className="hint">{pnl.sent.count} invoice{pnl.sent.count === 1 ? '' : 's'} sent</div>
+                    </div>
+                    <div className="stat-cell">
+                      <div className="stat-top"><div className="label">Expenses</div></div>
+                      <div className="value">{money(expensesShown)}</div>
+                      <div className="hint">all costs (incl. COGS)</div>
+                    </div>
+                    <div className="stat-cell">
+                      <div className="stat-top"><div className="label">Unpaid<br />invoices</div></div>
+                      <div className={`value${pnl.sent.open > 0 ? ' warn' : ''}`}>{money(pnl.sent.open)}</div>
+                      <div className="hint">{money(pnl.sent.paid)} collected</div>
+                    </div>
+                    <div className="stat-cell">
+                      <div className="stat-top"><div className="label">Net income</div></div>
+                      <div className={`value${pnl.netIncome < 0 ? ' warn' : ''}`}>{money(pnl.netIncome)}</div>
+                      <div className="hint">{margin != null ? `${margin}% margin` : '—'}</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="stat-cell">
+                      <div className="stat-top"><div className="label">Income</div></div>
+                      <div className="value">{money(pnl.income)}</div>
+                      <div className="hint">{basis === 'cash' ? 'received' : 'invoiced'}</div>
+                    </div>
+                    <div className="stat-cell">
+                      <div className="stat-top"><div className="label">Expenses</div></div>
+                      <div className="value">{money(expensesShown)}</div>
+                      <div className="hint">all costs (incl. COGS)</div>
+                    </div>
+                    <div className="stat-cell">
+                      <div className="stat-top"><div className="label">Net income</div></div>
+                      <div className={`value${pnl.netIncome < 0 ? ' warn' : ''}`}>{money(pnl.netIncome)}</div>
+                      <div className="hint">{margin != null ? `${margin}% margin` : '—'}</div>
+                    </div>
+                  </>
+                )}
               </div>
 
-              {/* Quarter-over-quarter comparison */}
+              {/* Revenue-per-quarter comparison (billed/received/invoiced — no expenses) */}
               {quarters && quarters.length > 0 && (
                 <QuarterChart
                   quarters={quarters}
                   selected={period}
+                  title={basis === 'sent' ? 'Billed by quarter' : basis === 'cash' ? 'Received by quarter' : 'Invoiced by quarter'}
                   onSelect={(q) => setPeriod({ key: `q:${q.start}`, label: q.label, start: q.start, end: q.end })}
                 />
+              )}
+              {basis === 'sent' && data?.sentQuartersHidden > 0 && (
+                <div className="fin-note">
+                  <span className="ff-dot muted" />
+                  {data.sentQuartersHidden} earlier quarter{data.sentQuartersHidden === 1 ? '' : 's'} hidden —
+                  QuickBooks has no invoice send-dates before late 2025, so “sent” income can’t be
+                  measured then. Switch to <button className="fin-link" onClick={() => setBasis('accrual')}>All invoiced</button> to
+                  see those quarters.
+                </div>
               )}
 
               {/* Top invoices (small) · Top expenses (large) */}
@@ -273,32 +320,30 @@ export default function Financial() {
   );
 }
 
-// Quarter-over-quarter net-income bars around a zero baseline: green above (good
-// quarter), warn below (a loss). Click a quarter to load its P&L into the section
-// above. Heights scale to the largest absolute net in the window.
-function QuarterChart({ quarters, selected, onSelect }) {
-  const maxAbs = Math.max(1, ...quarters.map((q) => Math.abs(q.netIncome)));
+// Revenue-per-quarter bars (billed / received / invoiced — no expenses mixed in, so
+// always ≥ 0). Click a quarter to load its P&L into the section above. Heights scale
+// to the biggest quarter in the window; the tooltip still carries expenses + net.
+function QuarterChart({ quarters, selected, onSelect, title }) {
+  const max = Math.max(1, ...quarters.map((q) => q.income));
   return (
     <div className="card fin-qcard">
-      <div className="card-head"><h3>Net income by quarter</h3><span className="head-meta">CLICK TO OPEN</span></div>
+      <div className="card-head"><h3>{title}</h3><span className="head-meta">CLICK TO OPEN</span></div>
       <div className="card-body">
         <div className="fin-quarters">
           {quarters.map((q) => {
             const active = selected.start === q.start && selected.end === q.end;
-            const h = Math.round((Math.abs(q.netIncome) / maxAbs) * 44);
-            const neg = q.netIncome < 0;
+            const h = Math.round((q.income / max) * 56);
             return (
               <button
                 key={q.start}
                 className={`fin-q${active ? ' active' : ''}`}
                 onClick={() => onSelect(q)}
-                title={`${q.label}: income ${money(q.income)}, expenses ${money(q.income - q.netIncome)}, net ${money(q.netIncome)}`}
+                title={`${q.label}: billed ${money(q.income)}, expenses ${money(q.income - q.netIncome)}, net ${money(q.netIncome)}`}
               >
-                <div className={`fin-q-net${neg ? ' neg' : ''}`}>{money(q.netIncome)}</div>
+                <div className="fin-q-net">{money(q.income)}</div>
                 <div className="fin-q-chart">
-                  <div className="fin-q-pos">{!neg && q.netIncome > 0 && <span className="fin-q-bar pos" style={{ height: `${h}px` }} />}</div>
+                  <div className="fin-q-pos">{q.income > 0 && <span className="fin-q-bar pos" style={{ height: `${h}px` }} />}</div>
                   <div className="fin-q-base" />
-                  <div className="fin-q-neg">{neg && <span className="fin-q-bar neg" style={{ height: `${h}px` }} />}</div>
                 </div>
                 <div className="fin-q-label">{q.label}{q.partial ? <><br /><small>so far</small></> : ''}</div>
               </button>

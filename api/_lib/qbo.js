@@ -322,6 +322,25 @@ export async function listInvoicesInPeriod(startDate, endDate, limit = 10) {
   return res?.QueryResponse?.Invoice || [];
 }
 
+// Every invoice with a TxnDate in [startDate, endDate] ('YYYY-MM-DD'), full record
+// (select *) and paginated. Feeds the "Sent" income view, which buckets invoices by
+// their actual *send* date (DeliveryInfo.DeliveryTime — set when QBO emails them),
+// not TxnDate. QBO can't filter on DeliveryTime, so callers fetch a padded TxnDate
+// window (an invoice is often dated weeks before it's sent) and the pure parser
+// (qbo-reports.js sumSentInPeriod) filters on the real send date.
+export async function listInvoicesByTxnWindow(startDate, endDate) {
+  const all = [];
+  const PAGE = 100;
+  for (let start = 1; ; start += PAGE) {
+    const q = `select * from Invoice where TxnDate >= '${esc(startDate)}' and TxnDate <= '${esc(endDate)}' order by TxnDate startposition ${start} maxresults ${PAGE}`;
+    const res = await qboRequest('GET', `query?query=${encodeURIComponent(q)}`);
+    const page = res?.QueryResponse?.Invoice || [];
+    all.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return all;
+}
+
 // Profit & Loss report for a date range. Dates are 'YYYY-MM-DD'; omit for QBO's
 // default period. `summarizeBy` (optional) splits the report into period columns —
 // 'Quarter' | 'Month' | 'Year' — used for the quarter-over-quarter comparison; omit

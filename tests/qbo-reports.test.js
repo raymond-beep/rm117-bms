@@ -10,6 +10,8 @@ import {
   parseProfitAndLossColumns,
   quarterLabel,
   toTopInvoices,
+  invoiceSendDate,
+  sumSentInPeriod,
 } from '../api/_lib/qbo-reports.js';
 
 // Fixed "today" so days-past-due is deterministic.
@@ -308,5 +310,37 @@ describe('toTopInvoices', () => {
   });
   it('handles an empty list', () => {
     expect(toTopInvoices([])).toEqual([]);
+  });
+});
+
+describe('invoiceSendDate', () => {
+  it('reads DeliveryInfo.DeliveryTime as a YYYY-MM-DD date', () => {
+    expect(invoiceSendDate({ DeliveryInfo: { DeliveryTime: '2026-04-23T14:05:00-04:00' } })).toBe('2026-04-23');
+  });
+  it('returns null for an unsent (created-only) invoice', () => {
+    expect(invoiceSendDate({ EmailStatus: 'NotSet' })).toBeNull();
+    expect(invoiceSendDate({})).toBeNull();
+    expect(invoiceSendDate(null)).toBeNull();
+  });
+});
+
+describe('sumSentInPeriod', () => {
+  // Two sent in Q2 (one dated Q1 but sent Q2), one unsent, one sent outside Q2.
+  const invoices = [
+    { TotalAmt: 4300, Balance: 0,    DeliveryInfo: { DeliveryTime: '2026-04-23T10:00:00-04:00' }, TxnDate: '2026-03-06' }, // sent Q2, paid
+    { TotalAmt: 3000, Balance: 3000, DeliveryInfo: { DeliveryTime: '2026-06-29T09:00:00-04:00' }, TxnDate: '2026-06-29' }, // sent Q2, open
+    { TotalAmt: 9999, Balance: 9999, EmailStatus: 'NotSet',                                        TxnDate: '2026-05-01' }, // created, never sent
+    { TotalAmt: 1000, Balance: 0,    DeliveryInfo: { DeliveryTime: '2026-03-15T09:00:00-04:00' }, TxnDate: '2026-03-15' }, // sent Q1
+  ];
+  it('counts invoices by send date, billed = paid + open, ignoring unsent + out-of-window', () => {
+    const s = sumSentInPeriod(invoices, '2026-04-01', '2026-06-30');
+    expect(s).toEqual({ income: 7300, paid: 4300, open: 3000, count: 2 });
+  });
+  it('is inclusive of the window boundaries', () => {
+    expect(sumSentInPeriod(invoices, '2026-06-29', '2026-06-29').count).toBe(1);
+  });
+  it('handles an empty / missing list', () => {
+    expect(sumSentInPeriod([], '2026-01-01', '2026-12-31')).toEqual({ income: 0, paid: 0, open: 0, count: 0 });
+    expect(sumSentInPeriod(null, '2026-01-01', '2026-12-31').income).toBe(0);
   });
 });
