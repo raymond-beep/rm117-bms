@@ -31,17 +31,18 @@ const OVERDUE_KEYS = new Set(['d1_30', 'd31_60', 'd61_90', 'd90_plus']);
 
 export default function Financial() {
   const [period, setPeriod] = useState(() => presetPeriod('ytd'));
+  const [basis, setBasis] = useState('cash');        // 'cash' (received) | 'accrual' (invoiced)
   const [arScope, setArScope] = useState('recent'); // 'recent' (2025+) | 'all'
   const [arSort, setArSort] = useState('overdue');   // 'overdue' | 'jobid'
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  async function load(p, scope) {
+  async function load(p, scope, b) {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch(`/api/qbo/financials?start=${p.start}&end=${p.end}&ar=${scope}`);
+      const res = await apiFetch(`/api/qbo/financials?start=${p.start}&end=${p.end}&ar=${scope}&basis=${b}`);
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
       setData(await res.json());
     } catch (err) {
@@ -50,7 +51,7 @@ export default function Financial() {
       setLoading(false);
     }
   }
-  useEffect(() => { load(period, arScope); }, [period, arScope]);
+  useEffect(() => { load(period, arScope, basis); }, [period, arScope, basis]);
 
   const pnl = data?.pnl;
   const quarters = Array.isArray(data?.pnlQuarters) ? data.pnlQuarters : null;
@@ -104,16 +105,34 @@ export default function Financial() {
           {/* ── Profit & Loss (top) ───────────────────────────────────── */}
           <div className="fin-section-head">
             <h2>Profit &amp; loss</h2>
-            <div className="fin-period">
-              {PRESETS.map((p) => (
+            <div className="fin-controls">
+              <div className="fin-period" role="group" aria-label="Accounting basis">
                 <button
-                  key={p.key}
-                  className={`fin-period-btn${period.key === p.key ? ' active' : ''}`}
-                  onClick={() => setPeriod(presetPeriod(p.key))}
+                  className={`fin-period-btn${basis === 'cash' ? ' active' : ''}`}
+                  onClick={() => setBasis('cash')}
+                  title="Money actually received (matches how the firm tracks its books)"
                 >
-                  {p.label}
+                  Cash
                 </button>
-              ))}
+                <button
+                  className={`fin-period-btn${basis === 'accrual' ? ' active' : ''}`}
+                  onClick={() => setBasis('accrual')}
+                  title="Money invoiced, whether or not it's been paid"
+                >
+                  Accrual
+                </button>
+              </div>
+              <div className="fin-period" role="group" aria-label="P&L period">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    className={`fin-period-btn${period.key === p.key ? ' active' : ''}`}
+                    onClick={() => setPeriod(presetPeriod(p.key))}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -123,12 +142,16 @@ export default function Financial() {
             <>
               <div className="fin-period-caption">
                 {period.label} · {fmtDateOnly(period.start)} – {fmtDateOnly(period.end)}
+                {' · '}
+                <span className="fin-basis-tag">
+                  {basis === 'cash' ? 'Cash basis — money received' : 'Accrual basis — money invoiced'}
+                </span>
               </div>
               <div className="stat-strip fin-pnl-strip">
                 <div className="stat-cell">
                   <div className="stat-top"><div className="label">Income</div></div>
                   <div className="value">{money(pnl.income)}</div>
-                  <div className="hint">total revenue</div>
+                  <div className="hint">{basis === 'cash' ? 'received' : 'invoiced'}</div>
                 </div>
                 <div className="stat-cell">
                   <div className="stat-top"><div className="label">Expenses</div></div>

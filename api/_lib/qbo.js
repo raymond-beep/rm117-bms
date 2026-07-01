@@ -322,16 +322,20 @@ export async function listInvoicesInPeriod(startDate, endDate, limit = 10) {
   return res?.QueryResponse?.Invoice || [];
 }
 
-// Profit & Loss report for a date range (accrual basis, QBO default). Dates are
-// 'YYYY-MM-DD'; omit for QBO's default period. `summarizeBy` (optional) splits the
-// report into period columns — 'Quarter' | 'Month' | 'Year' — used for the
-// quarter-over-quarter comparison; omit for a single Total column. Returns the raw
+// Profit & Loss report for a date range. Dates are 'YYYY-MM-DD'; omit for QBO's
+// default period. `summarizeBy` (optional) splits the report into period columns —
+// 'Quarter' | 'Month' | 'Year' — used for the quarter-over-quarter comparison; omit
+// for a single Total column. `method` (optional) is the accounting basis —
+// 'Cash' | 'Accrual'; omit to use the QBO company default (accrual). Cash basis
+// recognizes income when payment is received (money in the door); accrual counts it
+// when the invoice is created (whether or not it's been paid). Returns the raw
 // report JSON — the pure parsers (qbo-reports.js) normalize it.
-export async function getProfitAndLoss(startDate, endDate, summarizeBy) {
+export async function getProfitAndLoss(startDate, endDate, summarizeBy, method) {
   const params = new URLSearchParams();
   if (startDate) params.set('start_date', startDate);
   if (endDate) params.set('end_date', endDate);
   if (summarizeBy) params.set('summarize_column_by', summarizeBy);
+  if (method) params.set('accounting_method', method);
   const qs = params.toString();
   return qboRequest('GET', `reports/ProfitAndLoss${qs ? `?${qs}` : ''}`);
 }

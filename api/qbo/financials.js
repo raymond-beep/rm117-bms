@@ -8,6 +8,12 @@
 //
 // Query params:
 //   ?start=&end= ('YYYY-MM-DD') — P&L / top-invoice window (default: Jan 1 → today)
+//   ?basis=cash|accrual        — P&L accounting basis. 'cash' (default) counts income
+//                                when payment is received (money actually in the door —
+//                                matches how the firm tracks its books); 'accrual'
+//                                counts it when the invoice is created (whether or not
+//                                it's been paid). Only affects the P&L sections (pnl /
+//                                pnlQuarters); A/R and top-invoices are invoice-based.
 //   ?ar=recent|all             — A/R scope. 'recent' (default) hides invoices for
 //                                jobs older than 2025 (Job IDs '24_…' and earlier),
 //                                which are pending QuickBooks cleanup and may be
@@ -54,6 +60,9 @@ export default async function handler(req, res) {
   const end = (req.query?.end) || isoDate(now);
   const arScope = req.query?.ar === 'all' ? 'all' : 'recent';
   const minJobYear = arScope === 'all' ? null : RECENT_MIN_JOB_YEAR;
+  // P&L basis: 'cash' (default) = money received; 'accrual' = money invoiced.
+  const basis = req.query?.basis === 'accrual' ? 'accrual' : 'cash';
+  const qboMethod = basis === 'accrual' ? 'Accrual' : 'Cash';
 
   // Trailing quarter window: first day of the quarter (WINDOW-1) quarters ago →
   // last day of the current quarter, so the comparison shows exactly WINDOW full
@@ -65,8 +74,8 @@ export default async function handler(req, res) {
 
   const [arResult, pnlResult, qtrResult, topResult] = await Promise.allSettled([
     listOpenInvoices(),
-    getProfitAndLoss(start, end),
-    getProfitAndLoss(isoDate(qWinStart), isoDate(qWinEnd), 'Quarter'),
+    getProfitAndLoss(start, end, undefined, qboMethod),
+    getProfitAndLoss(isoDate(qWinStart), isoDate(qWinEnd), 'Quarter', qboMethod),
     listInvoicesInPeriod(start, end, 8),
   ]);
 
@@ -92,6 +101,7 @@ export default async function handler(req, res) {
     configured: true,
     asOf: now.toISOString(),
     period: { start, end },
+    basis,
     arScope,
     pnl,
     pnlQuarters,
