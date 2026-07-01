@@ -129,29 +129,34 @@ interior design / graphic design). This is a **multi-tenant SaaS pivot** — a v
 
 ---
 
-## Financial tab — "QuickBooks inside the app" (Angelena's ask, captured 2026-06-29)
+## Financial tab — "QuickBooks inside the app" (Angelena's ask) — ✅ SHIPPED v1 2026-07-01
 **Goal:** give Angelena a Financial tab where she can do most of what she does in QuickBooks, without
-leaving the app — including **quarterly reports** and other accounting views. **✅ UNBLOCKED 2026-06-30** —
-the QBO two-way sync is live (see `QBO_INTUIT_PLAN.md`), so this is now the next big build.
-**First step:** a 10-min talk with Angelena on which numbers she reads per job daily (contract value vs
-invoiced-to-date vs paid vs outstanding) — that shapes the data model. Then pull QBO invoices/balances/
-reports into Supabase on a Vercel Cron + an on-demand "Refresh from QuickBooks".
+leaving the app — including **quarterly reports** and other accounting views. **✅ V1 LIVE 2026-07-01**
+(commits `d9dce3a` + `991271c`). Read-only; QBO stays the ledger of record, the app surfaces it via the
+QBO Reports/Query API (`api/qbo/financials.js` → pure parsers `api/_lib/qbo-reports.js`). No Supabase
+mirror/Cron was needed for v1 — reads QBO live on each tab load.
 
 **Strategy — surface, don't rebuild.** QuickBooks stays the system of record. The Financial tab READS
-QBO's own reports via the API and pairs them with the app's job-level data (per-job billed/outstanding,
-Forefront commissions, milestone schedules) that QBO doesn't structure the same way. Far less work than
+QBO's own reports via the API and pairs them with the app's job-level data. Far less work than
 re-implementing a ledger.
 
-**Likely sections (pick/prioritize with Ang):**
-- **Overview:** A/R outstanding (already computed), revenue YTD, billed vs collected, by phase.
-- **Quarterly reports:** P&L by quarter + export to PDF/CSV. (QBO `profit_loss` report API.)
-- **A/R aging:** who owes what and how overdue. (QBO AR-aging summary/detail.)
-- **Cash flow:** (QBO cash-flow report API.)
-- **Sales by customer / by job type / by referrer:** RM117-flavored revenue cuts.
-- **Per-job financials:** contract value, billed, outstanding, payment timeline (app already has most).
-- **Forefront commissions roll-up:** owed vs paid (the Forefront tracker, surfaced financially).
-- **Invoice controls:** create/send invoices + payment links from the job (the two-way sync UI).
+**Shipped in v1:**
+- ✅ **Profit & loss** (top): Income / Expenses / Net + margin, reconciled (Income−Expenses=Net, COGS folded
+  in); period toggle (This year / quarter / month / last month).
+- ✅ **Quarterly comparison:** "Net income by quarter" bar chart, trailing 6 quarters
+  (`summarize_column_by=Quarter`), green=good / orange=loss around a zero baseline; **click a quarter to load
+  its P&L**.
+- ✅ **A/R aging:** outstanding total + buckets (current…90+) + open-invoice list; sort (Most overdue | Job ID),
+  scope filter (2025 & newer | All — pre-2025 QBO data is being cleaned up, filtered by Job-ID year, never
+  deleted).
+- ✅ **Top invoices** (biggest billings in period) + **Top expenses** accounts.
 
-**Notes:** the connected Intuit QuickBooks MCP already exposes P&L, balance sheet, AR aging, cash flow,
-and sales-by-customer reports — useful to prototype the views' shape before/while the app's own QBO
-connection is built. Quarterly-report export can reuse the existing `pdf-lib` doc engine.
+**Not yet (candidate follow-ups, prioritize with Ang's feedback):**
+- Export a P&L / A/R statement to PDF/CSV (reuse the `pdf-lib` doc engine).
+- Cash flow (QBO cash-flow report API); sales by customer / job type / referrer.
+- **Per-job financials** on the JobEditor: contract value, billed, outstanding, payment timeline.
+- Forefront commissions roll-up surfaced financially.
+- Caching QBO reads (a Supabase mirror + Vercel Cron / "Refresh from QuickBooks") if live reads get slow.
+
+**Notes:** the connected Intuit QuickBooks MCP exposes P&L, balance sheet, AR aging, cash flow, and
+sales-by-customer reports — handy to prototype new views' shape before wiring the app's own read.

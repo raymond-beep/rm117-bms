@@ -54,6 +54,9 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `api/jobs/rename.js` | **"Correct Job ID"** — renames a job across App (cascade) + QBO customer + Drive folder together, with dry-run preview + rollback |
 | `src/components/job-editor/QboInvoicePanel.jsx` | "Send to QuickBooks" invoice UI (in PaymentsTab; shown only when QBO configured) |
 | `src/components/job-editor/CorrectJobIdModal.jsx` | Preview→retype-confirm UI for the 3-system rename (the `✎ ID` button in JobEditor) |
+| `api/qbo/financials.js` | GET — **Financial tab** data (staff-gated, read-only): open-invoice A/R + P&L (selected period) + quarter-summarized P&L (6 quarters) + top invoices; 4 QBO reads isolated via `Promise.allSettled`; `?ar=recent\|all`, `?start=&end=` |
+| `api/_lib/qbo-reports.js` | Pure QBO report/query → normalized-shape transforms (no db/network): `summarizeReceivables` (aging buckets + `minJobYear` filter via `jobIdYear`), `parseProfitAndLoss`, `parseProfitAndLossColumns` (per-quarter), `toTopInvoices` |
+| `src/components/financial/Financial.jsx` | **Financial tab** UI (`/financial`): P&L on top (Income/Expenses/Net + margin, period toggle, **net-income-by-quarter bar chart** — click a quarter to load it), Top invoices + Top expenses, then A/R aging below (sort: Most overdue\|Job ID; scope: 2025+\|All). `.fin-*` styles in `styles.css` |
 | `api/phase-events.js` | GET/POST/DELETE — per-job phase-reached timeline (Progress tab) |
 | `api/field-notes.js` | GET/POST/PATCH/DELETE — on-site field notes (staff-only; author from Clerk token); GET signs attachment URLs |
 | `api/field-notes/upload.js` | POST base64 photo/voice → private `field-notes` Storage bucket; returns the storage path |
@@ -126,6 +129,11 @@ Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold
   links back. **Inbound:** when a QBO invoice is paid, a **Zapier** zap POSTs `api/payments/webhook` →
   inserts a `payments` row, matched by Job ID = QBO **Customer Display Name**. Both directions depend on
   that name invariant — keep it via the new-job builder + the "Correct Job ID" tool.
+  - **Financial tab (read-only, LIVE 2026-07-01):** the app surfaces QBO without touching the ledger — A/R aging
+    (from open invoices), P&L, and a quarter-over-quarter comparison (`summarize_column_by=Quarter`) via the QBO
+    Reports/Query API (`api/qbo/financials.js` → pure parsers in `api/_lib/qbo-reports.js`). A/R defaults to a
+    "2025 & newer" view because pre-2025 QBO invoices are still being cleaned up (Job-ID-year filter, never a
+    delete; "All" shows everything). Reads QBO live on each load (no caching yet).
   - **Creds note:** runs on Intuit's *dashboard-labeled "Development"* keys (`ABYas…`) — for a private,
     single-company app these legitimately connect to the **production** company. The "Production"-labeled
     keys (`AB6whTti…`) are only for marketplace publishing; not used. Refresh token lives in the shared

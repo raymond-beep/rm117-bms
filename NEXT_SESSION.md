@@ -1,43 +1,44 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-06-30 (QuickBooks two-way sync LIVE + Job-ID reconciliation + "Correct Job ID" tool)
+**Last updated:** 2026-07-01 (FINANCIAL TAB SHIPPED + LIVE — P&L + quarter comparison + A/R aging; Angelena onboarding)
 
-## ⭐ START HERE NEXT (2026-06-30) — QuickBooks is LIVE; next big build = the Financial tab
-- **🎉 QBO TWO-WAY SYNC IS LIVE + PROVEN END-TO-END.** Intuit creds in; connected to the real company
-  `Room 117 Architecture & Design LLC` (Realm `193514517070094`). **Outbound:** "Send to QuickBooks" on a
-  job's Payments tab creates a real QBO customer + invoice (validated via a real UI test on `26_042_Gonzalez`,
-  then cleaned up). **Inbound:** paid QBO invoices already flow back as `payments` via a Zapier zap
-  (`api/payments/webhook.js`) — fired as recently as today. Commits: `b601a87` (sync + OAuth + invoice UI),
-  `13c0c30` (exact QBO item names), `2177307` (Job-ID spaces allowed), `e9016e5` (Correct Job ID), `86aa9c6`
-  (trashFile). Migrations `0006` (qbo_tokens) + `0007` (FK cascade) applied. **Full play-by-play in project
-  memory + `QBO_INTUIT_PLAN.md`.**
-  - **Creds reality:** running on Intuit's dashboard-"Development" keys (`ABYas…`) — legit for a private
-    single-company app (they connect to the *production* company). The "Production"-labeled keys (`AB6whTti…`)
-    are only for marketplace publishing. Refresh token lives in the shared `qbo_tokens` row (rotates). Vercel
-    has `QBO_CLIENT_ID/SECRET/REALM_ID` + `QBO_CONNECT_KEY`.
-  - **⚠️ Small TODO:** rotate the `95YW…` Development client secret (was shown in a Playground screenshot) on
-    Intuit's Development tab + update `QBO_CLIENT_SECRET` in `.env` + Vercel. Won't break the refresh token.
-- **✅ Job ID ↔ QBO reconciliation — essentially done.** Audit (`QBO_JOBID_AUDIT.md`) found most "mismatches"
-  were just our too-strict format check; **relaxed `JOB_ID_RE` to allow internal spaces** (matches real
-  QBO/Drive names). Ray aligned the real ones (Rodriguez, Odunlami, Madden). **Only leftover = the Dunn pair**
-  (`24_008_Dunn Fritchey` [Craig Fritchey, completed] vs `24_008_Dunn_Fritchey` [Jeff Dunn, on_hold]) — two
-  records sharing job # `24_008`. **A data question only Ray can answer** (same job or two jobs that collided?),
-  parked on purpose. The underscore one matches QBO + syncs; the space one is completed (no harm).
-- **✅ NEW: "Correct Job ID" tool** (`✎ ID` button in JobEditor → `api/jobs/rename.js`). Renames a Job ID across
-  **App + QuickBooks customer + Drive folder together**, with a dry-run preview, retype-to-confirm, and rollback
-  on partial failure. The safe answer to "renaming in one place desyncs the three." Fully validated live
-  (throwaway create→rename→verify→delete across all three). Backed by `0007` (ON UPDATE CASCADE on jobs FKs).
-- **▶ NEXT BIG BUILD — the FINANCIAL TAB ("QuickBooks without the clutter," Angelena's ask), now UNBLOCKED.**
-  Goal: the app becomes the clean front-end so Ang relies on it over QBO's UI. Principle: **QBO stays the ledger
-  of record; the app surfaces it.** Plan (see `ROADMAP.md`): pull all QBO invoices/balances/reports into Supabase
-  on a schedule (Vercel Cron) + on-demand "Refresh from QuickBooks"; per-job billed/paid/outstanding from QBO;
-  A/R aging, P&L, quarterly reports via the QBO Reports API. **First step = a 10-min talk with Angelena:** which
-  numbers per job does she read daily (contract value vs invoiced-to-date vs paid vs outstanding)? That shapes
-  the data model. The connected Intuit QBO MCP can prototype the report shapes.
-- **Repo state:** clean + in sync with origin. Workflow unchanged: `git push origin main` → test gate (76 tests)
-  → auto-deploy. Do NOT run `vercel --prod`.
-- **Smaller follow-ups:** resolve the Dunn pair (Ray decision); auto-create the QBO customer on *new-job*
-  creation too (mirror the Drive auto-provision in `api/jobs/create.js`); wire the planned "unsend" using the
-  new `trashFile` helper.
+## ⭐ START HERE NEXT (2026-07-01) — Financial tab is LIVE; next = act on Angelena's feedback
+- **🎉 FINANCIAL TAB SHIPPED + LIVE + verified against the real company.** New staff **Financial** tab (sidebar,
+  between Forefront and Templates) reads live from QuickBooks — read-only; **QBO stays the ledger of record, the
+  app surfaces it.** Commits `d9dce3a` (v1) + `991271c` (P&L-first restructure per Ray's feedback). Verified live
+  (endpoint 401 anon, quarter data real, deployment READY).
+  - **Backend:** `api/qbo/financials.js` (staff-gated) → open invoices (`Invoice where Balance>0`, paginated) +
+    ProfitAndLoss (selected period) + **quarter-summarized P&L** (`summarize_column_by=Quarter`, trailing 6
+    quarters) + top invoices in period (`listInvoicesInPeriod`). All 4 reads isolated via `Promise.allSettled`
+    (one failing report never blanks the tab). Pure, unit-tested transforms in `api/_lib/qbo-reports.js`
+    (`summarizeReceivables`, `parseProfitAndLoss`, `parseProfitAndLossColumns`, `toTopInvoices`, `jobIdYear`);
+    **26 tests** in `tests/qbo-reports.test.js` (102 total). New QBO reads in `api/_lib/qbo.js`
+    (`listOpenInvoices`, `getProfitAndLoss(+summarizeBy)`, `listInvoicesInPeriod`).
+  - **UI** (`src/components/financial/Financial.jsx`, `.fin-*` in `styles.css`): **P&L on top** — Income/Expenses
+    /Net (reconciles: Income−Expenses=Net, Expenses folds in COGS) + margin %; period toggle (This year / quarter
+    / month / last month); **"Net income by quarter" bar chart** (green=good, orange=loss, around a zero baseline,
+    **click a quarter to load its P&L**); **Top invoices** (small, biggest billings in period, paid tag) +
+    **Top expenses** (large). **A/R below** — outstanding total + aging buckets (current…90+) + open-invoice list
+    with a **sort toggle (Most overdue | Job ID)** and a **scope filter (2025 & newer | All)**.
+  - **⚠️ Real-data flag for Ray/Ang:** A/R defaults to "2025 & newer" because **pre-2025 (24_ and older) QBO
+    invoices are still being cleaned up and may be stale** — filter is Job-ID-year based (`jobIdYear`), never a
+    delete; "All" restores the full book, and a transparent line shows how much is hidden ($ + count). On the full
+    book there's ~$368K open A/R with a large 90+ tail; the 2025+ view (~$291K) is the trustworthy one. **Even
+    2025+ has a real ~$176K in 90+; Q4 2025 shows a genuine −$3,130 net-income quarter** — surface, don't hide.
+- **👤 ANGELENA ONBOARDING — in motion.** She finally offered to use the app (never has before). She was already
+  invited to Clerk on **2026-06-13** (`angelena@rm117.com`) but never logged in, so that invite likely expired —
+  **Ray is re-sending the Clerk invite manually.** Staff access needs no role config: the gate
+  (`api/_lib/require-staff.js`) grants staff to **any `@rm117.com` email**. A **welcome email draft** sits in
+  Ray's Gmail (subject "The RM117 app is ready for you — start with the new Financial tab") — review + send.
+  **NEXT SESSION should ask Ray how Angelena's first use went** and turn her reactions into the next work.
+- **✅ (prior) QBO two-way sync LIVE, Job-ID reconciliation, "Correct Job ID" tool** — see the 2026-06-30 section
+  below. Unchanged. Dunn `24_008` pair still a parked Ray data decision.
+- **Repo state:** clean + in sync with origin (`991271c`). Workflow unchanged: `git push origin main` → test gate
+  (102 tests) → auto-deploy. Do NOT run `vercel --prod`.
+- **⚠️ Still-open small TODO:** rotate the `95YW…` Development client secret on Intuit's Development tab + update
+  `QBO_CLIENT_SECRET` in `.env` + Vercel (won't break the refresh token).
+- **Financial-tab follow-ups (candidates, pending Ang feedback):** monthly-trend view; per-job financial rollup
+  (billed/paid/outstanding from QBO on the JobEditor); export/print of a P&L or A/R statement; caching QBO reads
+  (each tab load hits QBO live — fine now, revisit if slow); auto-create the QBO customer on *new-job* creation.
 
 ---
 
