@@ -188,6 +188,14 @@ export function resolveProposalFolderId(jobId) {
   );
 }
 
+// The job's internal "Checksets" folder — the drawing sets uploaded for QA/QC
+// review (the Drawing QA tab reads from here, and reviewed sets are saved back
+// here). Part of the standard new-job folder tree (JOB_SUBFOLDERS below).
+const CHECKSET_SUBFOLDER = (process.env.CHECKSET_SUBFOLDER || 'Checksets').trim().toLowerCase();
+export function resolveChecksetsFolderId(jobId) {
+  return resolveSubfolderId(jobId, (name) => name === CHECKSET_SUBFOLDER);
+}
+
 // ── Folder rename (for the "Correct Job ID" flow) ─────────────────────────────
 // Locate a job's Drive folder for renaming. Returns { id, name, exact } where
 // `exact` means the folder name equals the Job ID precisely (vs. a "<Job ID> 123
