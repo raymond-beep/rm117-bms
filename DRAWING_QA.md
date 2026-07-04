@@ -13,11 +13,13 @@ and Ray signs off; `main` auto-deploys to production.
 - **Phase B ✅** — the full review engine ported in (analyze, verdicts/overrides, check-offs, set
   overview, "Analyze all" batch, mis-typed escape hatch, tldraw markup, instant page nav). Verified
   live end-to-end on `26_011_Kuhn` / Permit Set 04.pdf.
-- **Phase C ✅ built + server-verified** (commit `5639ead`) — Drive export: flatten markup onto the PDF
-  (`pdf-lib`) → `uploadToFolder` into the job's Checksets folder. Rotation-aware stamping (handles a
-  set's mixed `/Rotate` pages, e.g. a rotated cover sheet). **One step remains: Ray's in-browser
-  click-through** (open the test set → draw → Export to Drive → confirm the reviewed PDF lands in the
-  Checksets folder with the marks baked in). See "Export flow" + "How it was verified" below.
+- **Phase C ✅ DONE & verified end-to-end** (commit `5639ead`) — Drive export: flatten markup onto the
+  PDF (`pdf-lib`) → `uploadToFolder` into the job's Checksets folder. Rotation-aware stamping (handles a
+  set's mixed `/Rotate` pages, e.g. a rotated cover sheet). **Verified live in-browser (2026-07-04):**
+  opened `26_011_Kuhn` / Permit Set 04.pdf → drew an X on the 270° cover (A.100) → "Export to Drive" →
+  `Permit Set 04 — QA 2026-07-04.pdf` landed in the Checksets folder; rendering its page 1 confirmed the
+  X + existing diagonal baked in at the correct position/orientation with the original drawing intact.
+  See "Export flow" + "How it was verified" below.
   - **⭐ Drive write gate CONFIRMED OPEN (2026-07-04):** the service account
     (`rm117-sheets-reader@…`) now has **Content manager** on the Shared Drive — proven with a live
     upload+trash into `26_011_Kuhn`'s Checksets folder. This also **unblocks the BMS's own
@@ -38,7 +40,15 @@ and Ray signs off; `main` auto-deploys to production.
   cover sheet** and a **0° sheet**, then rendered with pdf.js and pixel-sampled → marks land in the
   correct visible corners/orientation on **both**. (`@napi-rs/canvas` for the raster check.)
 - `npm run vercel-build` (vitest + vite build) green.
-- **Not yet:** the real client→server→Drive round trip via the running app (Ray's click-through).
+- **Full in-browser round trip (2026-07-04):** real tldraw markup on the 270° cover → client raster →
+  server stamp → Drive upload → re-downloaded + rendered page 1 = marks correct, original intact. ✅
+
+## Remaining before merge to `main`
+- Add `ANTHROPIC_API_KEY` to Vercel env (analyze route needs it in prod).
+- Confirm `api/_lib/checksets/CHECKS.md` is bundled with the `api/checksets/*` functions on Vercel
+  (read via `import.meta.url`); if the file trace drops it, inline the checklist.
+- Then merge `drawing-qa-merge` → `main` (auto-deploys). A leftover test export
+  `Permit Set 04 — QA 2026-07-04.pdf` sits in `26_011_Kuhn`'s Checksets folder — trash it if unwanted.
 
 ## Where things live
 - Frontend: `src/components/drawing-qa/*.jsx` (+ `tailwind.css`, utilities-only). Route/nav in
