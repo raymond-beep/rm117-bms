@@ -608,10 +608,19 @@ export default function ReviewClient({ setId, onBack }) {
               initialMarkup={initialMarkup}
               onSave={handleSaveMarkup}
             />
+          ) : error ? (
+            <div className="dqa-loading">
+              <p className="dqa-loading-text">Could not load the drawing.</p>
+            </div>
           ) : (
-            <p className="p-6 text-sm text-gray-500">
-              {error ? 'Could not load the drawing.' : 'Rendering sheet…'}
-            </p>
+            <div className="dqa-loading">
+              <span className="dqa-spinner" aria-hidden="true" />
+              {/* Streaming a set from Drive can take several seconds for a big
+                  file; name the phase so a slow fetch reads as loading, not broken. */}
+              <p className="dqa-loading-text">
+                {docReady ? 'Rendering sheet…' : 'Loading drawing from Drive…'}
+              </p>
+            </div>
           )}
         </div>
         <ChecklistSidebar

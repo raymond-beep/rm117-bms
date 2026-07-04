@@ -835,6 +835,21 @@ input, select, textarea { font: inherit; }
 /* Semantic — info (blue) */
 .dqa-review .bg-blue-50 { background: var(--accent-soft); }
 
+/* Loading state for the canvas (Drive fetch / page render). Centered + spinner
+   so a slow Drive stream reads as "loading", not a blank/broken screen. */
+.dqa-loading {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+}
+.dqa-loading-text { font-size: 13px; color: var(--ink2); }
+.dqa-spinner {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  animation: dqa-spin 0.8s linear infinite;
+}
+@keyframes dqa-spin { to { transform: rotate(360deg); } }
+:root[data-reduced-motion='on'] .dqa-spinner { animation-duration: 2s; }
+
 /* New-job Job ID builder */
 .jobid-parts { display: grid; grid-template-columns: 64px 80px 1fr; gap: 8px; }
 .jobid-part { display: flex; flex-direction: column; }
