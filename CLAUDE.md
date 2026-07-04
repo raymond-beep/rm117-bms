@@ -177,7 +177,15 @@ upload the reviewed copy back into the job's Checksets folder.
   screen), `MarkupOverlay` (tldraw), `MarkupExporter` (off-screen tldraw → transparent markup PNG for
   export), `ChecklistSidebar`, `SetOverview`, `BatchAnalyzeButton`; helpers `pdf.js`, `markup.js`;
   `tailwind.css` is **utilities-only (no preflight)** so it doesn't touch the rest of the BMS. Route/nav
-  in `src/rm117-app-shell-v1.jsx` (`/drawing-qa`, lazy).
+  in `src/rm117-app-shell-v1.jsx` (`/drawing-qa`, lazy). Job picker is a type-to-search combobox
+  (`JobPicker`, `.dqa-combo*`).
+- **UI theming:** the review chrome follows the app theme via a scoped **`.dqa-review`** layer in
+  `styles.css` (the overlay wrapper carries that class). Because the Tailwind is preflight-less, that
+  layer **resets bare `<button>`/`<input>`** (else they show UA light control backgrounds — foreign in
+  dark themes) and **remaps the ported Tailwind color utilities to the app CSS variables** (accent for
+  primary actions; semantic green/amber/red for verdicts). The **tldraw canvas keeps its own surface**
+  (excluded via `.tl-container`); canvas loading state = `.dqa-loading`/`.dqa-spinner`. When editing
+  Drawing QA UI, prefer these theme vars over hard-coded Tailwind colors.
 - **API** `api/checksets/*.js`: `sets` (find-or-create per job+Drive file), `analyze`, `results`
   (GET + PATCH verdicts/overrides/check-offs), `markup` (GET/PUT + `?all=1` bulk), `overview`, `export`
   (flatten→Drive). Plus `api/jobs/checkset-files.js` (list/stream a job's Checksets PDFs; clones

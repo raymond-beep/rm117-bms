@@ -26,6 +26,28 @@ Deploy prereqs cleared beforehand: `ANTHROPIC_API_KEY` on Vercel + `CHECKS.md` b
     upload+trash into `26_011_Kuhn`'s Checksets folder. This also **unblocks the BMS's own
     letters/proposals Drive delivery** (same gate), which was the other thing waiting on it.
 
+## Post-launch refinements (2026-07-04, shipped to `main`)
+- **Searchable job picker** (`JobPicker` in `DrawingQA.jsx`, commit `e42a02d`): replaced the long native
+  `<select>` with a type-to-search combobox — filters by Job ID **or** client name, keyboard nav
+  (↑/↓/Enter/Esc). Styles: `.dqa-combo*` in `styles.css`.
+- **Theme-consistent review chrome** (commit `e42a02d`): the review screen now follows the app theme
+  (light + dark). Root cause it was "a separate app": the ported components use a **utilities-only
+  Tailwind (no preflight)**, so bare `<button>`/`<input>` fell back to the browser's light control
+  backgrounds. Fix = a scoped **`.dqa-review`** CSS layer in `styles.css` that resets those controls and
+  remaps the ported Tailwind utilities to the app's CSS variables (accent for primary actions; semantic
+  green/amber/red for verdicts). The **tldraw canvas keeps its own surface** (intended). The overlay
+  wrapper carries the `dqa-review` class (`DrawingQA.jsx`).
+- **Clear loading state** (commit `ec5e08f`): the canvas showed only a faint corner "Rendering sheet…".
+  Replaced with a centered, theme-aware **spinner + phase label** (`.dqa-loading`/`.dqa-spinner`):
+  "Loading drawing from Drive…" while streaming, "Rendering sheet…" while rasterizing.
+- **"White screen" — diagnosed, not a bug.** Reproduced on `26_024_Costello_77 Benjamin St_260702.pdf`:
+  the **Drive stream took ~5s** (variable Google-Drive streaming latency through the staff proxy; *not*
+  size-correlated). The PDF renders in ~0.4s server-side. The old faint text was invisible in dark
+  themes, so a slow fetch looked blank/broken. The loading state above fixes the perception; a future
+  speedup lever is caching streamed PDFs. Safety nets also added: a **`ReviewErrorBoundary`** (a real
+  crash now shows a message + "Back to files", not a dead screen) + a **pdf.js guard** against NaN/0 page
+  dimensions.
+
 ## Export flow (Phase C)
 1. `ReviewClient` "⤓ Export to Drive" → `GET /api/checksets/markup?setId=&all=1` (every page's shapes).
 2. Marked pages only → `MarkupExporter.jsx` (off-screen tldraw) rasterizes each to a **transparent,
@@ -55,8 +77,11 @@ Deploy prereqs cleared beforehand: `ANTHROPIC_API_KEY` on Vercel + `CHECKS.md` b
 - **→ `drawing-qa-merge` is ready to merge to `main`** (auto-deploys). Leftover test export was trashed.
 
 ## Where things live
-- Frontend: `src/components/drawing-qa/*.jsx` (+ `tailwind.css`, utilities-only). Route/nav in
-  `src/rm117-app-shell-v1.jsx` (`/drawing-qa`).
+- Frontend: `src/components/drawing-qa/*.jsx` — `DrawingQA` (job `JobPicker` + file list),
+  `ReviewClient`, `MarkupOverlay`, `MarkupExporter`, `ChecklistSidebar`, `SetOverview`,
+  `BatchAnalyzeButton` (+ `pdf.js`, `markup.js`, `tailwind.css` utilities-only). Review-chrome theme +
+  picker + loader styles live in **`src/styles.css`** (`.dqa-review*`, `.dqa-combo*`, `.dqa-loading*`).
+  Route/nav in `src/rm117-app-shell-v1.jsx` (`/drawing-qa`).
 - API: `api/checksets/*.js` (sets, analyze, results, markup, overview) + `api/jobs/checkset-files.js`
   (Drive list/stream) + `resolveChecksetsFolderId` in `api/_lib/google-drive.js`. All in `server.js`.
 - Shared libs: `api/_lib/checksets/` (checklist + CHECKS.md, naming, anthropic). Reuses `getDb()` +
@@ -67,11 +92,11 @@ Deploy prereqs cleared beforehand: `ANTHROPIC_API_KEY` on Vercel + `CHECKS.md` b
   `ANTHROPIC_MODEL` (default `claude-sonnet-5`).
 - Deps added: `@anthropic-ai/sdk`, `pdfjs-dist`, `tldraw` (+ dev `tailwindcss`/`postcss`/`autoprefixer`).
 
-## Deploy-time TODO (before merging to main)
-- Add `ANTHROPIC_API_KEY` to Vercel env.
-- Confirm `api/_lib/checksets/CHECKS.md` is bundled with the `api/checksets/*` functions on Vercel
-  (read via `import.meta.url`; verify the file trace includes it, else inline the checklist).
-- Grant the Drive service account **Content manager** for Phase C export.
+## Deploy config (all done 2026-07-04)
+- ✅ `ANTHROPIC_API_KEY` on Vercel (Production + Preview `drawing-qa-merge`).
+- ✅ `CHECKS.md` bundling verified via `@vercel/nft`.
+- ✅ Drive service account is **Content manager** on the Shared Drive (Phase C export works).
+- Deploys are the normal BMS flow now: `git push origin main` (test-gated) → prod.
 
 **Canonical plan (full port map, decisions, phases): `MERGE_PLAN.md` in the Checksets repo**
 (`~/Desktop/Checksets App/files/MERGE_PLAN.md`).
