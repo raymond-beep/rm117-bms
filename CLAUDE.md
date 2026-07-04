@@ -70,6 +70,7 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `src/lib/pdf-doc.js` | Shared PDF engine: page geometry, `drawLetterhead` (embeds `src/assets/rm117-logo-black.png`), `embedLogo`, `appendAttachments`, `makeWriter` (cursor/paginator) |
 | `src/lib/letter-pdf.js` / `src/lib/proposal-pdf.js` | Document renderers (proposal bakes in the scope/exclusions/binding boilerplate verbatim from samples) |
 | `src/lib/doc-format.js` / `src/lib/doc-assets.js` | Pure formatters (`longDateOnly`, `dollarsToWords`, `wrapText`, `parseBodyBlocks`, …) / logo-trim + image→JPEG helpers |
+| **Drawing QA** (`/drawing-qa`) | Checkset QA/QC — the standalone "Checksets" app merged into the BMS. UI `src/components/drawing-qa/*`, API `api/checksets/*` + `api/jobs/checkset-files.js`, libs `api/_lib/checksets/*` (incl. canonical **CHECKS.md**). Full detail in the "Drawing QA" section below + `DRAWING_QA.md` |
 | `scripts/import-sheet.js` | One-time Sheet → Supabase migration (Phase 2) |
 | `scripts/link-jobs-to-clients.js` | Link unlinked jobs to existing clients (dry-run default) |
 | `scripts/create-clients-for-unlinked.js` | Create clients for unlinked jobs w/ real names (dry-run default) |
@@ -85,6 +86,8 @@ each `api/` file deploys directly as a function.
 `COMPANY_CALENDAR_ID`, plus existing `SHEET_ID` + Google service-account creds (for the import +
 Drive broker). `QBO_REFRESH_TOKEN` is optional locally — the rotating token lives in the shared
 `qbo_tokens` table (read DB-first, env seed as fallback).
+- **`ANTHROPIC_API_KEY`** (+ optional `ANTHROPIC_MODEL`, default `claude-sonnet-5`) — Drawing QA
+  vision analysis. On Vercel for Production + Preview(`drawing-qa-merge`); in local `.env`.
 - **Use a personal Gmail for Google Cloud** — the rm117.com org's
   `iam.disableServiceAccountKeyCreation` blocks service-account key downloads.
 
@@ -98,7 +101,8 @@ Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `prop
 - **`proposals` / `letters`** = saved document drafts (fields-only): the generator's form state in a
   `content` jsonb, `job_id` nullable (a proposal can precede its job). No files/PDFs stored — the PDF
   regenerates on reopen and attachments are re-added. (The *delivered* PDF → Drive "Files Sent" is a
-  planned next step; needs Drive write access — see NEXT_SESSION.md.)
+  planned next step. **Drive write access is now unblocked** — the service account got **Content
+  manager** on the Shared Drive 2026-07-04 for the Drawing QA export, the same gate this delivery needs.)
 - **`field_notes`** = on-site notes (the mobile feature); photo/voice files live in the private
   `field-notes` Supabase **Storage** bucket (backend signs short-lived URLs on read).
 - **`jobs.board_position`** = manual within-phase ordering for the BMS drag-to-reorder board.
@@ -110,6 +114,10 @@ Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `prop
 - **`job_phase_events`** = append-only log of when each job reached a phase (powers the Progress
   timeline). Auto-stamped on phase change; editable per phase via `POST /api/phase-events`.
 - `import_notes` / `import_needs_review` flag rows the Phase 2 import couldn't parse cleanly.
+- **Drawing QA tables** (shared project): `drawing_sets` (one row per job+Drive-file review;
+  `job_number`=Job ID, `drive_file_id`), `checklist_results` (per sheet: results + `sheet_type`,
+  `applicable_ids`, `reviewed_ids`, `overrides`, `advisory`, `sheet_index`), `markup` (tldraw shapes
+  per (set,page) in NORMALIZED 0–1 coords). Private `drawings` Storage bucket (legacy upload path).
 
 ## Progress Timeline (internal — chosen over the client portal)
 Ray opted to hold the external client portal (login-management overhead) and instead surface job
@@ -152,6 +160,43 @@ Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold
   to the thread (validate Resend inbound parsing before Phase 7).
 - **Calendar:** dashboard reads the user's Google Calendar + shared `COMPANY_CALENDAR_ID`; Ang
   adds the company calendar to Apple Calendar for native two-way sync.
+
+## Drawing QA (checkset review — the merged Checksets app)
+Staff tab `/drawing-qa` for QA/QC of permit drawing sets. **This is the former standalone "Checksets"
+app folded into the BMS (Phases A–C, LIVE in production 2026-07-04).** Flow: pick a **job** → pick a
+**checkset PDF** from that job's Drive **Checksets** folder → **analyze** each sheet against the firm
+checklist (Anthropic vision, structured output, type-scoped) with per-item verdicts + human overrides,
+check-offs, a set overview, "Analyze all" batch, and a mis-typed escape hatch → **mark it up** in
+tldraw → **Export to Drive**: flatten the markup onto the original PDF (`pdf-lib`, rotation-aware) and
+upload the reviewed copy back into the job's Checksets folder.
+
+- **Where to develop = HERE, this repo.** The standalone `~/Desktop/Checksets App/files` is **FROZEN**
+  (its own deploy is dead-ended); its `MERGE_PLAN.md` / `PROGRESS.md` / `NEXT_SESSION.md` are historical
+  reference for *why* the engine works, not where work happens.
+- **Frontend** `src/components/drawing-qa/*.jsx`: `DrawingQA` (job+file pickers), `ReviewClient` (review
+  screen), `MarkupOverlay` (tldraw), `MarkupExporter` (off-screen tldraw → transparent markup PNG for
+  export), `ChecklistSidebar`, `SetOverview`, `BatchAnalyzeButton`; helpers `pdf.js`, `markup.js`;
+  `tailwind.css` is **utilities-only (no preflight)** so it doesn't touch the rest of the BMS. Route/nav
+  in `src/rm117-app-shell-v1.jsx` (`/drawing-qa`, lazy).
+- **API** `api/checksets/*.js`: `sets` (find-or-create per job+Drive file), `analyze`, `results`
+  (GET + PATCH verdicts/overrides/check-offs), `markup` (GET/PUT + `?all=1` bulk), `overview`, `export`
+  (flatten→Drive). Plus `api/jobs/checkset-files.js` (list/stream a job's Checksets PDFs; clones
+  `proposal-docs.js`). All also registered in `server.js`.
+- **Server libs** `api/_lib/checksets/`: `checklist.js` (parses CHECKS.md → prompt/enum), `naming.js`
+  (sheet-number convention → mislabel detection), `anthropic.js`. Reuse `getDb()` + `requireStaff()` +
+  `api/_lib/google-drive.js` (`resolveChecksetsFolderId`, `downloadFileBytes`, `uploadToFolder`).
+- **⭐ `api/_lib/checksets/CHECKS.md` is the CANONICAL 90-item checklist** (source of truth; keep item
+  ids stable; carries each item's `applies to` sheet types). Read at runtime via `import.meta.url`
+  (`@vercel/nft` bundles it — verified). Edit THIS copy; the standalone repo's CHECKS.md is a stale fork.
+- **Model:** `ANTHROPIC_MODEL` (default `claude-sonnet-5`). **Keep adaptive thinking ON** — disabling it
+  hurt vision recall; the analyze speed comes from **type-scoping the checklist**, not from cutting thinking.
+- **Coordinate rule:** the PDF page lives INSIDE the tldraw canvas as a locked image shape in "page
+  units" (height=1000); marks share that space (camera = single transform source of truth) and are
+  stored ÷1000. Export re-inflates + stamps **rotation-aware** so mixed-`/Rotate` sets (e.g. a 270°
+  cover sheet) align. Drive export needs the service account = **Content manager** on the Shared Drive
+  (confirmed open — the same gate as letters/proposals delivery).
+- **Deps added for this feature:** `@anthropic-ai/sdk` (server), `pdfjs-dist` + `tldraw` (client),
+  `pdf-lib` (already present). Handoff detail: **`DRAWING_QA.md`** at repo root.
 
 ## Invariants (do not break)
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.
