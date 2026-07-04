@@ -24,6 +24,7 @@ const SiteReport = lazy(() => import('./components/site-report/SiteReport.jsx'))
 const TemplatesHome = lazy(() => import('./components/templates/TemplatesHome.jsx'));
 const LetterGenerator = lazy(() => import('./components/templates/LetterGenerator.jsx'));
 const ProposalGenerator = lazy(() => import('./components/templates/ProposalGenerator.jsx'));
+const DrawingQA = lazy(() => import('./components/drawing-qa/DrawingQA.jsx'));
 
 const RouteFallback = () => <div className="page"><div className="card"><div className="empty">Loading…</div></div></div>;
 
@@ -47,6 +48,7 @@ const NAV_GROUPS = [
       { to: '/forefront', label: 'Forefront' },
       { to: '/financial', label: 'Financial' },
       { to: '/templates', label: 'Templates' },
+      { to: '/drawing-qa', label: 'Drawing QA' },
       { to: '/portal', label: 'Client Portal' },
     ],
   },
@@ -133,6 +135,7 @@ export default function AppShell() {
                     <Route path="/templates" element={<TemplatesHome />} />
                     <Route path="/templates/letter" element={<LetterGenerator />} />
                     <Route path="/templates/proposal" element={<ProposalGenerator />} />
+                    <Route path="/drawing-qa" element={<DrawingQA />} />
                     <Route path="/portal" element={<StaffPortalPreview />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />

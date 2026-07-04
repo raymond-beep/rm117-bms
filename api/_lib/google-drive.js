@@ -188,6 +188,14 @@ export function resolveProposalFolderId(jobId) {
   );
 }
 
+// The job's internal "Checksets" folder — the drawing sets uploaded for QA/QC
+// review (the Drawing QA tab reads from here, and reviewed sets are saved back
+// here). Part of the standard new-job folder tree (JOB_SUBFOLDERS below).
+const CHECKSET_SUBFOLDER = (process.env.CHECKSET_SUBFOLDER || 'Checksets').trim().toLowerCase();
+export function resolveChecksetsFolderId(jobId) {
+  return resolveSubfolderId(jobId, (name) => name === CHECKSET_SUBFOLDER);
+}
+
 // ── Folder rename (for the "Correct Job ID" flow) ─────────────────────────────
 // Locate a job's Drive folder for renaming. Returns { id, name, exact } where
 // `exact` means the folder name equals the Job ID precisely (vs. a "<Job ID> 123
@@ -298,6 +306,18 @@ export async function getFileMeta(fileId) {
     supportsAllDrives: true,
   });
   return data;
+}
+
+// Download a file's bytes (alt=media) into a Buffer. Used server-side when we
+// need the whole file in memory (e.g. loading the original checkset PDF to stamp
+// reviewer markup onto it before re-uploading). For piping straight to a client,
+// prefer streamFileTo.
+export async function downloadFileBytes(fileId) {
+  const { data } = await drive().files.get(
+    { fileId, alt: 'media', supportsAllDrives: true },
+    { responseType: 'arraybuffer' },
+  );
+  return Buffer.from(data);
 }
 
 // Stream a file's bytes (alt=media) to an HTTP response.

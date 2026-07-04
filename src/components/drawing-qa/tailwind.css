@@ -1,0 +1,4 @@
+/* Utilities only — no @tailwind base — so Tailwind's preflight/reset never
+   touches the rest of the BMS. Imported by the Drawing QA review UI, which was
+   ported from the Tailwind-based standalone Checksets app. */
+@tailwind utilities;
