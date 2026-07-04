@@ -308,6 +308,18 @@ export async function getFileMeta(fileId) {
   return data;
 }
 
+// Download a file's bytes (alt=media) into a Buffer. Used server-side when we
+// need the whole file in memory (e.g. loading the original checkset PDF to stamp
+// reviewer markup onto it before re-uploading). For piping straight to a client,
+// prefer streamFileTo.
+export async function downloadFileBytes(fileId) {
+  const { data } = await drive().files.get(
+    { fileId, alt: 'media', supportsAllDrives: true },
+    { responseType: 'arraybuffer' },
+  );
+  return Buffer.from(data);
+}
+
 // Stream a file's bytes (alt=media) to an HTTP response.
 export async function streamFileTo(fileId, res) {
   const resp = await drive().files.get(

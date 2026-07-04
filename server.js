@@ -24,6 +24,7 @@ const routes = {
   '/api/checksets/markup': () => import('./api/checksets/markup.js'),
   '/api/checksets/overview': () => import('./api/checksets/overview.js'),
   '/api/checksets/analyze': () => import('./api/checksets/analyze.js'),
+  '/api/checksets/export': () => import('./api/checksets/export.js'),
   '/api/payments': () => import('./api/payments.js'),
   '/api/clients': () => import('./api/clients.js'),
   '/api/phase-events': () => import('./api/phase-events.js'),

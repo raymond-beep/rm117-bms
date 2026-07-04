@@ -13,9 +13,25 @@ export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
       const setId = req.query?.setId;
+      if (!setId) return res.status(400).json({ error: 'setId is required' });
+
+      // Bulk read: every page's shapes for this set (used by Drive export to
+      // flatten all marked pages in one round trip).
+      if (req.query?.all === '1' || req.query?.all === 'true') {
+        const { data, error } = await db
+          .from('markup')
+          .select('page_number, shapes')
+          .eq('drawing_set_id', setId)
+          .order('page_number', { ascending: true });
+        if (error) throw new Error(error.message);
+        return res.status(200).json({
+          pages: (data ?? []).map((r) => ({ page: r.page_number, shapes: r.shapes ?? null })),
+        });
+      }
+
       const page = Number(req.query?.page);
-      if (!setId || !Number.isInteger(page) || page < 1) {
-        return res.status(400).json({ error: 'setId and page are required' });
+      if (!Number.isInteger(page) || page < 1) {
+        return res.status(400).json({ error: 'page is required' });
       }
       const { data, error } = await db
         .from('markup')

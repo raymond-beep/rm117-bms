@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
 import MarkupOverlay from './MarkupOverlay.jsx';
+import MarkupExporter from './MarkupExporter.jsx';
 import ChecklistSidebar from './ChecklistSidebar.jsx';
 import SetOverview from './SetOverview.jsx';
 import BatchAnalyzeButton from './BatchAnalyzeButton.jsx';
@@ -70,6 +71,12 @@ export default function ReviewClient({ setId, onBack }) {
   const [analyzing, setAnalyzing] = useState(false);
   const [saveState, setSaveState] = useState('idle');
   const [error, setError] = useState(null);
+  // Drive export: 'idle' | 'preparing' | 'rendering' | 'uploading' | 'done' | 'error'.
+  // exportPages (when set) mounts the off-screen MarkupExporter to rasterize marks.
+  const [exportState, setExportState] = useState('idle');
+  const [exportPages, setExportPages] = useState(null);
+  const [exportResult, setExportResult] = useState(null);
+  const [exportError, setExportError] = useState(null);
 
   // Per-page caches so navigating back to a visited sheet is instant. Rasters are
   // immutable (the PDF is static); page data + markup are written through on
@@ -381,6 +388,74 @@ export default function ReviewClient({ setId, onBack }) {
     [setId, pageNumber, analyzing, pdfDoc, writePageData],
   );
 
+  // Export: gather every page's saved markup, rasterize the marked ones (via the
+  // off-screen MarkupExporter), then POST to flatten them onto the original PDF
+  // and save the reviewed copy into the job's Drive "Checksets" folder.
+  const handleExport = useCallback(async () => {
+    if (!pdfDoc || exportState === 'preparing' || exportState === 'rendering' || exportState === 'uploading') return;
+    setExportError(null);
+    setExportResult(null);
+    setExportState('preparing');
+    try {
+      const res = await apiFetch(`/api/checksets/markup?setId=${setId}&all=1`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Could not load markup');
+
+      // Keep only pages that actually have strokes, and attach each page's aspect
+      // (rotation-applied, matching the tldraw page-units box) from the PDF.
+      const marked = (data.pages ?? []).filter((p) => {
+        const shapes = p.shapes?.shapes ?? [];
+        return Array.isArray(shapes) && shapes.length > 0;
+      });
+      if (marked.length === 0) {
+        setExportState('error');
+        setExportError('Add some markup before exporting — nothing to save yet.');
+        return;
+      }
+      const withAspect = [];
+      for (const p of marked) {
+        const page = await pdfDoc.getPage(p.page);
+        const vp = page.getViewport({ scale: 1 });
+        withAspect.push({ page: p.page, shapes: p.shapes, aspect: vp.width / vp.height });
+      }
+      setExportPages(withAspect); // mounts MarkupExporter
+      setExportState('rendering');
+    } catch (err) {
+      setExportState('error');
+      setExportError(err instanceof Error ? err.message : 'Export failed');
+    }
+  }, [pdfDoc, setId, exportState]);
+
+  const handleMarksRendered = useCallback(
+    async (pngs) => {
+      setExportPages(null); // unmount the exporter
+      setExportState('uploading');
+      try {
+        const res = await apiFetch('/api/checksets/export', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ setId, pages: pngs }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? 'Export failed');
+        setExportResult(data);
+        setExportState('done');
+      } catch (err) {
+        setExportState('error');
+        setExportError(err instanceof Error ? err.message : 'Export failed');
+      }
+    },
+    [setId],
+  );
+
+  const handleMarksError = useCallback((err) => {
+    setExportPages(null);
+    setExportState('error');
+    setExportError(err instanceof Error ? err.message : 'Could not render markup');
+  }, []);
+
+  const exportBusy = exportState === 'preparing' || exportState === 'rendering' || exportState === 'uploading';
+
   const canPrev = docReady && pageNumber > 1;
   const canNext = docReady && !!pageCount && pageNumber < pageCount;
 
@@ -435,6 +510,18 @@ export default function ReviewClient({ setId, onBack }) {
           }}
         />
 
+        <button
+          onClick={handleExport}
+          disabled={!docReady || exportBusy}
+          className="rounded border border-gray-900 bg-gray-900 px-2 py-0.5 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-40"
+          title="Flatten markup onto the PDF and save it to this job's Drive Checksets folder"
+        >
+          {exportState === 'preparing' && 'Preparing…'}
+          {exportState === 'rendering' && 'Rendering marks…'}
+          {exportState === 'uploading' && 'Saving to Drive…'}
+          {(exportState === 'idle' || exportState === 'done' || exportState === 'error') && '⤓ Export to Drive'}
+        </button>
+
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => goToPage(pageNumber - 1)}
@@ -480,6 +567,28 @@ export default function ReviewClient({ setId, onBack }) {
       </div>
 
       {error && <p className="border-b bg-red-50 px-4 py-1.5 text-sm text-red-700">{error}</p>}
+
+      {exportState === 'error' && exportError && (
+        <p className="border-b bg-red-50 px-4 py-1.5 text-sm text-red-700">Export: {exportError}</p>
+      )}
+      {exportState === 'done' && exportResult && (
+        <p className="border-b border-green-200 bg-green-50 px-4 py-1.5 text-sm text-green-800">
+          Saved <span className="font-medium">{exportResult.name}</span> to Drive
+          {exportResult.pagesStamped ? ` (${exportResult.pagesStamped} marked ${exportResult.pagesStamped === 1 ? 'sheet' : 'sheets'})` : ''}
+          {exportResult.webViewLink && (
+            <>
+              {' — '}
+              <a href={exportResult.webViewLink} target="_blank" rel="noreferrer" className="underline">
+                open in Drive
+              </a>
+            </>
+          )}
+        </p>
+      )}
+
+      {exportPages && exportState === 'rendering' && (
+        <MarkupExporter pages={exportPages} onComplete={handleMarksRendered} onError={handleMarksError} />
+      )}
 
       {labelIssue && (
         <p className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-sm text-amber-900">
