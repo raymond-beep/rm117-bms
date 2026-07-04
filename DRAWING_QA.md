@@ -5,8 +5,9 @@ pick a job → pick a checkset PDF from that job's Google Drive **Checksets** fo
 sheet against the firm checklist (`api/_lib/checksets/CHECKS.md`, Anthropic vision) + mark it up with
 tldraw → (Phase C) save the reviewed PDF back to the job's Checksets folder.
 
-**On branch `drawing-qa-merge` only — NOT on `main`.** Do not merge to `main` until Phase C is done
-and Ray signs off; `main` auto-deploys to production.
+**✅ MERGED TO `main` & LIVE IN PRODUCTION (2026-07-04)** — Phases A–C shipped via merge commit
+`6c907d7` (feature branch `drawing-qa-merge`); prod deploy Ready, `rm117-bms.vercel.app` serving 200.
+Deploy prereqs cleared beforehand: `ANTHROPIC_API_KEY` on Vercel + `CHECKS.md` bundling confirmed.
 
 ## Status (2026-07-04)
 - **Phase A ✅** — Drawing QA tab: job dropdown + browse/stream a job's Drive Checksets PDFs.
