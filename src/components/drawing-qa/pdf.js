@@ -24,6 +24,12 @@ export function loadPdf(source) {
 async function renderPage(doc, pageNumber, scaleFor, quality) {
   const page = await doc.getPage(pageNumber);
   const base = page.getViewport({ scale: 1 });
+  // Guard against a page pdf.js can't measure: a 0/NaN dimension yields a NaN
+  // aspect, which later makes tldraw's zoomToBounds blank the canvas (a silent
+  // white screen). Fail loudly instead so the caller surfaces an error.
+  if (!Number.isFinite(base.width) || !Number.isFinite(base.height) || base.width <= 0 || base.height <= 0) {
+    throw new Error(`Page ${pageNumber} has invalid dimensions (${base.width}×${base.height})`);
+  }
   const scale = scaleFor(base.width, base.height);
   const viewport = page.getViewport({ scale });
 

@@ -731,6 +731,110 @@ input, select, textarea { font: inherit; }
 .field textarea { resize: vertical; min-height: 54px; line-height: 1.5; font-family: var(--ui); }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+/* Drawing QA — searchable job picker (type-to-filter combobox) */
+.dqa-combo { position: relative; }
+.dqa-combo-list {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30;
+  margin: 0; padding: 4px; list-style: none;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  box-shadow: 0 14px 34px -14px rgba(15, 20, 28, 0.35);
+  max-height: 320px; overflow-y: auto;
+}
+.dqa-combo-opt {
+  display: flex; align-items: baseline; gap: 8px; padding: 8px 10px;
+  border-radius: 6px; cursor: pointer; color: var(--ink);
+}
+.dqa-combo-opt.is-active { background: var(--inset); }
+.dqa-combo-opt.is-current { color: var(--accent); }
+.dqa-combo-id { font-family: var(--mono); font-size: 12.5px; }
+.dqa-combo-client { color: var(--ink3); font-size: 12px; }
+.dqa-combo-empty { padding: 8px 10px; color: var(--ink3); font-size: 13px; }
+
+/* ============================================================
+   Drawing QA — review screen chrome themed to the app palette.
+   The tldraw canvas (the PDF image view) keeps its own look; everything around
+   it (header, sidebar, checklist rows, badges, buttons) inherits the active
+   theme by remapping the ported Tailwind utilities to theme variables within
+   .dqa-review. Scoping is per-property (text vs bg vs border) so a gray shade
+   used as both text and a fill doesn't collide.
+   ============================================================ */
+.dqa-review { background: var(--panel); color: var(--ink); }
+
+/* The ported components rely on Tailwind utilities but tailwind.css here is
+   utilities-only (no preflight), so bare <button>/<input> fall back to the UA's
+   light-gray control backgrounds — which look foreign, especially in dark themes.
+   Reset the CHROME controls to theme surfaces. Wrapped in :where() (specificity 0)
+   so the .bg-* utility overrides below still win, and excluding tldraw's own UI
+   (.tl-container) so the canvas toolbar keeps its native styling. */
+:where(.dqa-review button:not(.tl-container button)) {
+  background-color: transparent;
+  color: inherit;
+}
+:where(.dqa-review input:not(.tl-container input),
+       .dqa-review select:not(.tl-container select)) {
+  background-color: var(--panel);
+  color: var(--ink);
+}
+
+/* Surfaces */
+.dqa-review .bg-white { background: var(--panel); }
+.dqa-review .bg-gray-50 { background: var(--inset); }
+.dqa-review .bg-gray-100 { background: var(--inset); }
+.dqa-review .bg-gray-200 { background: var(--divider); }
+
+/* Primary / selected (dark) buttons + progress fill → accent */
+.dqa-review .bg-gray-900,
+.dqa-review .bg-gray-800,
+.dqa-review .bg-gray-700 { background: var(--accent); }
+
+/* Text */
+.dqa-review .text-gray-700 { color: var(--ink); }
+.dqa-review .text-gray-600 { color: var(--ink2); }
+.dqa-review .text-gray-500 { color: var(--ink2); }
+.dqa-review .text-gray-400 { color: var(--ink3); }
+
+/* Borders (bare border-* default to Tailwind gray-200) */
+.dqa-review .border,
+.dqa-review .border-b,
+.dqa-review .border-t,
+.dqa-review .border-l,
+.dqa-review .border-r { border-color: var(--border); }
+.dqa-review .border-gray-900 { border-color: var(--accent); }
+
+/* Hover states */
+.dqa-review .hover\:bg-gray-50:hover { background: var(--inset); }
+.dqa-review .hover\:bg-gray-700:hover { background: var(--accent); filter: brightness(0.92); }
+
+/* Focus ring */
+.dqa-review .ring-gray-500 { --tw-ring-color: var(--accent); }
+
+/* Semantic — pass (green) */
+.dqa-review .bg-green-50,
+.dqa-review .bg-green-100 { background: var(--success-soft); }
+.dqa-review .text-green-700,
+.dqa-review .text-green-800 { color: var(--success); }
+.dqa-review .border-green-200 { border-color: var(--success); }
+
+/* Semantic — review / warn (amber) */
+.dqa-review .bg-amber-50,
+.dqa-review .bg-amber-100 { background: var(--warn-soft); }
+.dqa-review .text-amber-600,
+.dqa-review .text-amber-700,
+.dqa-review .text-amber-800,
+.dqa-review .text-amber-900 { color: var(--warn); }
+.dqa-review .border-amber-200 { border-color: var(--warn); }
+
+/* Semantic — fail / error (red) */
+.dqa-review .bg-red-50,
+.dqa-review .bg-red-100 { background: var(--bill-soft); }
+.dqa-review .text-red-500,
+.dqa-review .text-red-600,
+.dqa-review .text-red-700,
+.dqa-review .text-red-800 { color: var(--bill); }
+
+/* Semantic — info (blue) */
+.dqa-review .bg-blue-50 { background: var(--accent-soft); }
+
 /* New-job Job ID builder */
 .jobid-parts { display: grid; grid-template-columns: 64px 80px 1fr; gap: 8px; }
 .jobid-part { display: flex; flex-direction: column; }
