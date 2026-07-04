@@ -1,9 +1,20 @@
 # Drawing QA tab — status & handoff
 
+> **⚠️ UPDATE 2026-07-04 (eve): tldraw markup REMOVED — Drawing QA is now a pure AI-review tool.**
+> tldraw SDK 4.0+ requires a **paid production license** ($6k/yr, no cheap tier); without a key it
+> removes its canvas ~5s after mount on any non-localhost HTTPS domain. That was the "sheet renders
+> then flashes away" bug — it never showed in localhost dev, only in production. Ray chose to drop
+> markup rather than pay/relicense. The sheet is now shown in a zoomable/pannable **`PageViewer`**
+> (`react-zoom-pan-pinch`, MIT). Removed: `MarkupOverlay`, `MarkupExporter`, `markup.js`, the
+> "Export to Drive" button, and markup save/load. The server `markup`/`export` APIs + `markup` table
+> are **dormant** (kept, harmless) so drawing could return later on a free lib (`perfect-freehand`).
+> Everything AI (analyze, checklist, overrides, check-offs, overview, batch) is unchanged. The
+> sections below describing tldraw markup / Phase C export are **historical**.
+
 The **Drawing QA** tab folds the standalone Checksets drawing-set QA/QC app into this BMS. Reviewers
 pick a job → pick a checkset PDF from that job's Google Drive **Checksets** folder → analyze each
-sheet against the firm checklist (`api/_lib/checksets/CHECKS.md`, Anthropic vision) + mark it up with
-tldraw → (Phase C) save the reviewed PDF back to the job's Checksets folder.
+sheet against the firm checklist (`api/_lib/checksets/CHECKS.md`, Anthropic vision). *(Formerly: mark
+it up with tldraw → save the reviewed PDF back to Drive — removed, see the update note above.)*
 
 **✅ MERGED TO `main` & LIVE IN PRODUCTION (2026-07-04)** — Phases A–C shipped via merge commit
 `6c907d7` (feature branch `drawing-qa-merge`); prod deploy Ready, `rm117-bms.vercel.app` serving 200.

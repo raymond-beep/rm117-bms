@@ -164,21 +164,28 @@ Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold
 ## Drawing QA (checkset review — the merged Checksets app)
 Staff tab `/drawing-qa` for QA/QC of permit drawing sets. **This is the former standalone "Checksets"
 app folded into the BMS (Phases A–C, LIVE in production 2026-07-04).** Flow: pick a **job** → pick a
-**checkset PDF** from that job's Drive **Checksets** folder → **analyze** each sheet against the firm
-checklist (Anthropic vision, structured output, type-scoped) with per-item verdicts + human overrides,
-check-offs, a set overview, "Analyze all" batch, and a mis-typed escape hatch → **mark it up** in
-tldraw → **Export to Drive**: flatten the markup onto the original PDF (`pdf-lib`, rotation-aware) and
-upload the reviewed copy back into the job's Checksets folder.
+**checkset PDF** from that job's Drive **Checksets** folder → view the sheet in a **zoomable/pannable
+viewer** → **analyze** each sheet against the firm checklist (Anthropic vision, structured output,
+type-scoped) with per-item verdicts + human overrides, check-offs, a set overview, "Analyze all" batch,
+and a mis-typed escape hatch.
+
+- **⚠️ tldraw markup was REMOVED (2026-07-04).** tldraw SDK 4.0+ requires a **paid production license**
+  ($6k/yr; no cheap tier) — without a key it tears its canvas down ~5s after mount on any non-localhost
+  HTTPS domain (the "sheet flashes away" bug; invisible in localhost dev, only bit us in production).
+  Ray's call: drop markup and keep Drawing QA as a **pure AI-review tool**. The sheet is now shown via
+  `PageViewer` (`react-zoom-pan-pinch`, MIT). The old markup **save/load + flatten-to-Drive export** flow
+  is gone from the UI; the server `markup`/`export` APIs + `markup` table are **left dormant** (harmless)
+  so drawing could be re-added later on a free lib (e.g. `perfect-freehand`, MIT) if wanted.
 
 - **Where to develop = HERE, this repo.** The standalone `~/Desktop/Checksets App/files` is **FROZEN**
   (its own deploy is dead-ended); its `MERGE_PLAN.md` / `PROGRESS.md` / `NEXT_SESSION.md` are historical
   reference for *why* the engine works, not where work happens.
 - **Frontend** `src/components/drawing-qa/*.jsx`: `DrawingQA` (job+file pickers), `ReviewClient` (review
-  screen), `MarkupOverlay` (tldraw), `MarkupExporter` (off-screen tldraw → transparent markup PNG for
-  export), `ChecklistSidebar`, `SetOverview`, `BatchAnalyzeButton`; helpers `pdf.js`, `markup.js`;
-  `tailwind.css` is **utilities-only (no preflight)** so it doesn't touch the rest of the BMS. Route/nav
-  in `src/rm117-app-shell-v1.jsx` (`/drawing-qa`, lazy). Job picker is a type-to-search combobox
-  (`JobPicker`, `.dqa-combo*`).
+  screen), `PageViewer` (zoom/pan sheet viewer, `react-zoom-pan-pinch`), `ChecklistSidebar`,
+  `SetOverview`, `BatchAnalyzeButton`; helper `pdf.js`; `tailwind.css` is **utilities-only (no
+  preflight)** so it doesn't touch the rest of the BMS. Route/nav in `src/rm117-app-shell-v1.jsx`
+  (`/drawing-qa`, lazy). Job picker is a type-to-search combobox (`JobPicker`, `.dqa-combo*`).
+  (Removed with tldraw: `MarkupOverlay`, `MarkupExporter`, `markup.js`.)
 - **UI theming:** the review chrome follows the app theme via a scoped **`.dqa-review`** layer in
   `styles.css` (the overlay wrapper carries that class). Because the Tailwind is preflight-less, that
   layer **resets bare `<button>`/`<input>`** (else they show UA light control backgrounds — foreign in
@@ -198,13 +205,14 @@ upload the reviewed copy back into the job's Checksets folder.
   (`@vercel/nft` bundles it — verified). Edit THIS copy; the standalone repo's CHECKS.md is a stale fork.
 - **Model:** `ANTHROPIC_MODEL` (default `claude-sonnet-5`). **Keep adaptive thinking ON** — disabling it
   hurt vision recall; the analyze speed comes from **type-scoping the checklist**, not from cutting thinking.
-- **Coordinate rule:** the PDF page lives INSIDE the tldraw canvas as a locked image shape in "page
-  units" (height=1000); marks share that space (camera = single transform source of truth) and are
-  stored ÷1000. Export re-inflates + stamps **rotation-aware** so mixed-`/Rotate` sets (e.g. a 270°
-  cover sheet) align. Drive export needs the service account = **Content manager** on the Shared Drive
-  (confirmed open — the same gate as letters/proposals delivery).
-- **Deps added for this feature:** `@anthropic-ai/sdk` (server), `pdfjs-dist` + `tldraw` (client),
-  `pdf-lib` (already present). Handoff detail: **`DRAWING_QA.md`** at repo root.
+- **Coordinate rule (dormant export only):** the old markup stored marks in normalized (÷1000) page
+  units and the server export re-inflates + stamps them **rotation-aware** so mixed-`/Rotate` sets (e.g.
+  a 270° cover sheet) align. This only matters if the markup/export flow is ever revived — the live UI
+  no longer draws. Drive export (if revived) needs the service account = **Content manager** on the
+  Shared Drive (confirmed open — the same gate as letters/proposals delivery).
+- **Deps for this feature:** `@anthropic-ai/sdk` (server), `pdfjs-dist` + `react-zoom-pan-pinch`
+  (client), `pdf-lib` (already present; still used by the dormant server export). `tldraw` was removed.
+  Handoff detail: **`DRAWING_QA.md`** at repo root.
 
 ## Invariants (do not break)
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.

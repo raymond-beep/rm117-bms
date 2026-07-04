@@ -1,12 +1,14 @@
-// Review screen: left = PDF page inside the tldraw markup surface, right =
+// Review screen: left = a zoomable/pannable view of the PDF sheet, right =
 // checklist sidebar. Everything keyed by (setId, pageNumber). Ported from the
 // standalone Checksets app; rewired to the BMS: all calls go through apiFetch
 // (Clerk auth) to /api/checksets/*, and the PDF bytes are streamed from the job's
-// Drive "Checksets" folder (staff-gated) rather than Supabase Storage.
+// Drive "Checksets" folder (staff-gated) rather than Supabase Storage. This is an
+// AI-review tool: analyze each sheet against the firm checklist. (The former
+// tldraw markup canvas was removed — tldraw SDK 4.0+ requires a paid production
+// license and otherwise tears its canvas down ~5s after mount.)
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
-import MarkupOverlay from './MarkupOverlay.jsx';
-import MarkupExporter from './MarkupExporter.jsx';
+import PageViewer from './PageViewer.jsx';
 import ChecklistSidebar from './ChecklistSidebar.jsx';
 import SetOverview from './SetOverview.jsx';
 import BatchAnalyzeButton from './BatchAnalyzeButton.jsx';
@@ -54,8 +56,6 @@ export default function ReviewClient({ setId, onBack }) {
   const [pdfDoc, setPdfDoc] = useState(null);
   const [docReady, setDocReady] = useState(false);
   const [display, setDisplay] = useState(null);
-  const [initialMarkup, setInitialMarkup] = useState(null);
-  const [pageLoaded, setPageLoaded] = useState(false);
   const [results, setResults] = useState(null);
   const [model, setModel] = useState(null);
   const [sheet, setSheet] = useState(null);
@@ -69,18 +69,11 @@ export default function ReviewClient({ setId, onBack }) {
   const [overviewLoading, setOverviewLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // bump to reload the current page
   const [analyzing, setAnalyzing] = useState(false);
-  const [saveState, setSaveState] = useState('idle');
   const [error, setError] = useState(null);
-  // Drive export: 'idle' | 'preparing' | 'rendering' | 'uploading' | 'done' | 'error'.
-  // exportPages (when set) mounts the off-screen MarkupExporter to rasterize marks.
-  const [exportState, setExportState] = useState('idle');
-  const [exportPages, setExportPages] = useState(null);
-  const [exportResult, setExportResult] = useState(null);
-  const [exportError, setExportError] = useState(null);
 
   // Per-page caches so navigating back to a visited sheet is instant. Rasters are
-  // immutable (the PDF is static); page data + markup are written through on
-  // edits/re-analyze and cleared wholesale after a batch run.
+  // immutable (the PDF is static); page data (checklist results/overrides/check-offs)
+  // is written through on edits/re-analyze and cleared wholesale after a batch run.
   const rasterCache = useRef(new Map());
   const pageCache = useRef(new Map());
 
@@ -149,18 +142,9 @@ export default function ReviewClient({ setId, onBack }) {
     const cachedPage = pageCache.current.get(pageNumber);
 
     // Seed synchronously from cache when we have it (instant), else clear the
-    // previous sheet's UI so stale results/markup don't flash during load.
-    setSaveState('idle');
+    // previous sheet's UI so stale results don't flash during load.
     setDisplay(cachedRaster);
-    if (cachedPage) {
-      setInitialMarkup(cachedPage.markup);
-      applyPageData(cachedPage.data);
-      setPageLoaded(true);
-    } else {
-      setInitialMarkup(null);
-      applyPageData(EMPTY_PAGE_DATA);
-      setPageLoaded(false);
-    }
+    applyPageData(cachedPage ? cachedPage.data : EMPTY_PAGE_DATA);
 
     // Render the raster only if it isn't already cached (it never changes).
     if (!cachedRaster) {
@@ -176,24 +160,18 @@ export default function ReviewClient({ setId, onBack }) {
       })();
     }
 
-    // Fetch markup + results only if this page isn't already cached.
+    // Fetch this page's checklist results only if it isn't already cached.
     if (!cachedPage) {
       (async () => {
         try {
-          const [markupRes, resultsRes] = await Promise.all([
-            apiFetch(`/api/checksets/markup?setId=${setId}&page=${pageNumber}`),
-            apiFetch(`/api/checksets/results?setId=${setId}&page=${pageNumber}`),
-          ]);
-          const markupData = await markupRes.json();
+          const resultsRes = await apiFetch(`/api/checksets/results?setId=${setId}&page=${pageNumber}`);
           const resultsData = await resultsRes.json();
           if (cancelled) return;
-          const markup = markupRes.ok ? markupData.shapes ?? null : null;
           const data = resultsRes.ok ? toPageData(resultsData) : EMPTY_PAGE_DATA;
-          pageCache.current.set(pageNumber, { markup, data });
-          setInitialMarkup(markup);
+          pageCache.current.set(pageNumber, { data });
           applyPageData(data);
-        } finally {
-          if (!cancelled) setPageLoaded(true);
+        } catch {
+          // A failed results fetch just leaves the sidebar empty ("Analyze this sheet").
         }
       })();
     }
@@ -251,35 +229,12 @@ export default function ReviewClient({ setId, onBack }) {
     [goToPage],
   );
 
-  // Write-through helpers so the per-page cache stays in sync with edits.
+  // Write-through helper so the per-page cache stays in sync with checklist edits.
   const writePageData = useCallback((page, patch) => {
     const prev = pageCache.current.get(page);
     if (!prev) return; // not cached yet — the effect will fetch it fresh
-    pageCache.current.set(page, { ...prev, data: { ...prev.data, ...patch } });
+    pageCache.current.set(page, { data: { ...prev.data, ...patch } });
   }, []);
-  const writePageMarkup = useCallback((page, markup) => {
-    const prev = pageCache.current.get(page);
-    pageCache.current.set(page, { markup, data: prev?.data ?? EMPTY_PAGE_DATA });
-  }, []);
-
-  const handleSaveMarkup = useCallback(
-    async (payload) => {
-      setSaveState('saving');
-      try {
-        const res = await apiFetch('/api/checksets/markup', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ setId, page: pageNumber, shapes: payload }),
-        });
-        if (!res.ok) throw new Error('save failed');
-        writePageMarkup(pageNumber, payload);
-        setSaveState('saved');
-      } catch {
-        setSaveState('error');
-      }
-    },
-    [setId, pageNumber, writePageMarkup],
-  );
 
   // Toggle a checklist item's "reviewed" check-off. Optimistic; roll back on fail.
   const handleToggleReviewed = useCallback(
@@ -388,74 +343,6 @@ export default function ReviewClient({ setId, onBack }) {
     [setId, pageNumber, analyzing, pdfDoc, writePageData],
   );
 
-  // Export: gather every page's saved markup, rasterize the marked ones (via the
-  // off-screen MarkupExporter), then POST to flatten them onto the original PDF
-  // and save the reviewed copy into the job's Drive "Checksets" folder.
-  const handleExport = useCallback(async () => {
-    if (!pdfDoc || exportState === 'preparing' || exportState === 'rendering' || exportState === 'uploading') return;
-    setExportError(null);
-    setExportResult(null);
-    setExportState('preparing');
-    try {
-      const res = await apiFetch(`/api/checksets/markup?setId=${setId}&all=1`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Could not load markup');
-
-      // Keep only pages that actually have strokes, and attach each page's aspect
-      // (rotation-applied, matching the tldraw page-units box) from the PDF.
-      const marked = (data.pages ?? []).filter((p) => {
-        const shapes = p.shapes?.shapes ?? [];
-        return Array.isArray(shapes) && shapes.length > 0;
-      });
-      if (marked.length === 0) {
-        setExportState('error');
-        setExportError('Add some markup before exporting — nothing to save yet.');
-        return;
-      }
-      const withAspect = [];
-      for (const p of marked) {
-        const page = await pdfDoc.getPage(p.page);
-        const vp = page.getViewport({ scale: 1 });
-        withAspect.push({ page: p.page, shapes: p.shapes, aspect: vp.width / vp.height });
-      }
-      setExportPages(withAspect); // mounts MarkupExporter
-      setExportState('rendering');
-    } catch (err) {
-      setExportState('error');
-      setExportError(err instanceof Error ? err.message : 'Export failed');
-    }
-  }, [pdfDoc, setId, exportState]);
-
-  const handleMarksRendered = useCallback(
-    async (pngs) => {
-      setExportPages(null); // unmount the exporter
-      setExportState('uploading');
-      try {
-        const res = await apiFetch('/api/checksets/export', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ setId, pages: pngs }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? 'Export failed');
-        setExportResult(data);
-        setExportState('done');
-      } catch (err) {
-        setExportState('error');
-        setExportError(err instanceof Error ? err.message : 'Export failed');
-      }
-    },
-    [setId],
-  );
-
-  const handleMarksError = useCallback((err) => {
-    setExportPages(null);
-    setExportState('error');
-    setExportError(err instanceof Error ? err.message : 'Could not render markup');
-  }, []);
-
-  const exportBusy = exportState === 'preparing' || exportState === 'rendering' || exportState === 'uploading';
-
   const canPrev = docReady && pageNumber > 1;
   const canNext = docReady && !!pageCount && pageNumber < pageCount;
 
@@ -510,18 +397,6 @@ export default function ReviewClient({ setId, onBack }) {
           }}
         />
 
-        <button
-          onClick={handleExport}
-          disabled={!docReady || exportBusy}
-          className="rounded border border-gray-900 bg-gray-900 px-2 py-0.5 text-xs font-medium text-white hover:bg-gray-700 disabled:opacity-40"
-          title="Flatten markup onto the PDF and save it to this job's Drive Checksets folder"
-        >
-          {exportState === 'preparing' && 'Preparing…'}
-          {exportState === 'rendering' && 'Rendering marks…'}
-          {exportState === 'uploading' && 'Saving to Drive…'}
-          {(exportState === 'idle' || exportState === 'done' || exportState === 'error') && '⤓ Export to Drive'}
-        </button>
-
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => goToPage(pageNumber - 1)}
@@ -554,41 +429,13 @@ export default function ReviewClient({ setId, onBack }) {
           </button>
         </div>
 
-        {sheet?.label && <span className="font-mono font-medium text-gray-700">{sheet.label}</span>}
+        {sheet?.label && <span className="ml-auto font-mono font-medium text-gray-700">{sheet.label}</span>}
         {sheet?.type && (
           <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">{prettySheetType(sheet.type)}</span>
         )}
-
-        <span className="ml-auto text-xs text-gray-400">
-          {saveState === 'saving' && 'Saving markup…'}
-          {saveState === 'saved' && 'Markup saved'}
-          {saveState === 'error' && <span className="text-red-500">Markup save failed</span>}
-        </span>
       </div>
 
       {error && <p className="border-b bg-red-50 px-4 py-1.5 text-sm text-red-700">{error}</p>}
-
-      {exportState === 'error' && exportError && (
-        <p className="border-b bg-red-50 px-4 py-1.5 text-sm text-red-700">Export: {exportError}</p>
-      )}
-      {exportState === 'done' && exportResult && (
-        <p className="border-b border-green-200 bg-green-50 px-4 py-1.5 text-sm text-green-800">
-          Saved <span className="font-medium">{exportResult.name}</span> to Drive
-          {exportResult.pagesStamped ? ` (${exportResult.pagesStamped} marked ${exportResult.pagesStamped === 1 ? 'sheet' : 'sheets'})` : ''}
-          {exportResult.webViewLink && (
-            <>
-              {' — '}
-              <a href={exportResult.webViewLink} target="_blank" rel="noreferrer" className="underline">
-                open in Drive
-              </a>
-            </>
-          )}
-        </p>
-      )}
-
-      {exportPages && exportState === 'rendering' && (
-        <MarkupExporter pages={exportPages} onComplete={handleMarksRendered} onError={handleMarksError} />
-      )}
 
       {labelIssue && (
         <p className="border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-sm text-amber-900">
@@ -598,16 +445,8 @@ export default function ReviewClient({ setId, onBack }) {
 
       <div className="flex min-h-0 flex-1">
         <div className="relative min-w-0 flex-1 bg-gray-100">
-          {display && pageLoaded ? (
-            <MarkupOverlay
-              key={pageNumber}
-              pageImageUrl={display.dataUrl}
-              imageWidth={display.width}
-              imageHeight={display.height}
-              aspect={display.aspect}
-              initialMarkup={initialMarkup}
-              onSave={handleSaveMarkup}
-            />
+          {display ? (
+            <PageViewer key={pageNumber} src={display.dataUrl} />
           ) : error ? (
             <div className="dqa-loading">
               <p className="dqa-loading-text">Could not load the drawing.</p>
