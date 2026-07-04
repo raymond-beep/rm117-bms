@@ -44,11 +44,14 @@ and Ray signs off; `main` auto-deploys to production.
   server stamp → Drive upload → re-downloaded + rendered page 1 = marks correct, original intact. ✅
 
 ## Remaining before merge to `main`
-- Add `ANTHROPIC_API_KEY` to Vercel env (analyze route needs it in prod).
-- Confirm `api/_lib/checksets/CHECKS.md` is bundled with the `api/checksets/*` functions on Vercel
-  (read via `import.meta.url`); if the file trace drops it, inline the checklist.
-- Then merge `drawing-qa-merge` → `main` (auto-deploys). A leftover test export
-  `Permit Set 04 — QA 2026-07-04.pdf` sits in `26_011_Kuhn`'s Checksets folder — trash it if unwanted.
+- ~~Add `ANTHROPIC_API_KEY` to Vercel env~~ ✅ **DONE (2026-07-04)** — set for **Production** + Preview
+  (branch `drawing-qa-merge`) on project `rm117-bms`. (The v54.6.1 CLI won't set "all Preview branches"
+  non-interactively; toggle in the dashboard if you want it global like the other secrets.)
+- ~~Confirm `api/_lib/checksets/CHECKS.md` bundles with the functions~~ ✅ **VERIFIED (2026-07-04)** — ran
+  the real `@vercel/nft` tracer (the one the Vercel build uses) against `analyze.js`, `results.js`,
+  `overview.js`; **all three include `CHECKS.md`**. The `fs.readFileSync(path.join(path.dirname(
+  fileURLToPath(import.meta.url)), 'CHECKS.md'))` pattern is detected — no `includeFiles`/inlining needed.
+- **→ `drawing-qa-merge` is ready to merge to `main`** (auto-deploys). Leftover test export was trashed.
 
 ## Where things live
 - Frontend: `src/components/drawing-qa/*.jsx` (+ `tailwind.css`, utilities-only). Route/nav in
