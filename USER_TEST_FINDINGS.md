@@ -83,4 +83,67 @@ Forefront toggle + commission, Notes. Required = Job ID + Client name. Findings:
 - **Portal — build the staff-only "manage client docs + comms" view FIRST**, intending a client-facing portal
   later. Ray wants an **easier way to organize everything** on the firm's end (not just a mirror of the client view).
 - **Billing — support BOTH per-job (pay in full) and per-milestone.** Some clients pay the full bill, some pay per
-  milestone; the QBO "Send to QuickBooks" UI should handle both modes.
+  milestone; the QBO “Send to QuickBooks” UI should handle both modes.
+
+---
+
+# Round 2 — 2026-07-05 · Full staff power-user sweep
+
+**Run by:** Claude (driving Ray's Chrome on live prod `rm117-bms.vercel.app`, signed in as staff) ·
+**Scope:** every sidebar tab + the JobEditor (Details / Progress / Payments) deep-dive · **Method:**
+click-through of each screen, watching for broken flows, confusing UI, data glitches, and console errors.
+
+**Verdict:** _nothing critical is broken._ All 7 tabs and the JobEditor loaded with **zero console
+errors**; core flows (jobs, payments, live QBO invoicing/financials, proposal generator, Forefront) are
+polished and coherent. Findings below are gaps/polish, not blockers.
+
+**Purpose of this list:** a complete baseline from internal testing so real end-user feedback (Angelena +
+others) can be mapped against it. Each finding has a **stable ID** (`UX2-NN`) — reference the ID when
+logging a user's report so we can see overlap vs. new issues.
+
+**Legend:** 🔴 fix soon · 🟠 medium / needs a decision · 🟡 minor polish · 🔵 data/bookkeeping (not an app
+bug) · 📈 business signal (surfaced correctly; act on it). Effort: _S/M/L_.
+
+## A) App fixes (in our control)
+
+| ID | Sev | Location | Finding | Suggested fix | Effort |
+|----|-----|----------|---------|---------------|--------|
+| **UX2-01** | 🔴 | JobEditor → Payments → "Signed Proposal" | Lists **every** file in the Drive "Proposal" folder — including `plot.log` (372 B), `.docx`, and `CONSTRUCTION ESTIMATE_….xlsx`. Presenting a `plot.log` as "the contract on file / your source for the fee schedule" is confusing/noisy. | Filter the list to the actual contract — PDFs only, or rank the signed proposal first and collapse the rest. | S |
+| **UX2-02** | 🟡 | JobEditor → Details → Address | Field renders `204 Robinhood RoadMountainside` — street + city concatenated with no space/comma. BMS list shows it *with* a space, so it's an inconsistent join in the edit field. | Normalize address display/storage (single formatter shared by list + editor). | S |
+| **UX2-03** | 🟠 | Client Portal tab | Page is a preview-only tool (external portal deferred) but gives **no status** that it isn't live to clients — reads as ambiguous ("is this on?"). | Add a one-line banner: "Preview only — the client portal is not live to clients yet." | S |
+| **UX2-04** | 🟡 | JobEditor → Payments | The sticky **"Log payment"** footer button stays visible while you're in the "Send to QuickBooks" section (which has its own "Create QBO invoice" button) → slight mis-click risk. | Scope the footer button to the active section, or visually separate the two forms more. | S |
+| **UX2-05** | 🟡 | Templates → Proposal PDF | Letterhead footer reads `Email: tom@rm117.com`. Confirm that's the intended contact on outgoing proposals (vs. Ray's / another principal's). | Verify + make the contact configurable if needed. | S |
+| **UX2-06** | 🟡 | JobEditor → Progress | Phase ladder shows green "reached" dots for phases with **no date filled** (Proposal Sent, Survey, CD Phase) — green implies reached, so it's inconsistent. | Only fill/greens a phase dot once it has a date (or clarify the states). | S |
+
+## B) Data quality / bookkeeping (🔵 — mostly Angelena in QBO / client records)
+
+| ID | Where | Finding | Action |
+|----|-------|---------|--------|
+| **UX2-07** | Financial → Top invoices | **"Mickael Avedissian"** still shows as a QBO customer (person name, not a Job ID) — the known un-reconciled invoice. | Ang renames the QBO customer → `25_031_FF_Avedissian`. |
+| **UX2-08** | Financial → Top expenses | **#1 expense = "Ask Client" $14,773** — an uncategorized/placeholder QBO bucket sitting as the single biggest "expense," skewing the expense picture. | Categorize those transactions in QBO. |
+| **UX2-09** | Client Portal → client picker | Several client records are **named with Job IDs**, not people: `25_052_FE_Mendham`, `25_054_Malanga_Subdivide`, `26_004_Easton PA Fire Escapes` (likely auto-created on import). | Backfill real contact names on those client rows. |
+| **UX2-10** | Client records | **Dunn `24_008` pair** persists — two separate client records (Craig Fritchey + Jeff Dunn) sharing job #. | Ray's parked data decision (merge vs. renumber). |
+
+## C) Business signals (📈 — app surfaces these correctly; worth acting on)
+
+| ID | Where | Signal |
+|----|-------|--------|
+| **UX2-11** | Financial → A/R | **$281,500 outstanding, $0 "current"** — everything is past due, and **$176,300 (62%) is 90+ days** across 56 invoices. A real collections story, not an app issue. |
+| **UX2-12** | Dashboard → Outstanding card | Headlines **$102,500** but shows **$326,300 on completed/on-hold** underneath — the larger receivable is the secondary number. Consider whether that hierarchy matches how you read it. |
+
+## D) Untested flows — walked in a follow-up pass (2026-07-05)
+
+| ID | Flow | Result |
+|----|------|--------|
+| **UX2-13** | **New job** creation (north-star: Job ID → Drive provisioning) | ✅ **PASS — verified end-to-end.** Created a throwaway `26_999_ZZTestDelete`; the **Drive folder tree auto-provisioned** (parent + "Files Sent" subfolder id persisted to the row) and the job appeared in BMS under "Proposal Sent". Confirmed via a script (`findJobFolder` returned the folder). **Also: the New-Job drawer's Round-1 findings are FIXED** — Job-ID builder (Year/Number/Last name), "Next available: 043" auto-suggest, live ID preview + "✓ available" validation, FF toggle. **Correction to memory:** New-job creation does **not** create a QBO customer (only the Drive folder); the QBO customer is created lazily on first invoice. Throwaway fully cleaned up (row deleted + Drive folder trashed). |
+| **UX2-14** | **Send to QuickBooks** invoice / **Correct Job ID** rename | ⏸️ **Not run** — these write real records to production QuickBooks (an invoice/customer) and rename a Drive folder. Deferred to avoid QBO cruft; can be exercised on a throwaway job later if you want it verified. |
+| **UX2-15** | **Checksets** AI analyze / review screen | ✅ **PASS.** Job picker (`26_011_Kuhn`) → drawing-set list from Drive → **REVIEW** opened the zoom/pan sheet viewer (A.100 site plan) with the AI analysis rendered (9 SITE items: 8 Pass / 1 Review, per-item verdicts + Pass/Review/Fail override dropdowns + check-offs; model `claude-sonnet-5`). **The "flash away" tldraw regression is FIXED in prod** — sheet stayed rendered & stable past 9s. |
+| **UX2-16** | **Global search** (top bar "Search jobs, clients, invoices…") | 🔴 **FAIL — see UX2-17.** |
+
+## E) New findings from the follow-up pass
+
+| ID | Sev | Location | Finding | Suggested fix | Effort |
+|----|-----|----------|---------|---------------|--------|
+| **UX2-17** | 🔴 | Top bar global search (every page) | **Non-functional.** Typing a query + Enter produces no dropdown, no results, no navigation; the DOM has a bare `<input type=search>` with no results listbox. A prominent, always-visible element that does nothing → users will try it first and hit a dead end. | Wire it to a results dropdown (jobs/clients/invoices) or remove it until built. | M |
+| **UX2-18** | 🟡 | BMS phase labels / Checksets folder list | (a) Phase **display labels differ from stored values** — `potential → "Proposal Sent"`, `active → "Outgoing"`; CLAUDE.md's phase list is stale on labels (intentional relabel, not a bug — just update docs). (b) The Checksets **drawing-set list dumps the whole Drive folder** (e.g. "05.26.26 Zoom Meeting.pdf" shows among drawing sets) — same folder-noise family as UX2-01. | Refresh CLAUDE.md phase labels; optionally filter the checkset list. | S |
+
