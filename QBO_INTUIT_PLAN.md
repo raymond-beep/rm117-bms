@@ -18,7 +18,7 @@
   (invoice #1303 created in QuickBooks, then deleted; customer kept) + a full 3-system rename test (all cleaned up).
 - **Reconciliation:** `QBO_JOBID_AUDIT.md` — most jobs already matched once spaces were allowed in Job IDs; the
   only open item is the Dunn `24_008` duplicate pair (a data question for Ray). Inbound payments already flow via Zapier.
-- **⚠️ TODO:** rotate the `95YW…` Development secret (shown in a screenshot) — won't break the refresh token.
+- **✅ DONE (2026-07-05):** rotated the `95YW…` Development secret (shown in a screenshot) → new `BS20…` in `.env` + Vercel Production, redeployed, verified a live token refresh. Loose end: add the new value to Vercel *Preview* via the dashboard.
 - **NEXT:** the **Financial tab** (read QBO reports/balances into the app) — now unblocked. See `ROADMAP.md` + `NEXT_SESSION.md`.
 
 ---

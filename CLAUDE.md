@@ -154,7 +154,7 @@ Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold
     single-company app these legitimately connect to the **production** company. The "Production"-labeled
     keys (`AB6whTti…`) are only for marketplace publishing; not used. Refresh token lives in the shared
     `qbo_tokens` row (rotates); `.env` + Vercel hold `QBO_CLIENT_ID/SECRET/REALM_ID` + `QBO_CONNECT_KEY`.
-  - **TODO:** rotate the `95YW…` Development secret (was shown in a screenshot) — won't break the token.
+  - **✅ DONE (2026-07-05):** rotated the `95YW…` Development secret (was shown in a screenshot) → new `BS20…`; updated `.env` + Vercel Production + redeployed + verified a live token refresh. (Vercel *Preview* still needs the new value added via the dashboard.)
 - **DocuSign:** proposals sent for e-signature; status tracked in `proposals`.
 - **Email bridge:** outbound notify on new portal message; inbound parse appends client replies
   to the thread (validate Resend inbound parsing before Phase 7).

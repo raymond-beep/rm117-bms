@@ -45,11 +45,11 @@ const NAV_GROUPS = [
     items: [
       { to: '/', label: 'Dashboard', end: true },
       { to: '/bms', label: 'BMS' },
-      { to: '/forefront', label: 'Forefront' },
       { to: '/financial', label: 'Financial' },
-      { to: '/templates', label: 'Templates' },
-      { to: '/drawing-qa', label: 'Drawing QA' },
+      { to: '/drawing-qa', label: 'Checksets' },
       { to: '/portal', label: 'Client Portal' },
+      { to: '/templates', label: 'Templates' },
+      { to: '/forefront', label: 'Forefront' },
     ],
   },
 ];

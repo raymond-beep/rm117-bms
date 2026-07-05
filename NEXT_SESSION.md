@@ -1,5 +1,8 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-02 — 🧹 **the queued `/simplify` cleanup pass is DONE + SHIPPED (commit `fb40249`)**. Next = Angelena's feedback (none yet as of 2026-07-02; ask Ray at the top).
+**Last updated:** 2026-07-05 — 🔐 **the exposed `95YW…` Intuit Dev secret is ROTATED + verified live** (see below). Next = Ray has one small revision to make, then a fresh UX test to catch anything critical; Angelena's feedback still pending (ask Ray at the top).
+
+> ## ✅ DONE 2026-07-05 — rotated the exposed QBO client secret (security TODO cleared)
+> Rotated the `95YW…` Development client secret on Intuit's dashboard (**Keys & Credentials → Development → Rotate secret** → new `BS20…`). Updated everywhere the app reads it: **local `.env` line 29**, **Vercel Production** (`vercel env rm` + `add`), and **redeployed prod** via an empty commit (`fee52da`, test-gated) so the running functions picked up the new value. **Verified live end-to-end** with a throwaway script mirroring `refreshAccessToken()`: the new secret performed a real QBO token refresh (Intuit returned a valid access token, `expires_in=3600`, refresh token *not* rotated so zero side-effect). The old secret is rotated out at Intuit. **⚠️ One loose end for Ray: add `QBO_CLIENT_SECRET` (new value) to Vercel _Preview_ in the dashboard** — the CLI can't set "all preview branches" in agent mode; Preview currently has the other QBO vars but not the secret. Not a security gap (nothing leaked lingers there); only matters when a preview deploy touches QuickBooks.
 
 > ## ✅ DONE 2026-07-02 — the code-cleanup pass (was the pinned DO-FIRST item)
 > Ran the full `/simplify` flow (4 parallel review agents: reuse / simplification / efficiency / altitude) over the 2026-07-01 diff and applied the surviving findings — **behavior-identical, verified against live QBO** (Q2 sent $106,150 / $73,450 collected / $32,700 open / 47 invoices, 2 hidden quarters — exact match to the recorded numbers). **112 tests (+5 new), build green, bundle unchanged.** Highlights:
@@ -68,8 +71,7 @@
   below. Unchanged. Dunn `24_008` pair still a parked Ray data decision.
 - **Repo state:** clean + in sync with origin (`991271c`). Workflow unchanged: `git push origin main` → test gate
   (102 tests) → auto-deploy. Do NOT run `vercel --prod`.
-- **⚠️ Still-open small TODO:** rotate the `95YW…` Development client secret on Intuit's Development tab + update
-  `QBO_CLIENT_SECRET` in `.env` + Vercel (won't break the refresh token).
+- **✅ DONE 2026-07-05:** rotated the `95YW…` Development client secret → new `BS20…` in `.env` + Vercel Production + redeployed + verified live (see the 2026-07-05 section at top). Loose end: add it to Vercel *Preview* in the dashboard.
 - **Financial-tab follow-ups (candidates, pending Ang feedback):** monthly-trend view; per-job financial rollup
   (billed/paid/outstanding from QBO on the JobEditor); export/print of a P&L or A/R statement; caching QBO reads
   (each tab load hits QBO live — fine now, revisit if slow); auto-create the QBO customer on *new-job* creation.

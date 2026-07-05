@@ -91,7 +91,7 @@ export default function DrawingQA() {
     <div className="page">
       <div className="page-head">
         <div>
-          <div className="eyebrow">Drawing QA</div>
+          <div className="eyebrow">Checksets</div>
           <h1 className="greeting">Checkset review</h1>
         </div>
       </div>
