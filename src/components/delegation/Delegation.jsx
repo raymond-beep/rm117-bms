@@ -76,6 +76,16 @@ export default function Delegation() {
   const weekRef = useRef(weekKey);
   weekRef.current = weekKey;
 
+  // While a stroke is live, clamp touch-action to none across the whole planner so
+  // iPadOS can't start a scroll/zoom gesture off a palm shift — that gesture is what
+  // fires a pointercancel on the Pencil and leaves a dead spot until you lift + retouch.
+  // Toggled imperatively (a classList write, no setState) so it never re-renders the
+  // canvases mid-stroke. Between strokes the class is off, so finger-scroll still works.
+  const pageRef = useRef(null);
+  const setInking = useCallback((active) => {
+    pageRef.current?.classList.toggle('inking', active);
+  }, []);
+
   const load = useCallback(async (wk, { quiet } = {}) => {
     if (!quiet) setStatus('loading');
     try {
@@ -218,7 +228,7 @@ export default function Delegation() {
   const dayDates = useMemo(() => DAYS.map((_, i) => addDays(parseISO(weekKey), i).getDate()), [weekKey]);
 
   return (
-    <div className="page deleg">
+    <div className="page deleg" ref={pageRef}>
       <div className="page-head">
         <div>
           <div className="eyebrow">Workspace</div>
@@ -301,7 +311,7 @@ export default function Delegation() {
                 writable={writable}
                 mode={mode}
                 noteFor={(d) => notesByCell.get(`${mem.clerk_email}|${d}`)}
-                onDrawingChange={(v) => { drawingRef.current = v; }}
+                onDrawingChange={(v) => { drawingRef.current = v; setInking(v); }}
                 onEditingChange={(v) => { editingRef.current = v; }}
                 onCommit={(pts) => commitStroke(mem.clerk_email, pts)}
                 onSaveNote={(d, text) => saveNote(mem.clerk_email, d, text)}
