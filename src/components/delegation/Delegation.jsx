@@ -452,7 +452,20 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
     render();
   };
   const onPointerMove = (e) => {
-    if (!drawing.current || e.pointerId !== activePointerRef.current) return;
+    // Implicit start: on hover-capable iPads the Pencil hovers before contact, and
+    // iPadOS sometimes drops the pointerdown entirely — only pointermoves arrive once
+    // the tip is already down (pressure > 0). Without this the whole stroke never
+    // registers (the "missed stroke that never appears"). Begin the stroke from the
+    // first pressured pen move. (Hovering pen / button-up mouse report pressure 0.)
+    if (!drawing.current) {
+      if (!writable || e.pointerType === 'touch' || !(e.pressure > 0)) return;
+      try { canvasRef.current.setPointerCapture(e.pointerId); } catch { /* draw anyway */ }
+      activePointerRef.current = e.pointerId;
+      drawing.current = { points: [], color };
+      onDrawingChange(true);
+    } else if (e.pointerId !== activePointerRef.current) {
+      return;
+    }
     // Coalesced events give smoother high-frequency pen input where supported.
     const evts = e.nativeEvent.getCoalescedEvents ? e.nativeEvent.getCoalescedEvents() : [e];
     for (const ev of evts) drawing.current.points.push(norm(ev.clientX != null ? ev : e));
