@@ -54,6 +54,8 @@ const routes = {
   '/api/qbo/status': () => import('./api/qbo/status.js'),
   // Read-only financial snapshot (A/R aging + P&L) for the Financial tab.
   '/api/qbo/financials': () => import('./api/qbo/financials.js'),
+  // Delegation Board — weekly Mon–Fri ink grid (staff-only, row-level write perms).
+  '/api/delegation': () => import('./api/delegation.js'),
 };
 
 for (const [path, load] of Object.entries(routes)) {

@@ -230,6 +230,50 @@ re-issues the refresh token on most refreshes). `api/_lib/qbo.js` reads this fir
 | `realm_id` | text | connected company (`193514517070094`) |
 | `updated_at` | timestamptz | |
 
+### `delegation_members` (Delegation Board)
+Roster for the weekly Delegation Board (`/delegation`). One row per employee; the source of truth for
+the board's rows (jobs have no assignee field and the `staff` table is unused). `clerk_email` is the
+identity joined to the signed-in Clerk user.
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `name` | text not null | display name (first name) |
+| `clerk_email` | text not null unique | the staff member's @rm117.com Clerk email |
+| `is_admin` | boolean not null | default `false`. `true` = may draw in ANY row (Angelena) |
+| `active` | boolean not null | default `true`. Only active members render as rows |
+| `sort_order` | int not null | row order top→bottom (Tom·Nicole·Danielle·Angelena·Raymond) |
+| `created_at` | timestamptz | |
+
+### `delegation_strokes` (Delegation Board)
+One ink stroke on a weekly board. `points` are normalized 0..1 (relative to the row canvas) so ink
+scales across iPad + desktop. Row-level write permission is enforced in `api/delegation.js` (own row,
+or admin) — **not** RLS, since the app reaches Supabase only via the service-role key.
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `week_key` | date not null | the Monday of the week, e.g. `2026-07-06` |
+| `row_owner_email` | text not null | whose row the stroke lives in |
+| `points` | jsonb not null | `[{x,y,pressure,t}, ...]` normalized 0..1 |
+| `color` | text not null | hex, default `#111111` |
+| `created_by_email` | text not null | who actually drew it (undo/audit) |
+| `created_at` | timestamptz | |
+| | | index on `(week_key, row_owner_email)` |
+
+### `delegation_notes` (Delegation Board)
+Typed notes for the board — one per (week, employee row, weekday cell), coexisting with the freehand
+ink. Same server-side write permission (own row, or admin). Blank text deletes the cell's note; edits
+`upsert` on the unique triple.
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `week_key` | date not null | the Monday of the week |
+| `row_owner_email` | text not null | whose row the note lives in |
+| `day_index` | int not null | `check between 0 and 4` — 0=Mon .. 4=Fri |
+| `text` | text not null | the note body |
+| `created_by_email` | text not null | who last edited it |
+| `updated_at` | timestamptz | |
+| | | `unique (week_key, row_owner_email, day_index)`; index on `week_key` |
+
 > **Job ID rename safety (migration `0007`):** every FK that references `jobs(job_id)` (payments,
 > invoices, proposals, letters, field_notes, job_phase_events, file_records) now uses **`ON UPDATE
 > CASCADE`**, so renaming a job's id moves all its child rows atomically. This is what makes
