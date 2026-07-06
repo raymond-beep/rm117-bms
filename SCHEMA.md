@@ -55,7 +55,7 @@ The heart of everything. One row per job.
 | `referred_by_id` | uuid FK → clients.id | nullable — contractor/partner who brought the job in |
 | `client_name` | text | denormalized for display/search (kept in sync with `clients.name`) |
 | `address` | text | |
-| `phase` | text | single lifecycle field, Ang's vocabulary: `check in ('potential','survey_zoning','design_phase','cd_phase','active','on_hold','completed')`. "Active" = finishing touches before completion (a late phase, not a status). |
+| `phase` | text | single lifecycle field, Ang's vocabulary: `check in ('potential','survey_zoning','design_phase','cd_phase','active','on_hold','completed','canceled')` (migration `0008`). "Active" = finishing touches before completion (a late phase, not a status). "Canceled" = terminated early, kept as a record (outside the pipeline + ladder). |
 | `phase_override` | text | nullable — manual phase label that wins over the derived phase |
 | `job_total` | numeric(12,2) | contracted total |
 | `amount_billed` | numeric(12,2) | running total invoiced |

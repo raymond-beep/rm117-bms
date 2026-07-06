@@ -25,7 +25,9 @@ export function getDb() {
 // e.g. "26_011_Kuhn_352 Amherst"), but not lead or trail with whitespace.
 export const JOB_ID_RE = /^\d{2}_\d{3}_(FF_)?\S(.*\S)?$/;
 
-// Single phase field, Ang's vocabulary (see SCHEMA.md).
+// Single phase field, Ang's vocabulary (see SCHEMA.md). Must stay in sync with the
+// jobs.phase / field_notes.phase CHECK constraints (migration 0008) and the frontend
+// PHASE_* lists in src/lib/format.js. 'canceled' = a job terminated early, kept as a record.
 export const PHASES = [
   'potential',
   'survey_zoning',
@@ -34,6 +36,7 @@ export const PHASES = [
   'active',
   'on_hold',
   'completed',
+  'canceled',
 ];
 
 // outstanding is computed, never stored: job_total - sum(payments.amount).

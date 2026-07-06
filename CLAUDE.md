@@ -130,8 +130,14 @@ a future revisit.
 > The remaining reason to defer is onboarding/login-management effort, not any staff-side limit.
 
 ## Job phases (single `phase` field, in order — no separate status)
-Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold → Completed
+Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold → Completed → Canceled
 "Active" = finishing touches before completion. `phase_override` wins when set.
+**Canceled** = a job terminated early (client canceled while the contract allowed it) — a
+terminal record, distinct from Completed (finished work) and On Hold (paused). Like On Hold it
+sits outside the working pipeline (`PIPELINE_PHASES`) and the linear progress ladder
+(`PHASE_LADDER`); it groups at the bottom of the board. The phase set lives in three places that
+must stay in sync: `api/_lib/db.js` `PHASES`, `src/lib/format.js` `PHASE_*`, and the
+`jobs.phase`/`field_notes.phase` CHECK constraints (migration `0008_jobs_phase_canceled.sql`).
 
 ## Integrations
 - **QuickBooks two-way sync — LIVE (2026-06-30).** Connected to the real company

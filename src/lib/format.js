@@ -8,13 +8,17 @@ export const PHASE_LABELS = {
   active: 'Outgoing',
   on_hold: 'On Hold',
   completed: 'Completed',
+  canceled: 'Canceled',
 };
 
 // Grouping/display order, top → bottom (Ang's BMS sections):
 // Outgoing, CD Phase, Design Phase, Survey + Zoning + Schematics, Potential,
-// then On Hold and Completed. The internal phase keys are unchanged — only the
-// display order and labels above. (The chronological lifecycle order — used by
-// the Progress ladder — runs the other way: Potential → … → Outgoing → Completed.)
+// then On Hold, Completed, and Canceled. The internal phase keys are unchanged —
+// only the display order and labels above. (The chronological lifecycle order — used
+// by the Progress ladder — runs the other way: Potential → … → Outgoing → Completed.)
+// 'canceled' = a job terminated early; a terminal state kept only as a record. Like
+// 'on_hold' it sits OUTSIDE the linear ladder (PHASE_LADDER) and outside the working
+// pipeline (PIPELINE_PHASES) — it groups at the very bottom of the board.
 export const PHASE_ORDER = [
   'active',
   'cd_phase',
@@ -23,6 +27,7 @@ export const PHASE_ORDER = [
   'potential',
   'on_hold',
   'completed',
+  'canceled',
 ];
 
 // Pipeline = everything not completed and not on hold.

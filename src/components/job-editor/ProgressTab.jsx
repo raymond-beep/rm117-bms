@@ -31,7 +31,9 @@ export default function ProgressTab({ job, onSave }) {
   }
 
   const onHold = job.phase === 'on_hold';
-  const currentIdx = PHASE_LADDER.indexOf(job.phase); // -1 when on_hold
+  const canceled = job.phase === 'canceled';
+  const terminal = onHold || canceled; // outside the ladder — no phase is "current"
+  const currentIdx = PHASE_LADDER.indexOf(job.phase); // -1 when on_hold / canceled
 
   async function saveMilestone() {
     setSaving(true);
@@ -81,10 +83,11 @@ export default function ProgressTab({ job, onSave }) {
         ) : (
           <>
             {onHold && <div className="onhold-banner">⏸ This job is currently On Hold.</div>}
+            {canceled && <div className="onhold-banner">✕ This job was canceled — kept as a record.</div>}
             <ol className="timeline">
               {PHASE_LADDER.map((p, i) => {
                 const reached = reachedByPhase[p];
-                const status = onHold
+                const status = terminal
                   ? (reached ? 'done' : 'upcoming')
                   : i < currentIdx ? 'done' : i === currentIdx ? 'current' : 'upcoming';
                 return (
