@@ -324,6 +324,7 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const drawing = useRef(null); // { points: [{x,y,pressure,t}], color } while active
+  const activePointerRef = useRef(null); // pointerId of the pen/mouse that owns the active stroke
   const sizeRef = useRef({ w: 0, h: ROW_H });
 
   // Paint the paper, gridlines, all committed strokes, and any in-progress stroke.
@@ -390,24 +391,32 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
     };
   };
 
+  // Palm rejection: the Apple Pencil is a 'pen' pointer; a resting palm is a 'touch'
+  // pointer. We only ever draw with the pen (or a desktop mouse), and — critically —
+  // once a stroke starts we lock onto that one pointerId. Every later handler ignores
+  // any event that isn't from the owning pointer, so a palm's touch up/cancel/leave
+  // can't finish (interrupt) the pen stroke that's in progress.
   const onPointerDown = (e) => {
     if (!writable) return;
-    if (e.pointerType === 'touch') return; // palm rejection — pen + mouse only
+    if (e.pointerType === 'touch') { e.preventDefault(); return; } // swallow palm; don't draw
+    if (drawing.current) return; // already inking with another pointer
     e.preventDefault();
     canvasRef.current.setPointerCapture(e.pointerId);
+    activePointerRef.current = e.pointerId;
     drawing.current = { points: [norm(e)], color };
     onDrawingChange(true);
     render();
   };
   const onPointerMove = (e) => {
-    if (!drawing.current) return;
-    if (e.pointerType === 'touch') return;
+    if (!drawing.current || e.pointerId !== activePointerRef.current) return;
     // Coalesced events give smoother high-frequency pen input where supported.
     const evts = e.nativeEvent.getCoalescedEvents ? e.nativeEvent.getCoalescedEvents() : [e];
     for (const ev of evts) drawing.current.points.push(norm(ev.clientX != null ? ev : e));
     render();
   };
-  const finish = () => {
+  const finish = (e) => {
+    if (e) { try { canvasRef.current.releasePointerCapture(e.pointerId); } catch { /* already released */ } }
+    activePointerRef.current = null;
     const stroke = drawing.current;
     drawing.current = null;
     onDrawingChange(false);
@@ -415,9 +424,8 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
     render();
   };
   const onPointerUp = (e) => {
-    if (!drawing.current) return;
-    try { canvasRef.current.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-    finish();
+    if (!drawing.current || e.pointerId !== activePointerRef.current) return;
+    finish(e);
   };
 
   const typing = mode === 'type';
@@ -431,7 +439,6 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onPointerLeave={onPointerUp}
       />
       <div className={`deleg-notes${typing ? ' typing' : ''}`}>
         {DAYS.map((_, d) => {
