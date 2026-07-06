@@ -83,11 +83,14 @@ export default function Delegation() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Failed to load');
       if (weekRef.current !== wk) return; // week changed mid-flight; drop stale result
-      setMembers(data.members || []);
-      setMe(data.me || { email: myEmail, is_admin: false });
-      // Don't overwrite local ink/notes while the user is mid-stroke, mid-edit, or a
-      // save is pending — it would drop the in-progress stroke or jump the caret.
+      // While the user is mid-stroke, mid-edit, or a save is pending, apply NOTHING.
+      // Any setState here re-renders all five row canvases and hitches the live pen —
+      // that's the "it keeps stopping while I write" symptom. Skipping members/me too
+      // (not just strokes/notes) means a background poll can't touch an active stroke.
+      // setStatus('ready') below is a no-op re-render bailout when already 'ready'.
       if (!drawingRef.current && !editingRef.current && pendingRef.current === 0) {
+        setMembers(data.members || []);
+        setMe(data.me || { email: myEmail, is_admin: false });
         setStrokes(data.strokes || []);
         setNotes(data.notes || []);
       }
