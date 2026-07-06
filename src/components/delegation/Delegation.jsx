@@ -438,9 +438,14 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
   const onPointerDown = (e) => {
     if (!writable) return;
     if (e.pointerType === 'touch') { e.preventDefault(); return; } // swallow palm; don't draw
-    if (drawing.current) return; // already inking with another pointer
+    // Recover from a stuck stroke: iPadOS intermittently drops a pointerup/pointercancel
+    // for the Pencil, leaving drawing.current set. If we just bailed here, this fresh pen
+    // contact would be silently ignored — a "randomly missed stroke". Finalize the stale
+    // stroke (preserving its ink) and start this one instead.
+    if (drawing.current) finish();
     e.preventDefault();
-    canvasRef.current.setPointerCapture(e.pointerId);
+    // A setPointerCapture throw (also seen on iPad) must not abort the stroke — draw anyway.
+    try { canvasRef.current.setPointerCapture(e.pointerId); } catch { /* not captured; still draws */ }
     activePointerRef.current = e.pointerId;
     drawing.current = { points: [norm(e)], color };
     onDrawingChange(true);
@@ -474,6 +479,22 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
     if (!drawing.current || e.pointerId !== activePointerRef.current) return;
     finish(e);
   };
+
+  // Window-level safety net: if iPadOS drops the Pencil's pointerup/cancel and it never
+  // reaches the canvas (e.g. pointer capture failed), the last stroke would sit unsynced
+  // forever. A document-level up/cancel finalizes it so it still commits. finishRef keeps
+  // the listener pointing at the latest closure without re-subscribing every render.
+  const finishRef = useRef(finish);
+  finishRef.current = finish;
+  useEffect(() => {
+    const onWinEnd = () => { if (drawing.current) finishRef.current(); };
+    window.addEventListener('pointerup', onWinEnd);
+    window.addEventListener('pointercancel', onWinEnd);
+    return () => {
+      window.removeEventListener('pointerup', onWinEnd);
+      window.removeEventListener('pointercancel', onWinEnd);
+    };
+  }, []);
 
   const typing = mode === 'type';
   return (
