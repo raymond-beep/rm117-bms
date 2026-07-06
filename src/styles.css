@@ -1692,6 +1692,13 @@ input, select, textarea { font: inherit; }
 .deleg-loading { padding: 24px; color: var(--ink3); }
 
 .deleg-grid { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--panel); box-shadow: var(--shadow); }
+/* Apple Pencil: while inking, iPadOS otherwise treats the stroke as a text drag —
+   it selects the name labels / notes and pops the Copy·Look Up callout, which cuts
+   the stroke off. Kill selection + the touch callout across the board; the Type-mode
+   textareas below opt back in so typed notes stay editable/selectable. */
+.deleg-grid { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.deleg-canvas { -webkit-touch-callout: none; }
+.deleg-notes.typing .deleg-notecell.edit { -webkit-user-select: text; user-select: text; }
 .deleg-headrow, .deleg-row { display: grid; grid-template-columns: 120px 1fr; }
 .deleg-row { border-top: 1px solid var(--border); }
 .deleg-days { display: grid; grid-template-columns: repeat(5, 1fr); }
