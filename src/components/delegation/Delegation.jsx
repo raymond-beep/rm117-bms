@@ -458,7 +458,11 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
     // registers (the "missed stroke that never appears"). Begin the stroke from the
     // first pressured pen move. (Hovering pen / button-up mouse report pressure 0.)
     if (!drawing.current) {
-      if (!writable || e.pointerType === 'touch' || !(e.pressure > 0)) return;
+      // Contact = tip pressure, OR the primary "button" bit iPadOS sets when the tip is
+      // down (some light/fast contacts report pressure 0 on the first sample). Hovering
+      // pen and button-up mouse report both as 0, so they stay ignored.
+      const inContact = e.pressure > 0 || (e.buttons & 1) === 1;
+      if (!writable || e.pointerType === 'touch' || !inContact) return;
       try { canvasRef.current.setPointerCapture(e.pointerId); } catch { /* draw anyway */ }
       activePointerRef.current = e.pointerId;
       drawing.current = { points: [], color };
