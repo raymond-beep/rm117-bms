@@ -15,6 +15,7 @@ import { apiFetch } from '../../lib/api.js';
 const ROW_H = 150;          // CSS px height of each employee's drawing strip
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 const POLL_MS = 4000;       // live-sync cadence (see architecture note in the API)
+const INK_SYNC_COOLDOWN_MS = 2500; // after the last pen lift, hold off sync repaints this long
 const PAPER = '#fbfbf8';    // the "sheet" stays light in both themes so ink reads
 const GRIDLINE = '#e6e4dd';
 
@@ -73,6 +74,7 @@ export default function Delegation() {
   const drawingRef = useRef(false);
   const editingRef = useRef(false);
   const pendingRef = useRef(0);
+  const lastInkRef = useRef(0); // ms timestamp of the last pen lift (for the sync cooldown)
   const weekRef = useRef(weekKey);
   weekRef.current = weekKey;
 
@@ -111,12 +113,15 @@ export default function Delegation() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Failed to load');
       if (weekRef.current !== wk) return; // week changed mid-flight; drop stale result
-      // While the user is mid-stroke, mid-edit, or a save is pending, apply NOTHING.
-      // Any setState here re-renders all five row canvases and hitches the live pen —
-      // that's the "it keeps stopping while I write" symptom. Skipping members/me too
-      // (not just strokes/notes) means a background poll can't touch an active stroke.
+      // While the user is mid-stroke, mid-edit, a save is pending, OR they lifted the
+      // pen only a moment ago (writing a sentence = many strokes with sub-second gaps),
+      // apply NOTHING. Any setState here re-renders all five row canvases and hitches
+      // the live pen — that's the "it stops writing every time it syncs" symptom (very
+      // visible with a second device mirroring the board). The cooldown keeps continuous
+      // writing repaint-free; sync resumes once the user pauses ~INK_SYNC_COOLDOWN_MS.
       // setStatus('ready') below is a no-op re-render bailout when already 'ready'.
-      if (!drawingRef.current && !editingRef.current && pendingRef.current === 0) {
+      const recentlyInking = Date.now() - lastInkRef.current < INK_SYNC_COOLDOWN_MS;
+      if (!drawingRef.current && !editingRef.current && pendingRef.current === 0 && !recentlyInking) {
         setMembers(data.members || []);
         setMe(data.me || { email: myEmail, is_admin: false });
         setStrokes(data.strokes || []);
@@ -332,7 +337,7 @@ export default function Delegation() {
                 writable={writable}
                 mode={mode}
                 noteFor={(d) => notesByCell.get(`${mem.clerk_email}|${d}`)}
-                onDrawingChange={(v) => { drawingRef.current = v; setInking(v); }}
+                onDrawingChange={(v) => { drawingRef.current = v; setInking(v); if (!v) lastInkRef.current = Date.now(); }}
                 onEditingChange={(v) => { editingRef.current = v; }}
                 onCommit={(pts) => commitStroke(mem.clerk_email, pts)}
                 onSaveNote={(d, text) => saveNote(mem.clerk_email, d, text)}
@@ -454,8 +459,16 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
     const stroke = drawing.current;
     drawing.current = null;
     onDrawingChange(false);
-    if (stroke && stroke.points.length) onCommit(stroke.points);
-    render();
+    if (stroke && stroke.points.length) {
+      // Do NOT render() here. drawing.current is now null but the committed strokes
+      // state doesn't yet include this stroke, so a repaint would blank it for one
+      // frame ("stops writing" flicker on every word). Leave the last drawn frame on
+      // the canvas; onCommit → setStrokes triggers a state-driven repaint that redraws
+      // it (with the temp stroke) seamlessly.
+      onCommit(stroke.points);
+    } else {
+      render(); // nothing committed — repaint to drop the aborted stroke
+    }
   };
   const onPointerUp = (e) => {
     if (!drawing.current || e.pointerId !== activePointerRef.current) return;
