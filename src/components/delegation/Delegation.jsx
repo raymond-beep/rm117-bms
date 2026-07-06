@@ -82,9 +82,27 @@ export default function Delegation() {
   // Toggled imperatively (a classList write, no setState) so it never re-renders the
   // canvases mid-stroke. Between strokes the class is off, so finger-scroll still works.
   const pageRef = useRef(null);
+
+  // Deferred state updates: a stroke's save response (temp→real id swap) re-renders
+  // and repaints all five row canvases. If it lands mid-way through the NEXT stroke it
+  // hitches the main thread and drops Pencil moves — the "rare dead spot". So while a
+  // stroke is live we queue any such setState here and flush it the instant the pen
+  // lifts. The optimistic temp stroke already renders identically, so nothing is lost
+  // visually in the meantime.
+  const deferredRef = useRef([]);
+  const runDeferred = useCallback(() => {
+    const q = deferredRef.current;
+    deferredRef.current = [];
+    for (const fn of q) fn();
+  }, []);
+  // While a stroke is live, clamp touch-action to none across the whole planner so
+  // iPadOS can't start a scroll/zoom gesture off a palm shift, then flush deferred
+  // updates on lift. Toggled imperatively (a classList write, no setState) so it never
+  // re-renders the canvases mid-stroke; between strokes the class is off so scroll works.
   const setInking = useCallback((active) => {
     pageRef.current?.classList.toggle('inking', active);
-  }, []);
+    if (!active) runDeferred();
+  }, [runDeferred]);
 
   const load = useCallback(async (wk, { quiet } = {}) => {
     if (!quiet) setStatus('loading');
@@ -182,9 +200,12 @@ export default function Delegation() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Save failed');
-      setStrokes((prev) => prev.map((s) => (s.id === temp.id ? data.stroke : s)));
+      // Swap temp→saved. Defer if a stroke is in progress so the repaint can't hitch it.
+      const apply = () => setStrokes((prev) => prev.map((s) => (s.id === temp.id ? data.stroke : s)));
+      if (drawingRef.current) deferredRef.current.push(apply); else apply();
     } catch (e) {
-      setStrokes((prev) => prev.filter((s) => s.id !== temp.id)); // roll back
+      const rollback = () => setStrokes((prev) => prev.filter((s) => s.id !== temp.id));
+      if (drawingRef.current) deferredRef.current.push(rollback); else rollback();
       setError(e.message);
     } finally {
       pendingRef.current -= 1;
