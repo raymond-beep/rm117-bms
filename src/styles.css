@@ -605,6 +605,7 @@ input, select, textarea { font: inherit; }
 .badge-active       { background: var(--success-bg); color: #234d36; }
 .badge-on_hold      { background: #f4ead2; color: #6b4a17; }
 .badge-completed    { background: #ecebe6; color: var(--muted); }
+.badge-canceled     { background: #efe4e2; color: #6b3535; }
 .badge-ff           { background: var(--ff-bg); color: var(--ff); }
 .badge-bill         { background: var(--bill-bg); color: var(--bill); }
 
@@ -627,6 +628,7 @@ input, select, textarea { font: inherit; }
 .phase-header-potential     { background: #3a3d42; }
 .phase-header-on_hold       { background: #6b4a17; }
 .phase-header-completed     { background: #3a3d42; }
+.phase-header-canceled      { background: #5e3535; }
 
 .phase-group-jobs { background: var(--surface); }
 .job-card {
