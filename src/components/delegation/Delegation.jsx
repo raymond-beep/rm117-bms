@@ -8,12 +8,21 @@
 // across iPad and desktop. Row-level write permission (you draw only your own row;
 // Angelena draws any) is enforced server-side in api/delegation.js; the UI just
 // mirrors it. Data: /api/delegation.
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
 
-const ROW_H = 150;          // CSS px height of each employee's drawing strip
+const ROW_H = 150;          // CSS px height of each employee's drawing strip (at 100% zoom)
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+// Zoom — the boxes are small to hand-write in (esp. on iPad), so the whole board can
+// be scaled up. We scale the actual cell size (canvas grows, re-renders crisp from the
+// normalized points) rather than CSS-transforming the raster, so ink stays sharp at any
+// zoom. iPad = two-finger pinch (Procreate-style, isolated from the single-Pencil draw
+// path); desktop = the −/+ buttons or ⌘/Ctrl-scroll.
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.5;
+const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
 const POLL_MS = 4000;       // live-sync cadence (see architecture note in the API)
 const INK_SYNC_COOLDOWN_MS = 2500; // after the last pen lift, hold off sync repaints this long
 const PAPER = '#fbfbf8';    // the "sheet" stays light in both themes so ink reads
@@ -69,6 +78,9 @@ export default function Delegation() {
   const [mode, setMode] = useState('pen'); // 'pen' (draw ink) | 'type' (edit cell notes)
   const [status, setStatus] = useState('loading'); // loading | ready | error
   const [error, setError] = useState('');
+  const [zoom, setZoom] = useState(1); // 1..3 — scales the whole board (crisp; see ROW_H note)
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
 
   // Refs let the 4s poll skip clobbering an in-flight draw / unsaved edit.
   const drawingRef = useRef(false);
@@ -105,6 +117,108 @@ export default function Delegation() {
     pageRef.current?.classList.toggle('inking', active);
     if (!active) runDeferred();
   }, [runDeferred]);
+
+  // --- Zoom plumbing -------------------------------------------------------
+  // The board lives in a horizontally-scrollable viewport; `zoom` widens the grid
+  // (CSS var --dz) and taller rows (rowHeight prop) so each cell physically grows.
+  // A zoom change re-anchors the horizontal scroll to a focal point (the pinch
+  // midpoint, or the viewport center for the buttons) so the spot you zoomed into
+  // stays put. The scroll is applied in a layout effect, after the new width lands.
+  const scrollRef = useRef(null);
+  const pendingScrollLeftRef = useRef(null);
+
+  // Zoom to `next`, keeping the content under `focalClientX` fixed on screen.
+  const zoomAround = useCallback((next, focalClientX) => {
+    const nz = clampZoom(next);
+    if (nz === zoomRef.current) { pendingScrollLeftRef.current = null; return; } // at a bound — nothing to do
+    const el = scrollRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const fx = (focalClientX == null ? rect.left + rect.width / 2 : focalClientX) - rect.left;
+      const cur = zoomRef.current || 1;
+      const originBase = (el.scrollLeft + fx) / cur;      // content x in 100%-zoom px
+      pendingScrollLeftRef.current = originBase * nz - fx; // where it should sit after
+    }
+    setZoom(nz);
+  }, []);
+
+  // Apply the re-anchored scroll after the widened layout is in the DOM.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el && pendingScrollLeftRef.current != null) {
+      const max = el.scrollWidth - el.clientWidth;
+      el.scrollLeft = Math.max(0, Math.min(max, pendingScrollLeftRef.current));
+      pendingScrollLeftRef.current = null;
+    }
+  }, [zoom]);
+
+  // iPad: two-finger pinch = zoom + pan (Procreate-style). It's a pure touch-event
+  // gesture on the scroll viewport, so it never reaches the canvas draw path (which
+  // only ever draws with a pen / single pointer) — the palm-rejection logic is
+  // untouched. Desktop trackpad/mouse: ⌘/Ctrl + wheel. Both re-anchor to the focal.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distOf = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const midOf = (t) => (t[0].clientX + t[1].clientX) / 2;
+    let pinch = null;   // { startDist, startMid, startZoom, startScrollLeft, rectLeft }
+    let raf = 0;
+    let pending = null; // latest { curDist, curMid } awaiting a frame
+
+    const flush = () => {
+      raf = 0;
+      if (!pinch || !pending) return;
+      const originBase = (pinch.startScrollLeft + (pinch.startMid - pinch.rectLeft)) / pinch.startZoom;
+      const nz = clampZoom(pinch.startZoom * (pending.curDist / pinch.startDist));
+      const target = originBase * nz - (pending.curMid - pinch.rectLeft);
+      if (nz !== zoomRef.current) {
+        // Zoom changed: wait for the widened layout, then re-anchor (layout effect).
+        pendingScrollLeftRef.current = target;
+        setZoom(nz);
+      } else {
+        // Pure two-finger pan (constant distance): width is unchanged, scroll now.
+        const max = el.scrollWidth - el.clientWidth;
+        el.scrollLeft = Math.max(0, Math.min(max, target));
+      }
+    };
+    const onStart = (e) => {
+      if (e.touches.length !== 2) return;
+      const rect = el.getBoundingClientRect();
+      pinch = {
+        startDist: distOf(e.touches) || 1,
+        startMid: midOf(e.touches),
+        startZoom: zoomRef.current,
+        startScrollLeft: el.scrollLeft,
+        rectLeft: rect.left,
+      };
+    };
+    const onMove = (e) => {
+      if (!pinch || e.touches.length < 2) return;
+      e.preventDefault(); // own the gesture: no native page pinch-zoom / scroll
+      pending = { curDist: distOf(e.touches), curMid: midOf(e.touches) };
+      if (!raf) raf = requestAnimationFrame(flush);
+    };
+    const onEnd = (e) => { if (e.touches.length < 2) pinch = null; };
+    const onWheel = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return; // trackpad pinch / ⌘-scroll only
+      e.preventDefault();
+      zoomAround(zoomRef.current * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX);
+    };
+
+    el.addEventListener('touchstart', onStart, { passive: true });
+    el.addEventListener('touchmove', onMove, { passive: false });
+    el.addEventListener('touchend', onEnd);
+    el.addEventListener('touchcancel', onEnd);
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', onStart);
+      el.removeEventListener('touchmove', onMove);
+      el.removeEventListener('touchend', onEnd);
+      el.removeEventListener('touchcancel', onEnd);
+      el.removeEventListener('wheel', onWheel);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [zoomAround]);
 
   const load = useCallback(async (wk, { quiet } = {}) => {
     if (!quiet) setStatus('loading');
@@ -292,6 +406,11 @@ export default function Delegation() {
               />
             ))}
           </div>
+          <div className="deleg-zoom" role="group" aria-label="Zoom">
+            <button className="deleg-zoombtn" onClick={() => zoomAround(zoom - ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} aria-label="Zoom out" title="Zoom out">−</button>
+            <button className="deleg-zoomlevel" onClick={() => zoomAround(1)} title="Reset to 100%">{Math.round(zoom * 100)}%</button>
+            <button className="deleg-zoombtn" onClick={() => zoomAround(zoom + ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} aria-label="Zoom in" title="Zoom in">+</button>
+          </div>
         </div>
       </div>
 
@@ -299,7 +418,8 @@ export default function Delegation() {
         <div className="deleg-error">Couldn’t load the board: {error} <button className="btn" onClick={() => load(weekKey)}>Retry</button></div>
       )}
 
-      <div className="deleg-grid">
+      <div className="deleg-scroll" ref={scrollRef}>
+      <div className={`deleg-grid${zoom > 1 ? ' zoomed' : ''}`} style={{ '--dz': zoom }}>
         <div className="deleg-headrow">
           <div className="deleg-namecell deleg-headcorner" />
           <div className="deleg-days">
@@ -336,6 +456,7 @@ export default function Delegation() {
                 color={color}
                 writable={writable}
                 mode={mode}
+                rowHeight={Math.round(ROW_H * zoom)}
                 noteFor={(d) => notesByCell.get(`${mem.clerk_email}|${d}`)}
                 onDrawingChange={(v) => { drawingRef.current = v; setInking(v); if (!v) lastInkRef.current = Date.now(); }}
                 onEditingChange={(v) => { editingRef.current = v; }}
@@ -345,6 +466,7 @@ export default function Delegation() {
             </div>
           );
         })}
+      </div>
       </div>
 
       <p className="deleg-foot">
@@ -359,12 +481,12 @@ export default function Delegation() {
 // render everyone's ink + notes, just without capture/editing. In 'type' mode the
 // canvas ignores the pointer so the note textareas receive clicks; in 'pen' mode
 // the note layer is click-through so ink draws over the text.
-function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawingChange, onSaveNote, onEditingChange }) {
+function RowCanvas({ strokes, color, writable, mode, rowHeight = ROW_H, noteFor, onCommit, onDrawingChange, onSaveNote, onEditingChange }) {
   const canvasRef = useRef(null);
   const wrapRef = useRef(null);
   const drawing = useRef(null); // { points: [{x,y,pressure,t}], color } while active
   const activePointerRef = useRef(null); // pointerId of the pen/mouse that owns the active stroke
-  const sizeRef = useRef({ w: 0, h: ROW_H });
+  const sizeRef = useRef({ w: 0, h: rowHeight });
 
   // Paint the paper, gridlines, all committed strokes, and any in-progress stroke.
   const render = useCallback(() => {
@@ -404,7 +526,7 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       const w = wrap.clientWidth;
-      const h = ROW_H;
+      const h = rowHeight;
       sizeRef.current = { w, h };
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
@@ -416,7 +538,7 @@ function RowCanvas({ strokes, color, writable, mode, noteFor, onCommit, onDrawin
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
     return () => ro.disconnect();
-  }, [render]);
+  }, [render, rowHeight]);
 
   useEffect(() => { render(); }, [strokes, render]);
 

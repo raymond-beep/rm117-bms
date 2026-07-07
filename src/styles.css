@@ -1693,7 +1693,16 @@ input, select, textarea { font: inherit; }
 .deleg-error { background: var(--bill-soft); color: var(--bill); border: 1px solid var(--bill); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
 .deleg-loading { padding: 24px; color: var(--ink3); }
 
-.deleg-grid { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--panel); box-shadow: var(--shadow); }
+/* The board sits in a horizontally-scrollable viewport so it can be zoomed larger
+   than the screen (bigger boxes to hand-write in). --dz is the zoom factor set in
+   Delegation.jsx; the grid widens by it and rows grow taller (canvas re-renders
+   crisp). touch-action pan-x pan-y kills the browser's own pinch-zoom so our
+   two-finger handler owns it, while one-finger scroll still works. */
+.deleg-scroll { overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; touch-action: pan-x pan-y; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
+.deleg-grid { background: var(--panel); width: calc(100% * var(--dz, 1)); }
+/* When zoomed in, keep each person's name pinned to the left while you pan across days. */
+.deleg-grid.zoomed .deleg-namecell,
+.deleg-grid.zoomed .deleg-headcorner { position: sticky; left: 0; z-index: 3; }
 /* Apple Pencil: while inking, iPadOS otherwise treats the stroke as a text drag —
    it selects the name labels / notes and pops the Copy·Look Up callout, which cuts
    the stroke off. Kill selection + the touch callout across the board; the Type-mode
@@ -1740,6 +1749,14 @@ input, select, textarea { font: inherit; }
 .deleg-mode + .deleg-mode { border-left: 1px solid var(--border); }
 .deleg-mode.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
 .deleg-colors.dim { opacity: .4; pointer-events: none; }
+
+/* Zoom control — enlarge the board for easier hand-writing (pinch on iPad). */
+.deleg-zoom { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.deleg-zoombtn { font: inherit; font-size: 16px; line-height: 1; width: 32px; padding: 6px 0; background: var(--panel); color: var(--ink2); border: 0; cursor: pointer; }
+.deleg-zoombtn:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-ink); }
+.deleg-zoombtn:disabled { opacity: .35; cursor: default; }
+.deleg-zoomlevel { font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; min-width: 46px; padding: 6px 4px; background: var(--panel); color: var(--ink2); border: 0; border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: pointer; }
+.deleg-zoomlevel:hover { color: var(--ink); }
 
 /* Notes sit in a 5-column overlay aligned to the canvas day columns. In pen mode
    the layer is click-through (ink draws over text); in type mode it takes clicks. */
