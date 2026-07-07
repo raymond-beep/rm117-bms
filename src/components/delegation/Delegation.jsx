@@ -427,8 +427,8 @@ export default function Delegation() {
         <div className="deleg-error">Couldn’t load the board: {error} <button className="btn" onClick={() => load(weekKey)}>Retry</button></div>
       )}
 
-      <div className={`deleg-scroll${zoom > 1 ? ' zoomed' : ''}`} ref={scrollRef}>
-      <div className={`deleg-grid${zoom > 1 ? ' zoomed' : ''}`} style={{ '--dz': zoom }}>
+      <div className="deleg-scroll" ref={scrollRef}>
+      <div className="deleg-grid" style={{ '--dz': zoom }}>
         <div className="deleg-headrow">
           <div className="deleg-namecell deleg-headcorner" />
           <div className="deleg-days">

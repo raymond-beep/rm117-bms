@@ -1698,17 +1698,15 @@ input, select, textarea { font: inherit; }
    Delegation.jsx; the grid widens by it and rows grow taller (canvas re-renders
    crisp). touch-action pan-x pan-y kills the browser's own pinch-zoom so our
    two-finger handler owns it, while one-finger scroll still works. */
-.deleg-scroll { overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-x pan-y; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); }
+/* The board is always a bounded, scrollable viewport (not just when zoomed). That
+   keeps the day header (top) and name column (left) pinned as anchors at any zoom —
+   and, crucially, means the scroll container never appears/disappears as you cross
+   100%, which is what made zooming back out snap/glitch. */
+.deleg-scroll { overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-x pan-y; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow); max-height: calc(100vh - 232px); }
 .deleg-grid { background: var(--panel); width: calc(100% * var(--dz, 1)); }
-/* Zoomed in, the board becomes a bounded viewport so the day header (top) and the
-   name column (left) stay pinned as anchors — otherwise columns get wider than the
-   screen and you lose track of which day / who you're writing under. At 100% the
-   board just grows the page as before (no internal scroll, no sticky). */
-.deleg-scroll.zoomed { max-height: calc(100vh - 232px); }
-.deleg-grid.zoomed .deleg-namecell,
-.deleg-grid.zoomed .deleg-headcorner { position: sticky; left: 0; z-index: 3; }
-.deleg-grid.zoomed .deleg-headrow { position: sticky; top: 0; z-index: 4; }
-.deleg-grid.zoomed .deleg-headcorner { z-index: 5; } /* top-left corner above both */
+.deleg-namecell, .deleg-headcorner { position: sticky; left: 0; z-index: 3; }
+.deleg-headrow { position: sticky; top: 0; z-index: 4; }
+.deleg-headcorner { z-index: 5; } /* top-left corner above both */
 /* Apple Pencil: while inking, iPadOS otherwise treats the stroke as a text drag —
    it selects the name labels / notes and pops the Copy·Look Up callout, which cuts
    the stroke off. Kill selection + the touch callout across the board; the Type-mode
