@@ -125,7 +125,15 @@ export default function Delegation() {
   // midpoint, or the viewport center for the buttons) so the spot you zoomed into
   // stays put. The scroll is applied in a layout effect, after the new width lands.
   const scrollRef = useRef(null);
+  const gridRef = useRef(null);
   const pendingScrollRef = useRef(null); // { left, top } to apply after a zoom relayout
+  // Live-pinch preview: while two fingers are down we DON'T call setZoom (that would
+  // re-render + reallocate all five canvas backing stores every frame, and writing
+  // scrollLeft each frame fights iOS momentum + the shrinking scrollWidth clamp — the
+  // zoom-OUT jitter). Instead we scale the grid with an imperative CSS transform
+  // (compositor-only) and commit the real crisp zoom + re-anchored scroll ONCE on lift.
+  const pinchCommitRef = useRef(null);  // { zoom, left, top } to land on gesture end
+  const previewingRef = useRef(false);  // a transform preview is currently applied
 
   const applyScroll = useCallback((left, top) => {
     const el = scrollRef.current;
@@ -149,11 +157,20 @@ export default function Delegation() {
     setZoom(nz);
   }, []);
 
-  // Apply the re-anchored scroll after the widened layout is in the DOM.
+  // Apply the re-anchored scroll after the widened layout is in the DOM, and — if a
+  // pinch preview was live — drop the imperative transform now. This runs in the same
+  // commit as the re-rendered crisp layout (the child RowCanvas resize is a layout
+  // effect too, so canvases are already at the new size), so there's no flash between
+  // the scaled preview and the crisp result.
   useLayoutEffect(() => {
     if (pendingScrollRef.current) {
       applyScroll(pendingScrollRef.current.left, pendingScrollRef.current.top);
       pendingScrollRef.current = null;
+    }
+    if (previewingRef.current && gridRef.current) {
+      gridRef.current.style.transform = '';
+      gridRef.current.style.willChange = '';
+      previewingRef.current = false;
     }
   }, [zoom, applyScroll]);
 
@@ -171,6 +188,12 @@ export default function Delegation() {
     let raf = 0;
     let pending = null; // latest { curDist, curMidX, curMidY } awaiting a frame
 
+    // Each frame we compute where a committed (zoom, scrollLeft, scrollTop) WOULD land
+    // the content, then reproduce that purely with a transform on the frozen-scroll grid
+    // — no setZoom, no canvas realloc, no scroll writes. The translate is exactly
+    // (startScroll − targetScroll): with scroll held at its start value, that offset makes
+    // the transformed content sit where the committed scroll would put it, so releasing
+    // (which applies targetScroll + drops the transform) produces no jump.
     const flush = () => {
       raf = 0;
       if (!pinch || !pending) return;
@@ -180,12 +203,34 @@ export default function Delegation() {
       const left = originBase * nz - (pending.curMidX - pinch.rectLeft);
       // Y: straight pan with the fingers (rows grow downward; no vertical focal anchor).
       const top = pinch.startScrollTop - (pending.curMidY - pinch.startMidY);
-      if (nz !== zoomRef.current) {
-        // Zoom changed: wait for the relayout, then apply scroll (layout effect).
-        pendingScrollRef.current = { left, top };
-        setZoom(nz);
+      const g = gridRef.current;
+      if (g) {
+        const scale = nz / pinch.startZoom;
+        const tx = pinch.startScrollLeft - left;
+        const ty = pinch.startScrollTop - top;
+        g.style.transformOrigin = '0 0';
+        g.style.willChange = 'transform';
+        g.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
+        previewingRef.current = true;
+      }
+      pinchCommitRef.current = { zoom: nz, left, top };
+    };
+    // Land the gesture: apply the real zoom + scroll (crisp), drop the transform.
+    const commitPinch = () => {
+      const c = pinchCommitRef.current;
+      pinchCommitRef.current = null;
+      if (!c) return;
+      if (c.zoom === zoomRef.current) {
+        // Pure pan (or ended back at the same zoom): no relayout — convert the transform
+        // into real scroll and drop it now.
+        applyScroll(c.left, c.top);
+        if (gridRef.current) { gridRef.current.style.transform = ''; gridRef.current.style.willChange = ''; }
+        previewingRef.current = false;
       } else {
-        applyScroll(left, top); // pure pan — layout unchanged, scroll now
+        // Zoom changed: commit crisp. The layout effect applies the re-anchored scroll and
+        // clears the transform in the same frame the new size renders (no flash).
+        pendingScrollRef.current = { left: c.left, top: c.top };
+        setZoom(c.zoom);
       }
     };
     const onStart = (e) => {
@@ -207,7 +252,13 @@ export default function Delegation() {
       pending = { curDist: distOf(e.touches), curMidX: midXOf(e.touches), curMidY: midYOf(e.touches) };
       if (!raf) raf = requestAnimationFrame(flush);
     };
-    const onEnd = (e) => { if (e.touches.length < 2) pinch = null; };
+    const onEnd = (e) => {
+      if (e.touches.length >= 2) return;
+      if (pinch && previewingRef.current) commitPinch();
+      pinch = null;
+      pending = null;
+      if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    };
     const onWheel = (e) => {
       if (!(e.ctrlKey || e.metaKey)) return; // trackpad pinch / ⌘-scroll only
       e.preventDefault();
@@ -428,7 +479,7 @@ export default function Delegation() {
       )}
 
       <div className="deleg-scroll" ref={scrollRef}>
-      <div className="deleg-grid" style={{ '--dz': zoom }}>
+      <div className="deleg-grid" ref={gridRef} style={{ '--dz': zoom }}>
         <div className="deleg-headrow">
           <div className="deleg-namecell deleg-headcorner" />
           <div className="deleg-days">
@@ -527,8 +578,11 @@ function RowCanvas({ strokes, color, writable, mode, rowHeight = ROW_H, noteFor,
     ctx.restore();
   }, [strokes]);
 
-  // Size the backing store to the element (DPR-aware) and repaint on resize.
-  useEffect(() => {
+  // Size the backing store to the element (DPR-aware) and repaint on resize. A layout
+  // effect (not useEffect) so on a zoom commit the canvas is re-sized + repainted crisp
+  // BEFORE paint — in the same frame the parent drops the pinch transform — so releasing
+  // a pinch never flashes an old-size raster.
+  useLayoutEffect(() => {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
