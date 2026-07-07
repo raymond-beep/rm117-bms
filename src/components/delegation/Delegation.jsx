@@ -11,9 +11,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
+import { DAYS, PAPER, GRIDLINE, drawStroke, isoDate, addDays, mondayOf, parseISO, weekLabel } from '../../lib/delegation-render.js';
 
 const ROW_H = 150;          // CSS px height of each employee's drawing strip (at 100% zoom)
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
 // Zoom — the boxes are small to hand-write in (esp. on iPad), so the whole board can
 // be scaled up. We scale the actual cell size (canvas grows, re-renders crisp from the
 // normalized points) rather than CSS-transforming the raster, so ink stays sharp at any
@@ -25,8 +25,6 @@ const ZOOM_STEP = 0.5;
 const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
 const POLL_MS = 4000;       // live-sync cadence (see architecture note in the API)
 const INK_SYNC_COOLDOWN_MS = 2500; // after the last pen lift, hold off sync repaints this long
-const PAPER = '#fbfbf8';    // the "sheet" stays light in both themes so ink reads
-const GRIDLINE = '#d9d6cc';  // day-column dividers (a touch darker so one reads clearly when zoomed)
 
 // Pen colors — a small fixed swatch set (no full color wheel for v1).
 const COLORS = [
@@ -35,35 +33,6 @@ const COLORS = [
   { name: 'Red', hex: '#dc2626' },
   { name: 'Green', hex: '#16a34a' },
 ];
-
-// --- date helpers (all local-time; the board key is the Monday's YYYY-MM-DD) ---
-function isoDate(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function addDays(d, n) {
-  const x = new Date(d);
-  x.setDate(x.getDate() + n);
-  return x;
-}
-function mondayOf(d) {
-  const x = new Date(d);
-  const day = x.getDay();               // 0=Sun..6=Sat
-  const diff = day === 0 ? -6 : 1 - day; // back up to Monday
-  return addDays(x, diff);
-}
-function parseISO(s) {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-function weekLabel(weekKey) {
-  const mon = parseISO(weekKey);
-  const fri = addDays(mon, 4);
-  const sameMonth = mon.getMonth() === fri.getMonth();
-  const left = `${MONTHS[mon.getMonth()]} ${mon.getDate()}`;
-  const right = sameMonth ? `${fri.getDate()}` : `${MONTHS[fri.getMonth()]} ${fri.getDate()}`;
-  return `${left} – ${right}, ${fri.getFullYear()}`;
-}
 
 export default function Delegation() {
   const { user } = useUser();
@@ -737,36 +706,4 @@ function RowCanvas({ strokes, color, writable, mode, rowHeight = ROW_H, noteFor,
       </div>
     </div>
   );
-}
-
-// Render one stroke: normalized points → pixels, smoothed with quadratic midpoints.
-// Width comes from the stroke's average pressure (per-point pressure is stored, so
-// true variable-width ink can be added later without a data migration).
-function drawStroke(ctx, stroke, w, h) {
-  const pts = stroke.points;
-  if (!pts || !pts.length) return;
-  const px = pts.map((p) => ({ x: p.x * w, y: p.y * h }));
-  const avgP = pts.reduce((s, p) => s + (p.pressure || 0.5), 0) / pts.length;
-  ctx.strokeStyle = stroke.color || '#111111';
-  ctx.fillStyle = stroke.color || '#111111';
-  ctx.lineWidth = 1.2 + avgP * 3;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  if (px.length === 1) {
-    ctx.beginPath();
-    ctx.arc(px[0].x, px[0].y, ctx.lineWidth / 2, 0, Math.PI * 2);
-    ctx.fill();
-    return;
-  }
-  ctx.beginPath();
-  ctx.moveTo(px[0].x, px[0].y);
-  for (let i = 1; i < px.length - 1; i++) {
-    const mx = (px[i].x + px[i + 1].x) / 2;
-    const my = (px[i].y + px[i + 1].y) / 2;
-    ctx.quadraticCurveTo(px[i].x, px[i].y, mx, my);
-  }
-  const last = px[px.length - 1];
-  ctx.lineTo(last.x, last.y);
-  ctx.stroke();
 }

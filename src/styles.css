@@ -320,6 +320,26 @@ input, select, textarea { font: inherit; }
 .grid-2 { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px; }
 @media (max-width: 980px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }
 
+/* "My week" widget — a read-only glance at the signed-in person's own Weekly-Planner
+   row for the current week (ink + typed notes). Editing lives in the full planner. */
+.myweek { margin-bottom: 20px; }
+.myweek .card-head .head-meta { margin-right: auto; margin-left: 10px; text-transform: none; letter-spacing: normal; font-family: var(--ui); font-size: 12px; color: var(--ink3); }
+.myweek-open { font-size: 12px; font-weight: 600; color: var(--accent-ink); text-decoration: none; white-space: nowrap; }
+.myweek-open:hover { text-decoration: underline; }
+.myweek > .placeholder-note { padding: 16px 18px; }
+.myweek-board { padding: 12px 18px 16px; }
+.myweek-days { display: grid; grid-template-columns: repeat(5, 1fr); margin-bottom: 6px; }
+.myweek-day { display: flex; align-items: baseline; gap: 6px; padding: 0 8px; }
+.myweek-dayname { font-weight: 600; font-size: 12px; color: var(--ink); }
+.myweek-daydate { font-size: 11px; color: var(--ink3); }
+.myweek-strip { position: relative; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; line-height: 0; }
+.myweek-canvaswrap { line-height: 0; }
+.myweek-canvas { display: block; width: 100%; }
+/* Notes overlay the light paper, so their text stays dark in both themes. */
+.myweek-notes { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); pointer-events: none; }
+.myweek-notecell { padding: 6px 8px; font-family: var(--ui); font-size: 12px; line-height: 1.3; color: #1c1c1a; white-space: pre-wrap; word-break: break-word; overflow: hidden; }
+.myweek-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--ui); font-size: 12.5px; line-height: 1.4; color: #9a968b; pointer-events: none; text-align: center; padding: 0 16px; }
+
 /* ---------- Stat strip (data cards: delta + sparkline / progress / pips / ring) ---------- */
 .stat-strip {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px;

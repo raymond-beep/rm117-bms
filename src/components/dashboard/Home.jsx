@@ -6,6 +6,7 @@ import { money, PIPELINE_PHASES } from '../../lib/format.js';
 import { apiFetch } from '../../lib/api.js';
 import CalendarWidget from './CalendarWidget.jsx';
 import InboxWidget from './InboxWidget.jsx';
+import MyWeekWidget from './MyWeekWidget.jsx';
 
 // Pipeline shape: job counts per phase, ordered earliest → latest stage
 // (Potential → Outgoing). A real current snapshot — unlike created_at, which only
@@ -169,6 +170,8 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      <MyWeekWidget />
 
       <div className="grid-2">
         <CalendarWidget />
