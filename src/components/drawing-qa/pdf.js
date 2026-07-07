@@ -1,7 +1,7 @@
 // pdf.js loading + page rasterization (client-only). Ported from Checksets
 // src/lib/pdf.ts. Two render targets:
-// - DISPLAY: crisp base raster the review canvas shows (page-as-image inside
-//   tldraw), sized generously so moderate zoom stays readable.
+// - DISPLAY: crisp base raster the review viewer shows (the page as an image in
+//   the zoom/pan sheet viewer), sized generously so moderate zoom stays readable.
 // - ANALYSIS: ~1.1 MP export for the vision API (the API downscales past ~1568px).
 import * as pdfjs from 'pdfjs-dist';
 
@@ -25,8 +25,8 @@ async function renderPage(doc, pageNumber, scaleFor, quality) {
   const page = await doc.getPage(pageNumber);
   const base = page.getViewport({ scale: 1 });
   // Guard against a page pdf.js can't measure: a 0/NaN dimension yields a NaN
-  // aspect, which later makes tldraw's zoomToBounds blank the canvas (a silent
-  // white screen). Fail loudly instead so the caller surfaces an error.
+  // aspect that blanks the rendered canvas (a silent white screen). Fail loudly
+  // instead so the caller surfaces an error.
   if (!Number.isFinite(base.width) || !Number.isFinite(base.height) || base.width <= 0 || base.height <= 0) {
     throw new Error(`Page ${pageNumber} has invalid dimensions (${base.width}×${base.height})`);
   }

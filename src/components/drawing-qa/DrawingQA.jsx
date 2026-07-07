@@ -10,7 +10,7 @@ import ReviewClient from './ReviewClient.jsx';
 // "26_011_Kuhn_352 Amherst" (+ client) label for a job row.
 const jobLabel = (j) => `${j.job_id}${j.client?.name ? ` · ${j.client.name}` : ''}`;
 
-// Catch any crash in the review engine (e.g. a bad PDF page or tldraw error) so
+// Catch any crash in the review engine (e.g. a bad PDF page) so
 // it shows an actionable message instead of a dead white screen. Logs the error
 // so we can diagnose which file/page triggered it.
 class ReviewErrorBoundary extends React.Component {
@@ -76,7 +76,7 @@ export default function DrawingQA() {
 
   const jobOptions = useMemo(() => (jobs || []).filter((j) => j.job_id), [jobs]);
 
-  // Full-screen review overlay (bounded height for tldraw; onBack returns here).
+  // Full-screen review overlay (onBack returns here).
   if (active) {
     return (
       <ReviewErrorBoundary onBack={() => setActive(null)}>

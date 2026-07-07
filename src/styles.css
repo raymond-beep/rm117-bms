@@ -774,11 +774,10 @@ input, select, textarea { font: inherit; }
 
 /* ============================================================
    Drawing QA — review screen chrome themed to the app palette.
-   The tldraw canvas (the PDF image view) keeps its own look; everything around
-   it (header, sidebar, checklist rows, badges, buttons) inherits the active
-   theme by remapping the ported Tailwind utilities to theme variables within
-   .dqa-review. Scoping is per-property (text vs bg vs border) so a gray shade
-   used as both text and a fill doesn't collide.
+   Everything in the review screen (header, sidebar, checklist rows, badges,
+   buttons) inherits the active theme by remapping the ported Tailwind utilities
+   to theme variables within .dqa-review. Scoping is per-property (text vs bg vs
+   border) so a gray shade used as both text and a fill doesn't collide.
    ============================================================ */
 .dqa-review { background: var(--panel); color: var(--ink); }
 
@@ -786,14 +785,12 @@ input, select, textarea { font: inherit; }
    utilities-only (no preflight), so bare <button>/<input> fall back to the UA's
    light-gray control backgrounds — which look foreign, especially in dark themes.
    Reset the CHROME controls to theme surfaces. Wrapped in :where() (specificity 0)
-   so the .bg-* utility overrides below still win, and excluding tldraw's own UI
-   (.tl-container) so the canvas toolbar keeps its native styling. */
-:where(.dqa-review button:not(.tl-container button)) {
+   so the .bg-* utility overrides below still win. */
+:where(.dqa-review button) {
   background-color: transparent;
   color: inherit;
 }
-:where(.dqa-review input:not(.tl-container input),
-       .dqa-review select:not(.tl-container select)) {
+:where(.dqa-review input, .dqa-review select) {
   background-color: var(--panel);
   color: var(--ink);
 }

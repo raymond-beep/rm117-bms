@@ -181,8 +181,9 @@ and a mis-typed escape hatch.
   HTTPS domain (the "sheet flashes away" bug; invisible in localhost dev, only bit us in production).
   Ray's call: drop markup and keep Drawing QA as a **pure AI-review tool**. The sheet is now shown via
   `PageViewer` (`react-zoom-pan-pinch`, MIT). The old markup **save/load + flatten-to-Drive export** flow
-  is gone from the UI; the server `markup`/`export` APIs + `markup` table are **left dormant** (harmless)
-  so drawing could be re-added later on a free lib (e.g. `perfect-freehand`, MIT) if wanted.
+  is gone. The dead `markup`/`export` server APIs were **removed in the 2026-07-07 cleanup**; only the
+  unused `markup` **table** remains (left in place, harmless) so drawing could be re-added later on a free
+  lib (e.g. `perfect-freehand`, MIT) if wanted.
 
 - **Where to develop = HERE, this repo.** The standalone `~/Desktop/Checksets App/files` is **FROZEN**
   (its own deploy is dead-ended); its `MERGE_PLAN.md` / `PROGRESS.md` / `NEXT_SESSION.md` are historical
@@ -197,12 +198,12 @@ and a mis-typed escape hatch.
   `styles.css` (the overlay wrapper carries that class). Because the Tailwind is preflight-less, that
   layer **resets bare `<button>`/`<input>`** (else they show UA light control backgrounds — foreign in
   dark themes) and **remaps the ported Tailwind color utilities to the app CSS variables** (accent for
-  primary actions; semantic green/amber/red for verdicts). The **tldraw canvas keeps its own surface**
-  (excluded via `.tl-container`); canvas loading state = `.dqa-loading`/`.dqa-spinner`. When editing
-  Drawing QA UI, prefer these theme vars over hard-coded Tailwind colors.
+  primary actions; semantic green/amber/red for verdicts); canvas loading state =
+  `.dqa-loading`/`.dqa-spinner`. When editing Drawing QA UI, prefer these theme vars over hard-coded
+  Tailwind colors.
 - **API** `api/checksets/*.js`: `sets` (find-or-create per job+Drive file), `analyze`, `results`
-  (GET + PATCH verdicts/overrides/check-offs), `markup` (GET/PUT + `?all=1` bulk), `overview`, `export`
-  (flatten→Drive). Plus `api/jobs/checkset-files.js` (list/stream a job's Checksets PDFs; clones
+  (GET + PATCH verdicts/overrides/check-offs), `overview`. Plus `api/jobs/checkset-files.js` (list/stream
+  a job's Checksets PDFs — now also attaches each set's review status for the file-list badge; clones
   `proposal-docs.js`). All also registered in `server.js`.
 - **Server libs** `api/_lib/checksets/`: `checklist.js` (parses CHECKS.md → prompt/enum), `naming.js`
   (sheet-number convention → mislabel detection), `anthropic.js`. Reuse `getDb()` + `requireStaff()` +
@@ -212,14 +213,13 @@ and a mis-typed escape hatch.
   (`@vercel/nft` bundles it — verified). Edit THIS copy; the standalone repo's CHECKS.md is a stale fork.
 - **Model:** `ANTHROPIC_MODEL` (default `claude-sonnet-5`). **Keep adaptive thinking ON** — disabling it
   hurt vision recall; the analyze speed comes from **type-scoping the checklist**, not from cutting thinking.
-- **Coordinate rule (dormant export only):** the old markup stored marks in normalized (÷1000) page
-  units and the server export re-inflates + stamps them **rotation-aware** so mixed-`/Rotate` sets (e.g.
-  a 270° cover sheet) align. This only matters if the markup/export flow is ever revived — the live UI
-  no longer draws. Drive export (if revived) needs the service account = **Content manager** on the
-  Shared Drive (confirmed open — the same gate as letters/proposals delivery).
+- **If markup is ever revived:** the removed export re-inflated normalized (÷1000) marks and stamped them
+  **rotation-aware** so mixed-`/Rotate` sets (e.g. a 270° cover sheet) aligned — worth knowing if drawing
+  is rebuilt. A Drive export would need the service account = **Content manager** on the Shared Drive
+  (confirmed open — the same gate as letters/proposals delivery). The old code lives in git history.
 - **Deps for this feature:** `@anthropic-ai/sdk` (server), `pdfjs-dist` + `react-zoom-pan-pinch`
-  (client), `pdf-lib` (already present; still used by the dormant server export). `tldraw` was removed.
-  Handoff detail: **`DRAWING_QA.md`** at repo root.
+  (client). `pdf-lib` is present but for the document generators (letters/proposals), not Drawing QA.
+  `tldraw` was removed. Handoff detail: **`DRAWING_QA.md`** at repo root.
 
 ## Invariants (do not break)
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.

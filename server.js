@@ -21,10 +21,8 @@ const routes = {
   // Drawing QA (checkset review engine, ported from the standalone Checksets app).
   '/api/checksets/sets': () => import('./api/checksets/sets.js'),
   '/api/checksets/results': () => import('./api/checksets/results.js'),
-  '/api/checksets/markup': () => import('./api/checksets/markup.js'),
   '/api/checksets/overview': () => import('./api/checksets/overview.js'),
   '/api/checksets/analyze': () => import('./api/checksets/analyze.js'),
-  '/api/checksets/export': () => import('./api/checksets/export.js'),
   '/api/payments': () => import('./api/payments.js'),
   '/api/clients': () => import('./api/clients.js'),
   '/api/phase-events': () => import('./api/phase-events.js'),
