@@ -7,6 +7,7 @@
 // Staff-gated (read-only; the service account is Drive Viewer + drive.file).
 // Mirrors api/jobs/proposal-docs.js — same folder-memoize + parents-validation.
 import { requireStaff } from '../_lib/require-staff.js';
+import { getDb } from '../_lib/db.js';
 import {
   hasDrive,
   resolveChecksetsFolderId,
@@ -84,6 +85,24 @@ export default async function handler(req, res) {
     console.error('[checkset-files] list files', err);
     return res.status(502).json({ error: 'Could not list the Checksets folder' });
   }
+  // Attach each file's review status (uploaded | in_review | reviewed) from any
+  // drawing_sets row already opened for this (job, Drive file). Files never opened
+  // have no row → status stays null (no badge). Best-effort: a DB hiccup here just
+  // omits the badges, it doesn't fail the listing.
+  const statusByFile = new Map();
+  const db = getDb();
+  if (db) {
+    try {
+      const { data: sets } = await db
+        .from('drawing_sets')
+        .select('drive_file_id, status')
+        .eq('job_number', jobId);
+      for (const s of sets ?? []) statusByFile.set(s.drive_file_id, s.status);
+    } catch (err) {
+      console.error('[checkset-files] set statuses', err);
+    }
+  }
+
   res.setHeader('Cache-Control', 'private, max-age=60');
   return res.status(200).json({
     configured: true,
@@ -95,6 +114,7 @@ export default async function handler(req, res) {
       size: f.size != null ? Number(f.size) : null,
       modifiedTime: f.modifiedTime || null,
       viewable: f.mimeType === 'application/pdf',
+      reviewStatus: statusByFile.get(f.id) ?? null,
     })),
   });
 }

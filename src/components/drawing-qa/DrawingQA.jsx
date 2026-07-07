@@ -209,7 +209,10 @@ function ChecksetFiles({ jobId, onOpen }) {
     setOpenErr(null);
     (async () => {
       try {
-        const res = await apiFetch(`/api/jobs/checkset-files?jobId=${encodeURIComponent(jobId)}`);
+        // Cache-buster: the endpoint sets a 60s HTTP cache, but each time we
+        // land on this list (e.g. returning from a review where a set was just
+        // marked "Reviewed") we want the current statuses, not a stale copy.
+        const res = await apiFetch(`/api/jobs/checkset-files?jobId=${encodeURIComponent(jobId)}&t=${Date.now()}`);
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         if (alive) setState({ loading: false, ...data });
@@ -264,6 +267,12 @@ function ChecksetFiles({ jobId, onOpen }) {
                   {[f.modifiedTime && shortDate(f.modifiedTime), fileSize(f.size)].filter(Boolean).join(' · ')}
                 </span>
               </div>
+              {f.reviewStatus === 'reviewed' && (
+                <span className="dqa-set-badge is-reviewed">✓ Reviewed</span>
+              )}
+              {f.reviewStatus === 'in_review' && (
+                <span className="dqa-set-badge is-in-review">In review</span>
+              )}
               {f.viewable ? (
                 <button type="button" className="chip" onClick={() => open(f)} disabled={opening === f.id}>
                   {opening === f.id ? 'Opening…' : 'Review'}
