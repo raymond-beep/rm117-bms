@@ -81,10 +81,18 @@ export default function ChecklistSidebar({
     return c;
   }, [scoped, overrides]);
 
-  // How many of the items in view have been checked off.
+  // Only failed / needs-review items require a manual sign-off — a passing
+  // item is self-evident and doesn't need checking off. Uses the effective
+  // status so a Pass→Fail override starts requiring a sign-off (and vice versa).
+  const needsSignoff = (r) => {
+    const s = effStatus(r);
+    return s === 'fail' || s === 'needs_review';
+  };
+  const actionable = useMemo(() => scoped.filter(needsSignoff), [scoped, overrides]);
+  // How many of the actionable items have been checked off.
   const doneCount = useMemo(
-    () => scoped.reduce((n, r) => n + (reviewedSet.has(r.id) ? 1 : 0), 0),
-    [scoped, reviewedSet],
+    () => actionable.reduce((n, r) => n + (reviewedSet.has(r.id) ? 1 : 0), 0),
+    [actionable, reviewedSet],
   );
 
   return (
@@ -136,8 +144,15 @@ export default function ChecklistSidebar({
 
       {results && scoped.length > 0 && (
         <div className="border-b px-3 py-1.5 text-xs text-gray-500">
-          Reviewed {doneCount} of {scoped.length}
-          {doneCount === scoped.length && ' — all checked ✓'}
+          {actionable.length === 0 ? (
+            'No fail / review items to sign off — all clear ✓'
+          ) : (
+            <>
+              Signed off {doneCount} of {actionable.length} fail / review item
+              {actionable.length === 1 ? '' : 's'}
+              {doneCount === actionable.length && ' — all cleared ✓'}
+            </>
+          )}
         </div>
       )}
 
@@ -180,25 +195,41 @@ export default function ChecklistSidebar({
                 const done = reviewedSet.has(r.id);
                 const eff = effStatus(r);
                 const overridden = overrides[r.id] !== undefined;
+                // Only fail / needs-review rows get a sign-off checkbox.
+                const signoff = eff === 'fail' || eff === 'needs_review';
                 return (
                   <li key={r.id} className="flex items-start gap-2 border-t px-3 py-2 text-sm first:border-t-0">
-                    {/* Check-off: label wraps only the checkbox + text, so the
-                        verdict control beside it never toggles the checkbox. */}
-                    <label className={`flex min-w-0 flex-1 cursor-pointer gap-2 hover:bg-gray-50 ${done ? 'opacity-50' : ''}`}>
-                      <input
-                        type="checkbox"
-                        checked={done}
-                        onChange={() => onToggleReviewed(r.id)}
-                        className="mt-1 shrink-0"
-                        aria-label={`Mark ${r.id} reviewed`}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className={`block font-medium ${done ? 'line-through' : ''}`}>
-                          <span className="font-mono text-xs text-gray-400">{r.id}</span> {r.label}
+                    {signoff ? (
+                      /* Check-off: label wraps only the checkbox + text, so the
+                         verdict control beside it never toggles the checkbox. */
+                      <label className={`flex min-w-0 flex-1 cursor-pointer gap-2 hover:bg-gray-50 ${done ? 'opacity-50' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={done}
+                          onChange={() => onToggleReviewed(r.id)}
+                          className="mt-1 shrink-0"
+                          aria-label={`Mark ${r.id} reviewed`}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className={`block font-medium ${done ? 'line-through' : ''}`}>
+                            <span className="font-mono text-xs text-gray-400">{r.id}</span> {r.label}
+                          </span>
+                          {r.note && <span className="mt-0.5 block text-xs text-gray-600">{r.note}</span>}
                         </span>
-                        {r.note && <span className="mt-0.5 block text-xs text-gray-600">{r.note}</span>}
-                      </span>
-                    </label>
+                      </label>
+                    ) : (
+                      /* Passing item: no sign-off needed. Empty spacer keeps the
+                         label text aligned with the checkbox rows above/below. */
+                      <div className="flex min-w-0 flex-1 gap-2">
+                        <span className="mt-1 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-medium">
+                            <span className="font-mono text-xs text-gray-400">{r.id}</span> {r.label}
+                          </span>
+                          {r.note && <span className="mt-0.5 block text-xs text-gray-600">{r.note}</span>}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Verdict: reviewer can override the AI. Selecting the AI's
                         own value reverts (clears) the override. */}

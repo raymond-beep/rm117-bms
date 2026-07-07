@@ -49,17 +49,26 @@ export default async function handler(req, res) {
         const status = overrides[r.id] ?? r.status;
         if (status in counts) counts[status]++;
       }
-      const reviewedInScope = applicable
-        ? reviewedIds.filter((id) => applicable.has(id)).length
-        : reviewedIds.length;
+      // Only failed / needs-review items require a manual sign-off; passing
+      // items don't. Progress tracks those actionable items only (matches the
+      // sidebar). Effective status respects reviewer overrides.
+      const actionableIds = new Set(
+        inScope
+          .filter((r) => {
+            const status = overrides[r.id] ?? r.status;
+            return status === 'fail' || status === 'needs_review';
+          })
+          .map((r) => r.id),
+      );
+      const reviewedActionable = reviewedIds.filter((id) => actionableIds.has(id)).length;
 
       return {
         page: row.page_number,
         label: row.sheet_label ?? null,
         type,
         counts,
-        reviewed: reviewedInScope,
-        total: inScope.length,
+        reviewed: reviewedActionable,
+        total: actionableIds.size,
         labelIssue: labelMismatch(row.sheet_label, type),
         duplicateLabel: false, // filled in below once all labels are known
       };

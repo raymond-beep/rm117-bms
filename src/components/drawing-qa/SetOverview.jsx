@@ -109,10 +109,10 @@ export default function SetOverview({ data, loading, currentPage, onJump }) {
                           </span>
                         )}
                         <span
-                          className={`rounded px-1.5 py-0.5 font-medium ${s.reviewed >= s.total && s.total > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}
-                          title="items checked off / analyzed"
+                          className={`rounded px-1.5 py-0.5 font-medium ${s.reviewed >= s.total ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500'}`}
+                          title="fail / review items signed off"
                         >
-                          {s.reviewed}/{s.total} ✓
+                          {s.total === 0 ? 'clear' : `${s.reviewed}/${s.total}`} ✓
                         </span>
                       </span>
                     </>
