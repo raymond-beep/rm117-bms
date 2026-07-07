@@ -26,7 +26,7 @@ const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 10
 const POLL_MS = 4000;       // live-sync cadence (see architecture note in the API)
 const INK_SYNC_COOLDOWN_MS = 2500; // after the last pen lift, hold off sync repaints this long
 const PAPER = '#fbfbf8';    // the "sheet" stays light in both themes so ink reads
-const GRIDLINE = '#e6e4dd';
+const GRIDLINE = '#d9d6cc';  // day-column dividers (a touch darker so one reads clearly when zoomed)
 
 // Pen colors — a small fixed swatch set (no full color wheel for v1).
 const COLORS = [
@@ -125,32 +125,37 @@ export default function Delegation() {
   // midpoint, or the viewport center for the buttons) so the spot you zoomed into
   // stays put. The scroll is applied in a layout effect, after the new width lands.
   const scrollRef = useRef(null);
-  const pendingScrollLeftRef = useRef(null);
+  const pendingScrollRef = useRef(null); // { left, top } to apply after a zoom relayout
+
+  const applyScroll = useCallback((left, top) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, left));
+    el.scrollTop = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, top));
+  }, []);
 
   // Zoom to `next`, keeping the content under `focalClientX` fixed on screen.
   const zoomAround = useCallback((next, focalClientX) => {
     const nz = clampZoom(next);
-    if (nz === zoomRef.current) { pendingScrollLeftRef.current = null; return; } // at a bound — nothing to do
+    if (nz === zoomRef.current) { pendingScrollRef.current = null; return; } // at a bound — nothing to do
     const el = scrollRef.current;
     if (el) {
       const rect = el.getBoundingClientRect();
       const fx = (focalClientX == null ? rect.left + rect.width / 2 : focalClientX) - rect.left;
       const cur = zoomRef.current || 1;
-      const originBase = (el.scrollLeft + fx) / cur;      // content x in 100%-zoom px
-      pendingScrollLeftRef.current = originBase * nz - fx; // where it should sit after
+      const originBase = (el.scrollLeft + fx) / cur;                       // content x in 100%-zoom px
+      pendingScrollRef.current = { left: originBase * nz - fx, top: el.scrollTop };
     }
     setZoom(nz);
   }, []);
 
   // Apply the re-anchored scroll after the widened layout is in the DOM.
   useLayoutEffect(() => {
-    const el = scrollRef.current;
-    if (el && pendingScrollLeftRef.current != null) {
-      const max = el.scrollWidth - el.clientWidth;
-      el.scrollLeft = Math.max(0, Math.min(max, pendingScrollLeftRef.current));
-      pendingScrollLeftRef.current = null;
+    if (pendingScrollRef.current) {
+      applyScroll(pendingScrollRef.current.left, pendingScrollRef.current.top);
+      pendingScrollRef.current = null;
     }
-  }, [zoom]);
+  }, [zoom, applyScroll]);
 
   // iPad: two-finger pinch = zoom + pan (Procreate-style). It's a pure touch-event
   // gesture on the scroll viewport, so it never reaches the canvas draw path (which
@@ -160,25 +165,27 @@ export default function Delegation() {
     const el = scrollRef.current;
     if (!el) return;
     const distOf = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-    const midOf = (t) => (t[0].clientX + t[1].clientX) / 2;
-    let pinch = null;   // { startDist, startMid, startZoom, startScrollLeft, rectLeft }
+    const midXOf = (t) => (t[0].clientX + t[1].clientX) / 2;
+    const midYOf = (t) => (t[0].clientY + t[1].clientY) / 2;
+    let pinch = null;   // gesture anchor snapshot
     let raf = 0;
-    let pending = null; // latest { curDist, curMid } awaiting a frame
+    let pending = null; // latest { curDist, curMidX, curMidY } awaiting a frame
 
     const flush = () => {
       raf = 0;
       if (!pinch || !pending) return;
-      const originBase = (pinch.startScrollLeft + (pinch.startMid - pinch.rectLeft)) / pinch.startZoom;
+      // X: focal-anchored zoom+pan (the axis that widens with zoom).
+      const originBase = (pinch.startScrollLeft + (pinch.startMidX - pinch.rectLeft)) / pinch.startZoom;
       const nz = clampZoom(pinch.startZoom * (pending.curDist / pinch.startDist));
-      const target = originBase * nz - (pending.curMid - pinch.rectLeft);
+      const left = originBase * nz - (pending.curMidX - pinch.rectLeft);
+      // Y: straight pan with the fingers (rows grow downward; no vertical focal anchor).
+      const top = pinch.startScrollTop - (pending.curMidY - pinch.startMidY);
       if (nz !== zoomRef.current) {
-        // Zoom changed: wait for the widened layout, then re-anchor (layout effect).
-        pendingScrollLeftRef.current = target;
+        // Zoom changed: wait for the relayout, then apply scroll (layout effect).
+        pendingScrollRef.current = { left, top };
         setZoom(nz);
       } else {
-        // Pure two-finger pan (constant distance): width is unchanged, scroll now.
-        const max = el.scrollWidth - el.clientWidth;
-        el.scrollLeft = Math.max(0, Math.min(max, target));
+        applyScroll(left, top); // pure pan — layout unchanged, scroll now
       }
     };
     const onStart = (e) => {
@@ -186,16 +193,18 @@ export default function Delegation() {
       const rect = el.getBoundingClientRect();
       pinch = {
         startDist: distOf(e.touches) || 1,
-        startMid: midOf(e.touches),
+        startMidX: midXOf(e.touches),
+        startMidY: midYOf(e.touches),
         startZoom: zoomRef.current,
         startScrollLeft: el.scrollLeft,
+        startScrollTop: el.scrollTop,
         rectLeft: rect.left,
       };
     };
     const onMove = (e) => {
       if (!pinch || e.touches.length < 2) return;
       e.preventDefault(); // own the gesture: no native page pinch-zoom / scroll
-      pending = { curDist: distOf(e.touches), curMid: midOf(e.touches) };
+      pending = { curDist: distOf(e.touches), curMidX: midXOf(e.touches), curMidY: midYOf(e.touches) };
       if (!raf) raf = requestAnimationFrame(flush);
     };
     const onEnd = (e) => { if (e.touches.length < 2) pinch = null; };
@@ -218,7 +227,7 @@ export default function Delegation() {
       el.removeEventListener('wheel', onWheel);
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [zoomAround]);
+  }, [zoomAround, applyScroll]);
 
   const load = useCallback(async (wk, { quiet } = {}) => {
     if (!quiet) setStatus('loading');
@@ -418,7 +427,7 @@ export default function Delegation() {
         <div className="deleg-error">Couldn’t load the board: {error} <button className="btn" onClick={() => load(weekKey)}>Retry</button></div>
       )}
 
-      <div className="deleg-scroll" ref={scrollRef}>
+      <div className={`deleg-scroll${zoom > 1 ? ' zoomed' : ''}`} ref={scrollRef}>
       <div className={`deleg-grid${zoom > 1 ? ' zoomed' : ''}`} style={{ '--dz': zoom }}>
         <div className="deleg-headrow">
           <div className="deleg-namecell deleg-headcorner" />
