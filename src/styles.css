@@ -316,6 +316,7 @@ input, select, textarea { font: inherit; }
 .card-head .head-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1px; }
 .card-body { padding: 6px 18px 12px; }
 .placeholder-note { color: var(--muted); font-size: 13px; line-height: 1.5; padding: 10px 0; }
+.inbox-connect-hint { color: var(--muted); font-size: 11.5px; line-height: 1.45; margin-top: 8px; opacity: 0.85; }
 
 .grid-2 { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px; }
 @media (max-width: 980px) { .grid-2 { grid-template-columns: minmax(0, 1fr); } }

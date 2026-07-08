@@ -62,9 +62,15 @@ export default function InboxWidget() {
               ? 'Gmail isn’t configured yet (Phase 0 Clerk setup pending).'
               : 'Connect your Google account (read-only Gmail) to see client emails here.'}
             {state.reason !== 'clerk_not_configured' && (
-              <div style={{ marginTop: 10 }}>
-                <button className="btn" onClick={() => clerk.openUserProfile()}>Connect Google</button>
-              </div>
+              <>
+                <div style={{ marginTop: 10 }}>
+                  <button className="btn" onClick={() => clerk.openUserProfile()}>Connect Google</button>
+                </div>
+                <div className="inbox-connect-hint">
+                  Make sure to grant Gmail &amp; Calendar access. If you skipped it when you signed
+                  in, sign out and back in and select those features.
+                </div>
+              </>
             )}
           </div>
         )}
