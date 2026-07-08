@@ -78,7 +78,7 @@ export default async function handler(req, res) {
       since = state?.watermark || null;
     }
 
-    // 2. Pull payments + the valid job-id set + linked invoices (for type inference).
+    // 2. Pull QBO payments + the valid job-id set + linked invoices (for type inference).
     const payments = await listPaymentsUpdatedSince(since);
 
     const { data: jobRows, error: jobErr } = await db.from('jobs').select('job_id');
@@ -90,11 +90,33 @@ export default async function handler(req, res) {
     const invoices = await getInvoicesByIds(allInvoiceIds);
     const invText = new Map(invoices.map((inv) => [String(inv.Id), invoiceTypeText(inv)]));
 
+    // 2b. Preload EVERY existing qb payment row for reconciliation. This is the
+    // critical dedup input: besides webhook rows (keyed by qbo_invoice_id), the app
+    // holds ~147 rows tagged "Imported from QBO historical export" that have NO QBO
+    // ids at all. Keying only on ids would miss them and re-insert duplicates, so we
+    // also adopt by (job_id + amount), disambiguating same-amount rows by nearest
+    // paid_date and claiming each row at most once per run.
+    const { data: qbRows, error: qbErr } = await db
+      .from('payments')
+      .select('id, job_id, amount, paid_date, qbo_invoice_id, qbo_payment_id, payment_type, payment_type_locked')
+      .eq('payment_method', 'qb');
+    if (qbErr) throw qbErr;
+
+    const byPaymentId = new Map();       // qbo_payment_id -> row (already-synced)
+    const adoptableByJob = new Map();    // job_id -> [rows with no qbo_payment_id]
+    for (const r of qbRows) {
+      if (r.qbo_payment_id) { byPaymentId.set(String(r.qbo_payment_id), r); continue; }
+      if (!adoptableByJob.has(r.job_id)) adoptableByJob.set(r.job_id, []);
+      adoptableByJob.get(r.job_id).push(r);
+    }
+    const claimed = new Set();           // existing row ids already matched this run
+    const dayDiff = (a, b) => Math.abs((new Date(a) - new Date(b)) / 86400000) || 0;
+
     // 3. Reconcile each payment.
     const summary = {
       dry, full, since,
       scanned: payments.length,
-      insert: 0, adopt: 0, update: 0, unchanged: 0, skipped_zero: 0,
+      insert: 0, adopt: 0, unchanged: 0, skipped_zero: 0,
       unmatched: [],
     };
     const actions = [];
@@ -116,66 +138,54 @@ export default async function handler(req, res) {
       }
       if (amount <= 0) { summary.skipped_zero += 1; continue; } // unapplied/zero payment
 
-      // Find existing: first by payment id, else an adoptable legacy qb row.
-      const { data: byPay } = await db
-        .from('payments').select('*').eq('qbo_payment_id', qboPaymentId).maybeSingle();
+      // Already synced to this exact QBO payment → nothing to do (idempotent re-run).
+      if (byPaymentId.has(qboPaymentId)) { summary.unchanged += 1; continue; }
 
-      let existing = byPay;
-      let mode;
-      if (existing) {
-        mode = 'update';
-      } else if (invIds.length) {
-        const { data: cand } = await db
-          .from('payments').select('*')
-          .in('qbo_invoice_id', invIds)
-          .is('qbo_payment_id', null)
-          .eq('payment_method', 'qb');
-        existing = (cand || [])[0] || null;
-        mode = existing ? 'adopt' : 'insert';
-      } else {
-        mode = 'insert';
-      }
+      // Adopt an existing unclaimed qb row for the same job + amount. Prefer one whose
+      // qbo_invoice_id matches a linked invoice, then the nearest paid_date.
+      const cands = (adoptableByJob.get(jobId) || [])
+        .filter((r) => !claimed.has(r.id) && Number(r.amount) === amount);
+      cands.sort((a, b) => {
+        const ai = invIds.includes(String(a.qbo_invoice_id)) ? 0 : 1;
+        const bi = invIds.includes(String(b.qbo_invoice_id)) ? 0 : 1;
+        if (ai !== bi) return ai - bi;
+        return dayDiff(a.paid_date, paidDate) - dayDiff(b.paid_date, paidDate);
+      });
+      const adoptRow = cands[0] || null;
+      const mode = adoptRow ? 'adopt' : 'insert';
 
       const inferredType = normalizePaymentType(invIds.map((id) => invText.get(id) || '').join(' '));
-      const paymentType = existing?.payment_type_locked ? existing.payment_type : inferredType;
 
-      const desired = {
-        job_id: jobId,
-        amount,
-        payment_method: 'qb',
-        payment_type: paymentType,
-        paid_date: paidDate,
-        qbo_invoice_id: invIds[0] || existing?.qbo_invoice_id || null,
-        qbo_payment_id: qboPaymentId,
-      };
-
-      // On update, detect a genuine no-op so the summary is honest.
-      if (mode === 'update') {
-        const same =
-          existing.job_id === desired.job_id &&
-          Number(existing.amount) === desired.amount &&
-          existing.payment_type === desired.payment_type &&
-          String(existing.paid_date) === desired.paid_date &&
-          existing.qbo_invoice_id === desired.qbo_invoice_id;
-        if (same) { summary.unchanged += 1; continue; }
-      }
-
+      if (adoptRow) claimed.add(adoptRow.id);
       summary[mode] += 1;
       if (actions.length < MAX_ACTIONS_RETURNED) {
-        actions.push({ mode, job_id: jobId, amount, paid_date: paidDate, payment_type: paymentType, qbo_payment_id: qboPaymentId });
+        actions.push({
+          mode, job_id: jobId, amount, paid_date: paidDate, qbo_payment_id: qboPaymentId,
+          payment_type: adoptRow ? adoptRow.payment_type : inferredType,
+          adopted_row: adoptRow ? adoptRow.id : undefined,
+        });
       }
 
       if (dry) continue; // dry run: decide, don't write
 
-      if (mode === 'insert') {
-        const { error } = await db.from('payments').insert({
-          ...desired,
-          notes: `Synced from QuickBooks (payment ${qboPaymentId})`,
-        });
+      if (mode === 'adopt') {
+        // Additive only: stamp the QBO ids so future runs recognize this row. Never
+        // overwrite the imported amount/date/type (that data is at least as trusted).
+        const patch = { qbo_payment_id: qboPaymentId };
+        if (!adoptRow.qbo_invoice_id && invIds[0]) patch.qbo_invoice_id = invIds[0];
+        const { error } = await db.from('payments').update(patch).eq('id', adoptRow.id);
         if (error) throw error;
       } else {
-        // update or adopt — both write the reconciled fields onto the existing row
-        const { error } = await db.from('payments').update(desired).eq('id', existing.id);
+        const { error } = await db.from('payments').insert({
+          job_id: jobId,
+          amount,
+          payment_method: 'qb',
+          payment_type: inferredType,
+          paid_date: paidDate,
+          qbo_invoice_id: invIds[0] || null,
+          qbo_payment_id: qboPaymentId,
+          notes: `Synced from QuickBooks (payment ${qboPaymentId})`,
+        });
         if (error) throw error;
       }
     }
