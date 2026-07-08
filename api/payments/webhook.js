@@ -12,17 +12,7 @@
 //   "payment_type": "other"                               ← Zapier sends this as a fixed string
 // }
 import { getDb, hasDb } from '../_lib/db.js';
-
-function normalizePaymentType(raw = '') {
-  const t = String(raw).toLowerCase().replace(/[\s-_]+/g, '');
-  if (t.includes('retainer') || t.includes('deposit') && t.includes('1') === false) return 'retainer';
-  if (t.includes('dp1') || t.includes('deposit1') || t.includes('firstpay')) return 'dp1';
-  if (t.includes('dp2') || t.includes('deposit2') || t.includes('secondpay')) return 'dp2';
-  if (t.includes('dp3') || t.includes('deposit3')) return 'dp3';
-  if (t.includes('cd') || t.includes('construction') || t.includes('permit')) return 'cd';
-  if (t.includes('final') || t.includes('balance') || t.includes('last')) return 'final';
-  return 'other';
-}
+import { normalizePaymentType } from '../_lib/payment-type.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {

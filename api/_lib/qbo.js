@@ -314,6 +314,44 @@ export async function listOpenInvoices() {
   return queryAllInvoices(`where Balance > '0' order by DueDate`);
 }
 
+// ── Payments (money received) — feeds the scheduled reconciliation sync ─────────
+// The QBO Payment entity is the money-received record, distinct from the Invoice:
+// it carries the real payment date (TxnDate), CustomerRef.name (= Job ID via the
+// invariant), TotalAmt, and Line[].LinkedTxn (the invoice(s) it paid). Paginated
+// like queryAllInvoices. `whereOrderBy` is the tail after `select * from Payment`.
+async function queryAllPayments(whereOrderBy) {
+  const all = [];
+  const PAGE = 1000;
+  for (let start = 1; ; start += PAGE) {
+    const q = `select * from Payment ${whereOrderBy} startposition ${start} maxresults ${PAGE}`;
+    const res = await qboRequest('GET', `query?query=${encodeURIComponent(q)}`);
+    const page = res?.QueryResponse?.Payment || [];
+    all.push(...page);
+    if (page.length < PAGE) break;
+  }
+  return all;
+}
+
+// Every payment updated at/after `since` (an ISO timestamp), for the sync's
+// incremental watermark. Omit `since` for a full-history sweep (first run or a
+// manual full reconcile). Ordered by last-updated so the caller can advance its
+// watermark to the last row processed.
+export async function listPaymentsUpdatedSince(since) {
+  const where = since ? `where MetaData.LastUpdatedTime >= '${esc(since)}' ` : '';
+  return queryAllPayments(`${where}order by MetaData.LastUpdatedTime`);
+}
+
+// Fetch specific invoices by internal Id (== Payment.Line[].LinkedTxn.TxnId), used
+// to infer a payment's type from its invoice's item/line text. One batched query.
+export async function getInvoicesByIds(ids = []) {
+  const clean = [...new Set(ids.map((x) => String(x)).filter(Boolean))];
+  if (!clean.length) return [];
+  const inList = clean.map((id) => `'${esc(id)}'`).join(',');
+  const q = `select * from Invoice where Id in (${inList})`;
+  const res = await qboRequest('GET', `query?query=${encodeURIComponent(q)}`);
+  return res?.QueryResponse?.Invoice || [];
+}
+
 // Largest invoices billed within a date range (by original TotalAmt), for the
 // P&L section's "Top invoices" widget. Dates ('YYYY-MM-DD') filter on TxnDate;
 // QBO caps `maxresults` and we only want the top few anyway.
