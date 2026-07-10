@@ -57,12 +57,17 @@ function MiniInk({ strokes }) {
 export default function MyWeekWidget() {
   const { user } = useUser();
   const myEmail = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
-  const weekKey = isoDate(mondayOf(new Date()));
+  // Defaults to the current week on every mount; ‹ › peek at other weeks (handy on a
+  // Friday to see what's next). The full planner still owns editing.
+  const thisWeekKey = isoDate(mondayOf(new Date()));
+  const [weekKey, setWeekKey] = useState(thisWeekKey);
+  const isThisWeek = weekKey === thisWeekKey;
   const [state, setState] = useState({ status: 'loading', strokes: [], notes: [], onRoster: false });
 
   useEffect(() => {
     if (!myEmail) return undefined;
     let alive = true;
+    setState((s) => ({ ...s, status: 'loading' })); // clear on week change, not on each 30s poll
     const load = async () => {
       try {
         const r = await apiFetch(`/api/delegation?week=${weekKey}`);
@@ -93,7 +98,14 @@ export default function MyWeekWidget() {
     <div className="card myweek">
       <div className="card-head">
         <h3>My week</h3>
-        <span className="head-meta">{weekLabel(weekKey)}</span>
+        <div className="myweek-nav">
+          <button className="myweek-navbtn" onClick={() => setWeekKey(isoDate(addDays(parseISO(weekKey), -7)))} aria-label="Previous week">‹</button>
+          <span className="myweek-weeklabel">{isThisWeek ? 'This week' : weekLabel(weekKey)}</span>
+          <button className="myweek-navbtn" onClick={() => setWeekKey(isoDate(addDays(parseISO(weekKey), 7)))} aria-label="Next week">›</button>
+          {!isThisWeek && (
+            <button className="myweek-today" onClick={() => setWeekKey(thisWeekKey)}>Today</button>
+          )}
+        </div>
         <Link to="/delegation" className="myweek-open">Open planner ↗</Link>
       </div>
 

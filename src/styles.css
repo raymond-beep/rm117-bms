@@ -324,7 +324,12 @@ input, select, textarea { font: inherit; }
 /* "My week" widget — a read-only glance at the signed-in person's own Weekly-Planner
    row for the current week (ink + typed notes). Editing lives in the full planner. */
 .myweek { margin-bottom: 20px; }
-.myweek .card-head .head-meta { margin-right: auto; margin-left: 10px; text-transform: none; letter-spacing: normal; font-family: var(--ui); font-size: 12px; color: var(--ink3); }
+.myweek-nav { display: inline-flex; align-items: center; gap: 3px; margin-left: 10px; margin-right: auto; }
+.myweek-weeklabel { font-family: var(--ui); font-size: 12px; color: var(--ink3); min-width: 104px; text-align: center; }
+.myweek-navbtn { font: inherit; font-size: 15px; line-height: 1; color: var(--ink3); background: transparent; border: 0; cursor: pointer; padding: 2px 5px; border-radius: 4px; }
+.myweek-navbtn:hover { color: var(--ink); background: var(--inset); }
+.myweek-today { font-family: var(--ui); font-size: 11px; font-weight: 600; color: var(--accent-ink); background: transparent; border: 0; cursor: pointer; padding: 2px 5px; margin-left: 2px; }
+.myweek-today:hover { text-decoration: underline; }
 .myweek-open { font-size: 12px; font-weight: 600; color: var(--accent-ink); text-decoration: none; white-space: nowrap; }
 .myweek-open:hover { text-decoration: underline; }
 .myweek > .placeholder-note { padding: 16px 18px; }
