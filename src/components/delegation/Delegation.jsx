@@ -558,7 +558,10 @@ function RowCanvas({ strokes, color, writable, mode, rowHeight = ROW_H, noteFor,
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       const w = wrap.clientWidth;
-      const h = rowHeight;
+      // The notes layer (in flow) defines the wrap's height — it grows past rowHeight when
+      // a cell has a lot of text — so measure it rather than using the fixed base height.
+      // Ink is stored normalized (0..1), so it just rescales to fill the taller row.
+      const h = wrap.clientHeight || rowHeight;
       sizeRef.current = { w, h };
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
@@ -668,6 +671,9 @@ function RowCanvas({ strokes, color, writable, mode, rowHeight = ROW_H, noteFor,
   }, []);
 
   const typing = mode === 'type';
+  // Grow an editing textarea to fit its content (min-height keeps it filling the cell) so
+  // the row expands as you type — matching how the read-only cells grow, no clipping.
+  const autosize = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } };
   return (
     <div className="deleg-canvaswrap" ref={wrapRef}>
       <canvas
@@ -679,7 +685,7 @@ function RowCanvas({ strokes, color, writable, mode, rowHeight = ROW_H, noteFor,
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       />
-      <div className={`deleg-notes${typing ? ' typing' : ''}`}>
+      <div className={`deleg-notes${typing ? ' typing' : ''}`} style={{ minHeight: rowHeight }}>
         {DAYS.map((_, d) => {
           const note = noteFor(d);
           const editable = writable && typing;
@@ -688,8 +694,11 @@ function RowCanvas({ strokes, color, writable, mode, rowHeight = ROW_H, noteFor,
               <textarea
                 key={`n-${d}-${note?.id || 'empty'}-${note?.updated_at || ''}`}
                 className="deleg-notecell edit"
+                style={{ minHeight: rowHeight }}
+                ref={autosize}
                 defaultValue={note?.text || ''}
                 placeholder="Add a note…"
+                onInput={(e) => autosize(e.target)}
                 onFocus={() => onEditingChange(true)}
                 onBlur={(e) => {
                   onEditingChange(false);

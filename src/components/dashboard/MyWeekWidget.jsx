@@ -27,7 +27,9 @@ function MiniInk({ strokes }) {
     const draw = () => {
       const dpr = window.devicePixelRatio || 1;
       const w = wrap.clientWidth;
-      const h = MINI_H;
+      // The notes layer defines the strip height (grows past MINI_H for long notes); the
+      // canvas fills it. Ink is normalized 0..1, so it rescales into the taller strip.
+      const h = wrap.clientHeight || MINI_H;
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
       canvas.style.width = `${w}px`;
@@ -113,7 +115,7 @@ export default function MyWeekWidget() {
           </div>
           <div className="myweek-strip">
             <MiniInk strokes={state.strokes} />
-            <div className="myweek-notes">
+            <div className="myweek-notes" style={{ minHeight: MINI_H }}>
               {DAYS.map((_, d) => (
                 <div key={d} className="myweek-notecell">{noteByDay.get(d) || ''}</div>
               ))}
