@@ -274,6 +274,13 @@ ink. Same server-side write permission (own row, or admin). Blank text deletes t
 | `updated_at` | timestamptz | |
 | | | `unique (week_key, row_owner_email, day_index)`; index on `week_key` |
 
+> **Shared "Everyone" lane:** `row_owner_email` is plain text (no FK to `delegation_members`), so
+> the board reserves the sentinel value **`__studio__`** for a firm-wide row pinned at the top of the
+> grid — a place to note something for the whole studio (e.g. a measure-up) once instead of writing it
+> into all five people's rows. It's **admin-write only** (enforced by `canWrite` in `api/delegation.js`;
+> the sentinel is deliberately not a valid email so it can't collide with a real login). No migration
+> was needed. Keep `STUDIO_ROW` in sync across `api/delegation.js` and `Delegation.jsx`.
+
 > **Job ID rename safety (migration `0007`):** every FK that references `jobs(job_id)` (payments,
 > invoices, proposals, letters, field_notes, job_phase_events, file_records) now uses **`ON UPDATE
 > CASCADE`**, so renaming a job's id moves all its child rows atomically. This is what makes

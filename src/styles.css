@@ -1797,6 +1797,10 @@ input, select, textarea { font: inherit; }
 .deleg-tool:hover { color: var(--ink); border-color: var(--ink3); }
 .deleg-youtag { position: absolute; top: 10px; right: 10px; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-ink); }
 .deleg-row.readonly .deleg-namecell { opacity: .82; }
+/* Shared "Everyone" lane — tinted so it reads as firm-wide, not a person's row. */
+.deleg-row.studio .deleg-namecell { background: var(--accent-soft); }
+.deleg-row.studio .deleg-name { color: var(--accent-ink); }
+.deleg-studiohint { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-ink); opacity: .75; }
 
 .deleg-canvaswrap { position: relative; }
 /* Ink canvas fills the wrap; the notes layer (in flow) defines the row height, so the

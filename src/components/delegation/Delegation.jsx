@@ -23,6 +23,11 @@ const ZOOM_MIN = 1;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.5;
 const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+// Shared "Everyone" lane pinned at the top of the board — a firm-wide row (e.g. a
+// measure-up for the whole studio) that admins fill once instead of writing it into
+// all five people's boxes. Reserved row_owner_email, admin-write only, everyone reads
+// it. Keep in sync with STUDIO_ROW in api/delegation.js.
+const STUDIO_ROW = '__studio__';
 const POLL_MS = 4000;       // live-sync cadence (see architecture note in the API)
 const INK_SYNC_COOLDOWN_MS = 2500; // after the last pen lift, hold off sync repaints this long
 
@@ -463,6 +468,33 @@ export default function Delegation() {
 
         {status === 'loading' && members.length === 0 && (
           <div className="deleg-loading">Loading board…</div>
+        )}
+
+        {members.length > 0 && (
+          <div className="deleg-row studio">
+            <div className="deleg-namecell">
+              <div className="deleg-name">Everyone</div>
+              <div className="deleg-studiohint">Shared · all staff</div>
+              {me.is_admin && (
+                <div className="deleg-rowtools">
+                  <button className="deleg-tool" onClick={() => undoRow(STUDIO_ROW)} title="Undo last stroke">↶</button>
+                  <button className="deleg-tool" onClick={() => clearRow(STUDIO_ROW)} title="Clear row">Clear</button>
+                </div>
+              )}
+            </div>
+            <RowCanvas
+              strokes={strokesByRow.get(STUDIO_ROW) || []}
+              color={color}
+              writable={me.is_admin}
+              mode={mode}
+              rowHeight={Math.round(ROW_H * zoom)}
+              noteFor={(d) => notesByCell.get(`${STUDIO_ROW}|${d}`)}
+              onDrawingChange={(v) => { drawingRef.current = v; setInking(v); if (!v) lastInkRef.current = Date.now(); }}
+              onEditingChange={(v) => { editingRef.current = v; }}
+              onCommit={(pts) => commitStroke(STUDIO_ROW, pts)}
+              onSaveNote={(d, text) => saveNote(STUDIO_ROW, d, text)}
+            />
+          </div>
         )}
 
         {members.map((mem) => {

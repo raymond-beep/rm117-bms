@@ -21,10 +21,18 @@ import { getUserEmail } from './_lib/clerk.js';
 
 // --- Pure permission helpers (unit-tested in tests/delegation-perms.test.js) ---
 
+// The shared "Everyone" lane at the top of the board — a firm-wide row (e.g. a
+// measure-up that applies to the whole studio) that admins fill once instead of
+// writing into all five people's boxes. It's a reserved row_owner_email (NOT a
+// valid email, so it can never collide with a real Clerk login) and is admin-write
+// only. Keep this value in sync with STUDIO_ROW in Delegation.jsx.
+export const STUDIO_ROW = '__studio__';
+
 // Can `actor` draw into / clear the row owned by `rowOwnerEmail`?
 export function canWrite(actor, rowOwnerEmail) {
   if (!actor) return false;
   if (actor.is_admin) return true;
+  if (rowOwnerEmail === STUDIO_ROW) return false; // shared lane is admin-only
   return Boolean(actor.email) && actor.email === rowOwnerEmail;
 }
 

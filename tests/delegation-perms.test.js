@@ -4,7 +4,7 @@
 // Supabase is reached only via the service-role key). If this ever regresses, one
 // employee could scribble in another's row via a direct API call.
 import { describe, it, expect } from 'vitest';
-import { canWrite, canDelete } from '../api/delegation.js';
+import { canWrite, canDelete, STUDIO_ROW } from '../api/delegation.js';
 
 const ray = { email: 'raymond@rm117.com', is_admin: false };
 const ang = { email: 'angelena@rm117.com', is_admin: true };
@@ -29,6 +29,14 @@ describe('canWrite (draw/clear a row)', () => {
     expect(canWrite(null, 'tom@rm117.com')).toBe(false);
     expect(canWrite({ email: null, is_admin: false }, 'tom@rm117.com')).toBe(false);
     expect(canWrite({ email: '', is_admin: false }, '')).toBe(false);
+  });
+
+  it('lets the admin write the shared Everyone lane, but blocks staff', () => {
+    expect(canWrite(ang, STUDIO_ROW)).toBe(true);
+    expect(canWrite(ray, STUDIO_ROW)).toBe(false);
+    // Defense-in-depth: even an actor whose email somehow equals the sentinel is blocked
+    // unless they're a real admin (the sentinel is not a valid email, so this can't happen).
+    expect(canWrite({ email: STUDIO_ROW, is_admin: false }, STUDIO_ROW)).toBe(false);
   });
 });
 
