@@ -36,6 +36,25 @@ function daysBetween(due, asOf) {
   return Math.floor(ms / 86_400_000);
 }
 
+// A short human label for *what an invoice bills for*, so several invoices on the
+// same job read as distinct phases (e.g. "Design Phase I (DP1)" vs "Final
+// Construction Documents") instead of the Job ID repeated. Prefers the line-item
+// service name (the fee-schedule phase), then a line description, then the invoice
+// memo. Distinct item names on a multi-line invoice are joined ("A +2 more").
+export function invoiceDescription(inv) {
+  const lines = (inv?.Line || []).filter((l) => l.DetailType === 'SalesItemLineDetail');
+  const names = lines
+    .map((l) => l.SalesItemLineDetail?.ItemRef?.name || l.Description)
+    .filter(Boolean)
+    .map((s) => String(s).trim());
+  const uniq = [...new Set(names)];
+  if (uniq.length === 0) {
+    const fallback = inv?.PrivateNote || inv?.CustomerMemo?.value || '';
+    return String(fallback).trim() || null;
+  }
+  return uniq.length === 1 ? uniq[0] : `${uniq[0]} +${uniq.length - 1} more`;
+}
+
 // Normalize one raw QBO Invoice into the flat shape the UI table wants. By the
 // Job-ID invariant the QBO Customer DisplayName === the Job ID, so `jobId` is the
 // customer name. `amount` is the still-open Balance (not the original TotalAmt).
@@ -50,6 +69,7 @@ export function normalizeInvoice(inv, asOf) {
     docNumber: inv.DocNumber || null,
     customer,
     jobId: customer, // invariant: DisplayName === Job ID
+    description: invoiceDescription(inv), // what this invoice bills for (phase/service)
     txnDate: inv.TxnDate || null,
     dueDate: dueRaw,
     total: Number(inv.TotalAmt || 0),
@@ -204,20 +224,49 @@ export function parseProfitAndLossColumns(report) {
 // invoice, so we date each invoice by that, not TxnDate (an invoice is often dated
 // weeks before it's sent).
 
-// The date an invoice was actually sent to the client ('YYYY-MM-DD'), or null if
-// it hasn't been sent (created/draft only).
+// The real QBO email send date ('YYYY-MM-DD') — the timestamp QuickBooks stamps
+// when *it* emails the invoice — or null if QBO never emailed it.
 export function invoiceSendDate(inv) {
   const dt = inv?.DeliveryInfo?.DeliveryTime;
   return dt ? String(dt).slice(0, 10) : null;
 }
 
-// Sum invoices *sent* within [start, end] (inclusive 'YYYY-MM-DD'), by send date.
+// The firm adopted QBO invoice-emailing around this date. Before it, invoices were
+// sent to clients by hand (print / manual email) and carry no QBO send timestamp,
+// so their invoice date (TxnDate) is the only "sent" proxy we have. After it, the
+// workflow is "create every fee-schedule phase up front, then send each phase as
+// its work completes" — so an un-emailed, unpaid invoice is a not-yet-sent phase,
+// NOT a manual send. (Live coverage probe: ~0% emailed through Sep 2025, ramping
+// from Oct 2025.) Adjust here if the changeover date is refined.
+export const QBO_EMAIL_ERA_START = '2025-10-01';
+
+// Best-effort date an invoice was *sent* to the client ('YYYY-MM-DD'), or null if
+// we can't infer it was ever sent. QBO doesn't record manual sends, so we combine
+// the one hard signal with two proxies:
+//   • emailed through QBO      → the real send timestamp (invoiceSendDate);
+//   • else has any payment     → definitely delivered (you don't pay an unseen
+//                                invoice) → dated by invoice date (TxnDate);
+//   • else predates the email  → sent by hand back then → dated by TxnDate.
+//     era
+// A recent, un-emailed, wholly-unpaid invoice is treated as an upfront phase not
+// yet sent, and excluded. (Exact only once every send is recorded — see the
+// planned "mark as sent" action; today's manual-unpaid sends stay invisible.)
+export function invoiceSentDate(inv) {
+  const emailed = invoiceSendDate(inv);
+  if (emailed) return emailed;
+  const txn = inv?.TxnDate ? String(inv.TxnDate).slice(0, 10) : null;
+  if (!txn) return null;
+  const hasPayment = Number(inv?.Balance || 0) < Number(inv?.TotalAmt || 0);
+  return (hasPayment || txn < QBO_EMAIL_ERA_START) ? txn : null;
+}
+
+// Sum invoices *sent* within [start, end] (inclusive 'YYYY-MM-DD'), by sent date.
 // Returns { income, paid, open, count } — income is the full billed amount (paid +
 // still-open), matching how the firm tallies a quarter.
 export function sumSentInPeriod(invoices = [], start, end) {
   let income = 0, paid = 0, open = 0, count = 0;
   for (const inv of invoices || []) {
-    const sd = invoiceSendDate(inv);
+    const sd = invoiceSentDate(inv);
     if (!sd || sd < start || sd > end) continue;
     const amt = Number(inv.TotalAmt || 0);
     const bal = Number(inv.Balance || 0);
@@ -229,22 +278,31 @@ export function sumSentInPeriod(invoices = [], start, end) {
   return { income: round2(income), paid: round2(paid), open: round2(open), count };
 }
 
-// The firm only began emailing invoices through QuickBooks in late 2025, so earlier
-// invoices carry no send-timestamp. In "Sent" mode a historical quarter where fewer
-// than this fraction of its invoices have a send date is hidden — otherwise its
-// income collapses to near-zero and the chart shows a misleading loss.
-export const SENT_QUARTER_MIN_COVERAGE = 0.3;
-
-// Fraction of a quarter's invoices (by TxnDate) that carry a real send date — our
-// proxy for "was QuickBooks send-tracking in use this quarter?"
-export function quarterSendCoverage(invoices = [], start, end) {
-  let inQuarter = 0, withSendDate = 0;
+// The individual invoices *sent* within [start, end] (same sent-date rule as
+// sumSentInPeriod), for the per-period paid/unpaid list. Each row carries the
+// billed amount + still-open balance; `paid` = fully settled (Balance 0). Sorted
+// unpaid-first by largest open balance, then paid by largest billed. By the Job-ID
+// invariant, the QBO customer name is the Job ID.
+export function listSentInvoices(invoices = [], start, end) {
+  const rows = [];
   for (const inv of invoices || []) {
-    if (inv.TxnDate < start || inv.TxnDate > (end || start)) continue;
-    inQuarter += 1;
-    if (invoiceSendDate(inv)) withSendDate += 1;
+    const sentDate = invoiceSentDate(inv);
+    if (!sentDate || sentDate < start || sentDate > end) continue;
+    const amount = round2(Number(inv.TotalAmt || 0));
+    const balance = round2(Number(inv.Balance || 0));
+    rows.push({
+      id: inv.Id,
+      jobId: inv.CustomerRef?.name || '—',
+      docNumber: inv.DocNumber || null,
+      description: invoiceDescription(inv), // what this invoice bills for (phase/service)
+      sentDate,
+      amount,
+      balance,
+      paid: balance === 0,
+    });
   }
-  return inQuarter === 0 ? 0 : withSendDate / inQuarter;
+  rows.sort((a, b) => (b.balance - a.balance) || (b.amount - a.amount));
+  return rows;
 }
 
 // Period P&L on the "sent" basis: sent-invoice income overlaid on the accrual
@@ -262,25 +320,24 @@ export function buildSentPnl(accrualReport, invoices = [], start, end) {
   };
 }
 
-// Quarter columns on the "sent" basis: each quarter's income re-dated by real send
-// date, net recomputed against the accrual quarter's expenses. Historical quarters
-// below `minCoverage` send-date coverage are dropped (the current, still-partial
-// quarter is always kept). Returns { quarters, hidden } — hidden = how many were
-// dropped, so the UI can say "N earlier quarters hidden".
-export function buildSentQuarters(quarterReport, invoices = [], today, { minCoverage = SENT_QUARTER_MIN_COVERAGE } = {}) {
+// Quarter columns on the "sent" basis: each quarter re-dated by best-effort sent
+// date (invoiceSentDate), with income (billed) and paid (collected) split out so
+// the chart can draw both bars, and net recomputed against the accrual quarter's
+// expenses. Every quarter is shown — pre-email-era quarters fall back to invoice
+// date, so historical manual sends surface at their real totals instead of $0.
+export function buildSentQuarters(quarterReport, invoices = [], today) {
   const quarters = [];
-  let hidden = 0;
   for (const q of parseProfitAndLossColumns(quarterReport)) {
     const partial = !!q.end && q.end > today;
-    if (!partial && quarterSendCoverage(invoices, q.start, q.end) < minCoverage) {
-      hidden += 1;
-      continue;
-    }
-    const income = sumSentInPeriod(invoices, q.start, q.end).income;
+    const s = sumSentInPeriod(invoices, q.start, q.end);
     const expenses = round2(q.income - q.netIncome);
-    quarters.push({ start: q.start, end: q.end, label: q.label, income, netIncome: round2(income - expenses), partial });
+    quarters.push({
+      start: q.start, end: q.end, label: q.label,
+      income: s.income, paid: s.paid,
+      netIncome: round2(s.income - expenses), partial,
+    });
   }
-  return { quarters, hidden };
+  return quarters;
 }
 
 // Map raw QBO invoices to a compact "top invoices" display shape, ranked by

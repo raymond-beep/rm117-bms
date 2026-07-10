@@ -460,6 +460,7 @@ input, select, textarea { font: inherit; }
 }
 .fin-section-head:first-child { margin-top: 4px; }
 .fin-section-head h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
+.fin-section-sub { margin-top: 3px; font-size: 12px; color: var(--ink3); max-width: 60ch; }
 .fin-sub { font-size: 12px; color: var(--ink3); }
 .fin-note {
   display: flex; align-items: center; gap: 8px; margin: 14px 0 4px;
@@ -484,7 +485,7 @@ input, select, textarea { font: inherit; }
 .fin-table { margin-top: 16px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .fin-colhead, .fin-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) 90px 120px 80px 140px;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.1fr) 88px 108px 80px 128px;
   gap: 14px; align-items: center;
 }
 .fin-colhead {
@@ -494,7 +495,10 @@ input, select, textarea { font: inherit; }
 .fin-colhead .r, .fin-row .r { text-align: right; }
 .fin-row { padding: 12px 18px; background: var(--panel); border-top: 1px solid var(--divider); }
 .fin-row:hover { background: var(--inset); }
-.fin-job { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+/* Job ID takes priority — never truncate it; wrap onto a second line if needed.
+   Phase/service gets the smaller share and wraps too. */
+.fin-job { font-size: 13.5px; font-weight: 600; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.fin-phase { font-size: 12.5px; color: var(--ink2); min-width: 0; overflow-wrap: anywhere; }
 .fin-doc { font-family: var(--mono); font-size: 12.5px; color: var(--ink2); }
 .fin-due { font-size: 12.5px; color: var(--ink2); }
 .fin-age { font-family: var(--mono); font-size: 12px; color: var(--ink3); }
@@ -532,6 +536,16 @@ input, select, textarea { font: inherit; }
 .fin-q-bar { width: 62%; max-width: 40px; border-radius: 4px 4px 0 0; }
 .fin-q-bar.pos { background: var(--success); }
 .fin-q-bar.neg { background: var(--warn); border-radius: 0 0 4px 4px; }
+/* Sent basis: billed (accent) + collected (green) side by side */
+.fin-q-bars { display: flex; align-items: flex-end; justify-content: center; gap: 3px; width: 100%; }
+.fin-q-bars .fin-q-bar { width: 34%; max-width: 20px; border-radius: 3px 3px 0 0; }
+.fin-q-bar.billed { background: var(--accent); }
+.fin-q-bar.collected { background: var(--success); }
+.fin-q-legend { display: flex; gap: 12px; font-size: 11px; font-weight: 600; color: var(--ink2); }
+.fin-q-key { display: inline-flex; align-items: center; gap: 5px; }
+.fin-q-key::before { content: ''; width: 9px; height: 9px; border-radius: 2px; }
+.fin-q-key.billed::before { background: var(--accent); }
+.fin-q-key.collected::before { background: var(--success); }
 .fin-q-label { font-size: 11.5px; font-weight: 600; color: var(--ink2); text-align: center; line-height: 1.25; }
 .fin-q-label small { font-weight: 500; color: var(--ink3); font-size: 10px; }
 
@@ -541,6 +555,20 @@ input, select, textarea { font: inherit; }
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.3fr);
 }
 @media (max-width: 760px) { .fin-pnl-detail { grid-template-columns: 1fr; } }
+
+/* Sent basis: full-width per-period invoice list, then Top expenses stacked below */
+.fin-pnl-stack { margin-top: 16px; display: grid; gap: 16px; }
+.fin-inv-table { margin-top: 0; }
+.fin-inv-group {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  padding: 8px 18px; background: var(--inset); border-top: 1px solid var(--divider);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink3);
+}
+.fin-inv-group.warn { color: var(--warn); }
+.fin-inv-group.ok { color: var(--success); }
+.fin-inv-group-amt { font-weight: 700; }
+.fin-amt.warn { color: var(--warn); }
+.fin-paid-inline { font-family: var(--mono); font-size: 12px; color: var(--success); }
 
 /* P&L account cards */
 .fin-acct-row {
@@ -561,6 +589,7 @@ input, select, textarea { font: inherit; }
   .fin-colhead { display: none; }
   .fin-row { grid-template-columns: 1fr auto; gap: 4px 12px; }
   .fin-due { display: none; }
+  .fin-phase { grid-column: 1; }
   .fin-doc { grid-column: 1; }
   .fin-amt { grid-column: 2; grid-row: 1; }
 }

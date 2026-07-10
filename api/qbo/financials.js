@@ -41,6 +41,7 @@ import {
   parseProfitAndLossColumns,
   buildSentPnl,
   buildSentQuarters,
+  listSentInvoices,
   toTopInvoices,
 } from '../_lib/qbo-reports.js';
 
@@ -157,17 +158,14 @@ export default async function handler(req, res) {
   }
 
   // Quarter comparison. Flag the in-progress quarter (extends past today) as "so
-  // far". On 'sent', quarters without reliable send data are hidden (buildSentQuarters).
+  // far". On 'sent', each quarter carries billed + collected for the double bar.
   let pnlQuarters;
-  let sentQuartersHidden = 0;
   if (qtrResult.status !== 'fulfilled') {
     pnlQuarters = { error: qtrResult.reason?.message || 'Quarterly P&L lookup failed' };
   } else if (sentError) {
     pnlQuarters = { error: sentError };
   } else if (basis === 'sent') {
-    const built = buildSentQuarters(qtrResult.value, sentInvoices, today);
-    pnlQuarters = built.quarters;
-    sentQuartersHidden = built.hidden;
+    pnlQuarters = buildSentQuarters(qtrResult.value, sentInvoices, today);
   } else {
     pnlQuarters = parseProfitAndLossColumns(qtrResult.value).map((q) => ({ ...q, partial: !!q.end && q.end > today }));
   }
@@ -175,6 +173,12 @@ export default async function handler(req, res) {
   const topInvoices = topResult.status === 'fulfilled'
     ? toTopInvoices(topResult.value, 8)
     : { error: topResult.reason?.message || 'Top-invoice lookup failed' };
+
+  // On the 'sent' basis, the full per-period invoice list (paid + unpaid), so the
+  // UI can show which invoices make up the selected quarter's billed/collected bars.
+  const periodInvoices = basis === 'sent' && !sentError
+    ? listSentInvoices(sentInvoices, start, end)
+    : null;
 
   const payload = {
     configured: true,
@@ -184,8 +188,8 @@ export default async function handler(req, res) {
     arScope,
     pnl,
     pnlQuarters,
-    sentQuartersHidden,
     topInvoices,
+    periodInvoices,
     receivables,
   };
 

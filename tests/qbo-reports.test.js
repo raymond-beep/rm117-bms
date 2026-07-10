@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   AGING_BUCKETS,
   jobIdYear,
+  invoiceDescription,
   normalizeInvoice,
   summarizeReceivables,
   parseProfitAndLoss,
@@ -11,8 +12,9 @@ import {
   quarterLabel,
   toTopInvoices,
   invoiceSendDate,
+  invoiceSentDate,
   sumSentInPeriod,
-  quarterSendCoverage,
+  listSentInvoices,
   buildSentPnl,
   buildSentQuarters,
 } from '../api/_lib/qbo-reports.js';
@@ -65,6 +67,28 @@ describe('normalizeInvoice', () => {
     const n = normalizeInvoice(inv({ DueDate: '2026-07-01' }), ASOF);
     expect(n.daysPastDue).toBe(0); // due today, not -1 or +1
     expect(n.bucket).toBe('current');
+  });
+});
+
+describe('invoiceDescription', () => {
+  const item = (name) => ({ DetailType: 'SalesItemLineDetail', SalesItemLineDetail: { ItemRef: { name } } });
+  it('uses the line-item service name (the fee-schedule phase)', () => {
+    expect(invoiceDescription({ Line: [item('Design Phase I (DP1)')] })).toBe('Design Phase I (DP1)');
+  });
+  it('ignores subtotal / non-sales lines', () => {
+    expect(invoiceDescription({ Line: [{ DetailType: 'SubTotalLineDetail' }, item('Final Construction Documents')] })).toBe('Final Construction Documents');
+  });
+  it('joins multiple distinct items as "first +N more"', () => {
+    expect(invoiceDescription({ Line: [item('DP1'), item('DP2')] })).toBe('DP1 +1 more');
+  });
+  it('falls back to a line description, then the memo', () => {
+    expect(invoiceDescription({ Line: [{ DetailType: 'SalesItemLineDetail', Description: 'Retainer', SalesItemLineDetail: {} }] })).toBe('Retainer');
+    expect(invoiceDescription({ Line: [], PrivateNote: 'CA' })).toBe('CA');
+    expect(invoiceDescription({ CustomerMemo: { value: 'Deposit' } })).toBe('Deposit');
+  });
+  it('returns null when there is nothing to describe', () => {
+    expect(invoiceDescription({})).toBeNull();
+    expect(invoiceDescription(null)).toBeNull();
   });
 });
 
@@ -348,20 +372,41 @@ describe('sumSentInPeriod', () => {
   });
 });
 
-describe('quarterSendCoverage', () => {
-  const invs = [
-    { TxnDate: '2025-01-10', DeliveryInfo: { DeliveryTime: '2025-01-12T09:00:00-05:00' } },
-    { TxnDate: '2025-02-01' },
-    { TxnDate: '2025-02-20' },
-    { TxnDate: '2025-05-01', DeliveryInfo: { DeliveryTime: '2025-05-02T09:00:00-04:00' } },
-  ];
-  it("is the fraction of a window's invoices (by TxnDate) carrying a send date", () => {
-    expect(quarterSendCoverage(invs, '2025-01-01', '2025-03-31')).toBeCloseTo(1 / 3);
-    expect(quarterSendCoverage(invs, '2025-04-01', '2025-06-30')).toBe(1);
+describe('invoiceSentDate (best-effort sent date)', () => {
+  it('uses the real QBO email send date when the invoice was emailed', () => {
+    expect(invoiceSentDate({ DeliveryInfo: { DeliveryTime: '2026-04-23T10:00:00-04:00' }, TxnDate: '2026-03-01', TotalAmt: 5, Balance: 5 })).toBe('2026-04-23');
   });
-  it('is 0 for a window with no invoices at all', () => {
-    expect(quarterSendCoverage(invs, '2024-01-01', '2024-03-31')).toBe(0);
-    expect(quarterSendCoverage([], '2025-01-01', '2025-03-31')).toBe(0);
+  it('falls back to invoice date for a paid invoice not emailed through QBO', () => {
+    expect(invoiceSentDate({ TxnDate: '2026-05-14', TotalAmt: 1000, Balance: 0 })).toBe('2026-05-14');   // paid → delivered
+    expect(invoiceSentDate({ TxnDate: '2026-05-14', TotalAmt: 1000, Balance: 400 })).toBe('2026-05-14'); // partially paid → delivered
+  });
+  it('counts a pre-email-era invoice by its invoice date (sent by hand back then)', () => {
+    expect(invoiceSentDate({ TxnDate: '2025-08-01', TotalAmt: 1000, Balance: 1000 })).toBe('2025-08-01');
+  });
+  it('excludes a recent, un-emailed, wholly-unpaid invoice (upfront phase not yet sent)', () => {
+    expect(invoiceSentDate({ TxnDate: '2026-05-14', TotalAmt: 1000, Balance: 1000, EmailStatus: 'NotSet' })).toBeNull();
+  });
+  it('returns null when there is no date at all', () => {
+    expect(invoiceSentDate({})).toBeNull();
+    expect(invoiceSentDate(null)).toBeNull();
+  });
+});
+
+describe('listSentInvoices', () => {
+  const book = [
+    { Id: 'a', DocNumber: '1200', CustomerRef: { name: '26_010_Smith' }, TxnDate: '2026-05-01', TotalAmt: 5000, Balance: 5000, DeliveryInfo: { DeliveryTime: '2026-05-02T09:00:00-04:00' } }, // sent Q2, open
+    { Id: 'b', DocNumber: '1201', CustomerRef: { name: '26_011_Jones' }, TxnDate: '2026-05-03', TotalAmt: 3000, Balance: 0, DeliveryInfo: { DeliveryTime: '2026-05-03T09:00:00-04:00' } }, // sent Q2, paid
+    { Id: 'c', DocNumber: '1202', CustomerRef: { name: '26_012_Lee' }, TxnDate: '2026-05-05', TotalAmt: 9999, Balance: 9999 }, // recent, un-emailed, unpaid → not sent
+    { Id: 'd', DocNumber: '1150', CustomerRef: { name: '26_009_Ray' }, TxnDate: '2026-02-01', TotalAmt: 2000, Balance: 2000, DeliveryInfo: { DeliveryTime: '2026-02-01T09:00:00-05:00' } }, // Q1 — out of window
+  ];
+  it('lists invoices sent in the period, unpaid first then paid', () => {
+    const rows = listSentInvoices(book, '2026-04-01', '2026-06-30');
+    expect(rows.map((r) => r.id)).toEqual(['a', 'b']); // 'c' unsent, 'd' out of window
+    expect(rows[0]).toMatchObject({ jobId: '26_010_Smith', docNumber: '1200', sentDate: '2026-05-02', amount: 5000, balance: 5000, paid: false });
+    expect(rows[1]).toMatchObject({ jobId: '26_011_Jones', paid: true, balance: 0 });
+  });
+  it('handles an empty list', () => {
+    expect(listSentInvoices([], '2026-01-01', '2026-12-31')).toEqual([]);
   });
 });
 
@@ -383,32 +428,31 @@ describe('buildSentPnl', () => {
 describe('buildSentQuarters', () => {
   const TODAY = '2025-05-15'; // inside Q2 2025 → Q2 is the partial, current quarter
 
-  it('hides a historical quarter with no reliable send data, keeps the partial one', () => {
+  it('shows every quarter, dating pre-email-era invoices by invoice date', () => {
     const book = [
-      // Q1: three invoices, none sent → coverage 0 → hidden
+      // Q1: three un-emailed, unpaid invoices — pre-era, so sent by hand → they count
       { TotalAmt: 100, Balance: 100, TxnDate: '2025-01-10' },
       { TotalAmt: 100, Balance: 100, TxnDate: '2025-02-10' },
       { TotalAmt: 100, Balance: 100, TxnDate: '2025-03-10' },
-      // Q2: one sent invoice
+      // Q2: one emailed, paid invoice
       { TotalAmt: 5000, Balance: 0, TxnDate: '2025-04-20', DeliveryInfo: { DeliveryTime: '2025-05-01T09:00:00-04:00' } },
     ];
-    const { quarters, hidden } = buildSentQuarters(qtrReport, book, TODAY);
-    expect(hidden).toBe(1);
-    expect(quarters).toHaveLength(1);
-    expect(quarters[0]).toMatchObject({ label: 'Q2 2025', partial: true, income: 5000 });
+    const quarters = buildSentQuarters(qtrReport, book, TODAY);
+    expect(quarters.map((q) => q.label)).toEqual(['Q1 2025', 'Q2 2025']); // nothing hidden
+    expect(quarters[0]).toMatchObject({ label: 'Q1 2025', partial: false, income: 300, paid: 0 });
+    expect(quarters[1]).toMatchObject({ label: 'Q2 2025', partial: true, income: 5000, paid: 5000 });
     // net = sent income − the quarter's accrual expenses (162133.74 − 102838.05)
-    expect(quarters[0].netIncome).toBeCloseTo(5000 - 59295.69, 2);
+    expect(quarters[1].netIncome).toBeCloseTo(5000 - 59295.69, 2);
   });
 
-  it('keeps a historical quarter once send coverage clears the threshold', () => {
+  it('splits billed vs collected per quarter, re-dating emailed invoices by send date', () => {
     const book = [
-      { TotalAmt: 2000, Balance: 0,    TxnDate: '2025-01-10', DeliveryInfo: { DeliveryTime: '2025-01-12T09:00:00-05:00' } },
-      { TotalAmt: 1000, Balance: 1000, TxnDate: '2025-02-10', DeliveryInfo: { DeliveryTime: '2025-02-11T09:00:00-05:00' } },
-      { TotalAmt: 100,  Balance: 100,  TxnDate: '2025-03-10' }, // unsent (coverage 2/3)
+      { TotalAmt: 2000, Balance: 0,    TxnDate: '2025-01-10', DeliveryInfo: { DeliveryTime: '2025-01-12T09:00:00-05:00' } }, // paid
+      { TotalAmt: 1000, Balance: 1000, TxnDate: '2025-02-10', DeliveryInfo: { DeliveryTime: '2025-02-11T09:00:00-05:00' } }, // open
+      { TotalAmt: 100,  Balance: 100,  TxnDate: '2025-03-10' }, // pre-era, unpaid → still counts
     ];
-    const { quarters, hidden } = buildSentQuarters(qtrReport, book, TODAY);
-    expect(hidden).toBe(0);
+    const quarters = buildSentQuarters(qtrReport, book, TODAY);
     expect(quarters.map((q) => q.label)).toEqual(['Q1 2025', 'Q2 2025']);
-    expect(quarters[0]).toMatchObject({ partial: false, income: 3000 }); // re-dated by send date
+    expect(quarters[0]).toMatchObject({ partial: false, income: 3100, paid: 2000 }); // billed 3100, collected 2000
   });
 });

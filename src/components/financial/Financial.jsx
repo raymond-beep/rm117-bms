@@ -31,7 +31,7 @@ function presetPeriod(key) {
 // from here too, so a basis is named in exactly one place.
 const BASES = [
   {
-    key: 'sent', label: 'Sent', chartTitle: 'Billed by quarter',
+    key: 'sent', label: 'Sent', chartTitle: 'Billed vs collected by quarter',
     tag: 'Sent — billed for completed work',
     title: 'Invoices sent — billed for completed work, whether or not paid yet (how the firm tracks its books)',
   },
@@ -102,6 +102,7 @@ export default function Financial() {
   const pnl = data?.pnl;
   const quarters = Array.isArray(data?.pnlQuarters) ? data.pnlQuarters : null;
   const topInvoices = Array.isArray(data?.topInvoices) ? data.topInvoices : [];
+  const periodInvoices = Array.isArray(data?.periodInvoices) ? data.periodInvoices : null;
   const ar = data?.receivables;
 
   // Expenses shown = income − net income, so Income − Expenses = Net exactly
@@ -238,27 +239,28 @@ export default function Financial() {
                   onSelect={(q) => setPeriod({ key: `q:${q.start}`, label: q.label, start: q.start, end: q.end })}
                 />
               )}
-              {basis === 'sent' && data?.sentQuartersHidden > 0 && (
-                <div className="fin-note">
-                  <span className="ff-dot muted" />
-                  {data.sentQuartersHidden} earlier quarter{data.sentQuartersHidden === 1 ? '' : 's'} hidden —
-                  QuickBooks has no invoice send-dates before late 2025, so “sent” income can’t be
-                  measured then. Switch to <button className="fin-link" onClick={() => setBasis('accrual')}>All invoiced</button> to
-                  see those quarters.
+              {/* Sent basis: the full per-period invoice list (paid/unpaid) leads,
+                  Top expenses below. Other bases keep Top invoices + Top expenses. */}
+              {basis === 'sent' && periodInvoices ? (
+                <div className="fin-pnl-stack">
+                  <PeriodInvoices invoices={periodInvoices} periodLabel={period.label} />
+                  <AccountList title="Top expenses" accounts={pnl.expenseAccounts} large />
+                </div>
+              ) : (
+                <div className="fin-pnl-detail">
+                  <TopInvoices invoices={topInvoices} />
+                  <AccountList title="Top expenses" accounts={pnl.expenseAccounts} large />
                 </div>
               )}
-
-              {/* Top invoices (small) · Top expenses (large) */}
-              <div className="fin-pnl-detail">
-                <TopInvoices invoices={topInvoices} />
-                <AccountList title="Top expenses" accounts={pnl.expenseAccounts} large />
-              </div>
             </>
           )}
 
           {/* ── Accounts receivable (below) ───────────────────────────── */}
           <div className="fin-section-head fin-ar-head">
-            <h2>Accounts receivable</h2>
+            <div>
+              <h2>Accounts receivable</h2>
+              <div className="fin-section-sub">Every unpaid invoice across all jobs, as of today — a collections snapshot, not tied to the quarter above.</div>
+            </div>
             <div className="fin-controls">
               <div className="fin-period" role="group" aria-label="A/R sort">
                 <button className={`fin-period-btn${arSort === 'overdue' ? ' active' : ''}`} onClick={() => setArSort('overdue')}>Most overdue</button>
@@ -319,7 +321,8 @@ export default function Financial() {
                 <div className="fin-table">
                   <div className="fin-colhead">
                     <span>Job / customer</span>
-                    <span>Invoice</span>
+                    <span>Phase / service</span>
+                    <span>Invoice #</span>
                     <span>Due</span>
                     <span className="r">Age</span>
                     <span className="r">Open balance</span>
@@ -327,6 +330,7 @@ export default function Financial() {
                   {sortedInvoices.map((inv) => (
                     <div key={inv.id || `${inv.docNumber}-${inv.dueDate}`} className="fin-row">
                       <span className="fin-job">{inv.jobId}</span>
+                      <span className="fin-phase">{inv.description || '—'}</span>
                       <span className="fin-doc">{inv.docNumber ? `#${inv.docNumber}` : '—'}</span>
                       <span className="fin-due">{fmtDateOnly(inv.dueDate)}</span>
                       <span className="r">
@@ -358,29 +362,56 @@ function StatCell({ label, value, hint, warn = false }) {
   );
 }
 
-// Revenue-per-quarter bars (billed / received / invoiced — no expenses mixed in, so
-// always ≥ 0). Click a quarter to load its P&L into the section above. Heights scale
-// to the biggest quarter in the window; the tooltip still carries expenses + net.
+// Revenue-per-quarter bars. On the "Sent" basis each quarter draws TWO bars —
+// billed (invoices sent that quarter) vs collected (how much of it has been paid) —
+// so you can read the collection rate at a glance; other bases keep a single bar.
+// Heights scale to the biggest billed quarter; click a quarter to load its P&L.
+const MAX_BAR = 72; // px — tallest bar within the 96px chart area
 function QuarterChart({ quarters, selected, onSelect, title }) {
+  const grouped = quarters.some((q) => q.paid != null); // sent basis carries paid
   const max = Math.max(1, ...quarters.map((q) => q.income));
   return (
     <div className="card fin-qcard">
-      <div className="card-head"><h3>{title}</h3><span className="head-meta">CLICK TO OPEN</span></div>
+      <div className="card-head">
+        <h3>{title}</h3>
+        {grouped ? (
+          <span className="fin-q-legend">
+            <span className="fin-q-key billed">Billed</span>
+            <span className="fin-q-key collected">Collected</span>
+          </span>
+        ) : (
+          <span className="head-meta">CLICK TO OPEN</span>
+        )}
+      </div>
       <div className="card-body">
         <div className="fin-quarters">
           {quarters.map((q) => {
             const active = selected.start === q.start && selected.end === q.end;
-            const h = Math.round((q.income / max) * 56);
+            const hBilled = q.income > 0 ? Math.max(2, Math.round((q.income / max) * MAX_BAR)) : 0;
+            const hPaid = grouped ? Math.round((Math.max(0, q.paid) / max) * MAX_BAR) : 0;
+            const pct = grouped && q.income > 0 ? Math.round((q.paid / q.income) * 100) : null;
+            const tip = grouped
+              ? `${q.label}: billed ${money(q.income)}, collected ${money(q.paid)}${pct != null ? ` (${pct}%)` : ''}`
+              : `${q.label}: billed ${money(q.income)}, expenses ${money(q.income - q.netIncome)}, net ${money(q.netIncome)}`;
             return (
               <button
                 key={q.start}
                 className={`fin-q${active ? ' active' : ''}`}
                 onClick={() => onSelect(q)}
-                title={`${q.label}: billed ${money(q.income)}, expenses ${money(q.income - q.netIncome)}, net ${money(q.netIncome)}`}
+                title={tip}
               >
                 <div className="fin-q-net">{money(q.income)}</div>
                 <div className="fin-q-chart">
-                  <div className="fin-q-pos">{q.income > 0 && <span className="fin-q-bar pos" style={{ height: `${h}px` }} />}</div>
+                  <div className="fin-q-pos">
+                    {grouped ? (
+                      <div className="fin-q-bars">
+                        <span className="fin-q-bar billed" style={{ height: `${hBilled}px` }} />
+                        <span className="fin-q-bar collected" style={{ height: `${hPaid}px` }} />
+                      </div>
+                    ) : (
+                      q.income > 0 && <span className="fin-q-bar pos" style={{ height: `${hBilled}px` }} />
+                    )}
+                  </div>
                   <div className="fin-q-base" />
                 </div>
                 <div className="fin-q-label">{q.label}{q.partial ? <><br /><small>so far</small></> : ''}</div>
@@ -411,6 +442,68 @@ function TopInvoices({ invoices }) {
               <span className="fin-acct-amt">{money(inv.amount)}</span>
             </div>
           ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Every invoice sent in the selected period, split Unpaid (open balance) then Paid,
+// so you can reconcile the quarter's billed/collected bars against real invoices.
+// Each row: Job ID · invoice # · sent date · billed amount · open balance (or "paid").
+function PeriodInvoices({ invoices, periodLabel }) {
+  const unpaid = invoices.filter((i) => !i.paid);
+  const paid = invoices.filter((i) => i.paid);
+  const openTotal = unpaid.reduce((s, i) => s + i.balance, 0);
+  const paidBilled = paid.reduce((s, i) => s + i.amount, 0);
+  const Row = (inv) => (
+    <div key={inv.id || `${inv.docNumber}-${inv.sentDate}`} className="fin-row">
+      <span className="fin-job">{inv.jobId}</span>
+      <span className="fin-phase">{inv.description || '—'}</span>
+      <span className="fin-doc">{inv.docNumber ? `#${inv.docNumber}` : '—'}</span>
+      <span className="fin-due">{fmtDateOnly(inv.sentDate)}</span>
+      <span className="r fin-amt">{money(inv.amount)}</span>
+      <span className="r">
+        {inv.paid
+          ? <span className="fin-paid-inline">paid</span>
+          : <span className="fin-amt warn">{money(inv.balance)}</span>}
+      </span>
+    </div>
+  );
+  return (
+    <div className="card fin-inv-card">
+      <div className="card-head">
+        <h3>Invoices sent · {periodLabel}</h3>
+        <span className="head-meta">{invoices.length} invoice{invoices.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="card-body">
+        {invoices.length === 0 ? (
+          <div className="empty">No invoices sent in this period.</div>
+        ) : (
+          <div className="fin-table fin-inv-table">
+            <div className="fin-colhead">
+              <span>Job / customer</span>
+              <span>Phase / service</span>
+              <span>Invoice #</span>
+              <span>Sent</span>
+              <span className="r">Billed</span>
+              <span className="r">Open balance</span>
+            </div>
+            {unpaid.length > 0 && (
+              <div className="fin-inv-group warn">
+                <span>Unpaid · {unpaid.length}</span>
+                <span className="fin-inv-group-amt">{money(openTotal)} open</span>
+              </div>
+            )}
+            {unpaid.map(Row)}
+            {paid.length > 0 && (
+              <div className="fin-inv-group ok">
+                <span>Paid · {paid.length}</span>
+                <span className="fin-inv-group-amt">{money(paidBilled)} collected</span>
+              </div>
+            )}
+            {paid.map(Row)}
+          </div>
         )}
       </div>
     </div>
