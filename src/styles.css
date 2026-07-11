@@ -339,6 +339,12 @@ input, select, textarea { font: inherit; }
 .myweek-dayname { font-weight: 600; font-size: 12px; color: var(--ink); }
 .myweek-daydate { font-size: 11px; color: var(--ink3); }
 .myweek-strip { position: relative; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+/* When the shared "Everyone" lane and the personal row stack, separate them. */
+.myweek-lane + .myweek-lane { margin-top: 8px; }
+/* Shared "Everyone" lane — captioned + accent-bordered so it reads as firm-wide, not a
+   person's row (mirrors the tinted Everyone lane in the full planner). */
+.myweek-lanelabel { font-family: var(--ui); font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: 3px; }
+.myweek-lane-studio .myweek-strip { border-color: var(--accent); }
 /* The notes layer (in flow) defines the strip height so it grows to fit long notes; the
    ink canvas absolutely fills whatever height that is (ink is normalized, so it rescales). */
 .myweek-canvaswrap { position: absolute; inset: 0; }

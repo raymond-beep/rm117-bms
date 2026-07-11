@@ -1,7 +1,9 @@
 // Dashboard "My week" widget — each person's own Weekly-Planner row for the current
 // week, read-only, at a glance (Angelena's ask: "each row is a person — can they see
-// their schedule on the dashboard?"). Reuses the planner's ink renderer + week helpers
-// so it looks identical to the real board. Editing still lives in the full planner
+// their schedule on the dashboard?"). Also surfaces the shared "Everyone" lane so a
+// firm-wide item (a studio measure-up, an all-hands) reaches every dashboard without
+// anyone opening the planner tab. Reuses the planner's ink renderer + week helpers so
+// it looks identical to the real board. Editing still lives in the full planner
 // (/delegation); the "Open planner" link goes there.
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
@@ -13,8 +15,11 @@ import {
 
 const MINI_H = 128;          // canvas height for the glance (planner is 150 at 100% zoom)
 const REFRESH_MS = 30000;    // the planner polls at 4s; a dashboard glance can be lazier
+// Shared "Everyone" lane sentinel — keep in sync with STUDIO_ROW in Delegation.jsx and
+// api/delegation.js. Admin-write there; here it's read-only like the rest of the widget.
+const STUDIO_ROW = '__studio__';
 
-// Read-only mini canvas: paper + day dividers + this person's strokes, DPR-aware and
+// Read-only mini canvas: paper + day dividers + a row's strokes, DPR-aware and
 // responsive to the card width. No pointer handlers — the full planner owns editing.
 function MiniInk({ strokes }) {
   const wrapRef = useRef(null);
@@ -54,6 +59,27 @@ function MiniInk({ strokes }) {
   );
 }
 
+// One row's strip: the ink canvas + typed-notes overlay, matching the planner. `label`
+// badges the shared lane; `emptyText` shows only when the row has no content at all.
+function Strip({ strokes, notes, label, variant, emptyText }) {
+  const noteByDay = new Map(notes.map((n) => [n.day_index, n.text]));
+  const hasContent = strokes.length > 0 || notes.some((n) => (n.text || '').trim());
+  return (
+    <div className={`myweek-lane${variant ? ` myweek-lane-${variant}` : ''}`}>
+      {label && <div className="myweek-lanelabel">{label}</div>}
+      <div className="myweek-strip">
+        <MiniInk strokes={strokes} />
+        <div className="myweek-notes" style={{ minHeight: MINI_H }}>
+          {DAYS.map((_, d) => (
+            <div key={d} className="myweek-notecell">{noteByDay.get(d) || ''}</div>
+          ))}
+        </div>
+        {emptyText && !hasContent && <div className="myweek-empty">{emptyText}</div>}
+      </div>
+    </div>
+  );
+}
+
 export default function MyWeekWidget() {
   const { user } = useUser();
   const myEmail = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
@@ -62,7 +88,10 @@ export default function MyWeekWidget() {
   const thisWeekKey = isoDate(mondayOf(new Date()));
   const [weekKey, setWeekKey] = useState(thisWeekKey);
   const isThisWeek = weekKey === thisWeekKey;
-  const [state, setState] = useState({ status: 'loading', strokes: [], notes: [], onRoster: false });
+  const [state, setState] = useState({
+    status: 'loading', onRoster: false,
+    myStrokes: [], myNotes: [], studioStrokes: [], studioNotes: [],
+  });
 
   useEffect(() => {
     if (!myEmail) return undefined;
@@ -75,11 +104,15 @@ export default function MyWeekWidget() {
         if (!alive) return;
         if (!r.ok) throw new Error(data.error || 'Failed to load');
         const onRoster = (data.members || []).some((m) => m.clerk_email === myEmail);
+        const strokes = data.strokes || [];
+        const notes = data.notes || [];
         setState({
           status: 'ready',
           onRoster,
-          strokes: (data.strokes || []).filter((s) => s.row_owner_email === myEmail),
-          notes: (data.notes || []).filter((n) => n.row_owner_email === myEmail),
+          myStrokes: strokes.filter((s) => s.row_owner_email === myEmail),
+          myNotes: notes.filter((n) => n.row_owner_email === myEmail),
+          studioStrokes: strokes.filter((s) => s.row_owner_email === STUDIO_ROW),
+          studioNotes: notes.filter((n) => n.row_owner_email === STUDIO_ROW),
         });
       } catch {
         if (alive) setState((s) => ({ ...s, status: 'error' }));
@@ -91,8 +124,11 @@ export default function MyWeekWidget() {
   }, [myEmail, weekKey]);
 
   const dayDates = DAYS.map((_, i) => addDays(parseISO(weekKey), i).getDate());
-  const noteByDay = new Map(state.notes.map((n) => [n.day_index, n.text]));
-  const hasContent = state.strokes.length > 0 || state.notes.some((n) => (n.text || '').trim());
+  const studioHasContent = state.studioStrokes.length > 0
+    || state.studioNotes.some((n) => (n.text || '').trim());
+  // The board is worth showing if the person has a row OR there's a firm-wide item to
+  // relay. Only when neither is true do we fall back to the not-on-roster hint.
+  const showBoard = state.status === 'ready' && (state.onRoster || studioHasContent);
 
   return (
     <div className="card myweek">
@@ -111,11 +147,11 @@ export default function MyWeekWidget() {
 
       {state.status === 'loading' && <div className="placeholder-note">Loading your week…</div>}
       {state.status === 'error' && <div className="placeholder-note">Couldn’t load your planner right now.</div>}
-      {state.status === 'ready' && !state.onRoster && (
+      {state.status === 'ready' && !showBoard && (
         <div className="placeholder-note">You’re not on the Weekly Planner yet.</div>
       )}
 
-      {state.status === 'ready' && state.onRoster && (
+      {showBoard && (
         <div className="myweek-board">
           <div className="myweek-days">
             {DAYS.map((d, i) => (
@@ -125,17 +161,21 @@ export default function MyWeekWidget() {
               </div>
             ))}
           </div>
-          <div className="myweek-strip">
-            <MiniInk strokes={state.strokes} />
-            <div className="myweek-notes" style={{ minHeight: MINI_H }}>
-              {DAYS.map((_, d) => (
-                <div key={d} className="myweek-notecell">{noteByDay.get(d) || ''}</div>
-              ))}
-            </div>
-            {!hasContent && (
-              <div className="myweek-empty">Nothing on your planner this week yet.</div>
-            )}
-          </div>
+          {studioHasContent && (
+            <Strip
+              strokes={state.studioStrokes}
+              notes={state.studioNotes}
+              label="Everyone"
+              variant="studio"
+            />
+          )}
+          {state.onRoster && (
+            <Strip
+              strokes={state.myStrokes}
+              notes={state.myNotes}
+              emptyText="Nothing on your planner this week yet."
+            />
+          )}
         </div>
       )}
     </div>
