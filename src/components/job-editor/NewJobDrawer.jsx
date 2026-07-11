@@ -4,7 +4,8 @@
 // "enter manually" escape hatch covers legacy/odd ids.
 import React, { useEffect, useMemo, useState } from 'react';
 import { PHASE_ORDER, PHASE_LABELS } from '../../lib/format.js';
-import { currentYY, pad3, nextJobNumber, buildJobId, validateJobId } from '../../lib/job-id.js';
+import { currentYY, pad3, nextJobNumberAcross, buildJobId, validateJobId } from '../../lib/job-id.js';
+import { apiFetch } from '../../lib/api.js';
 
 export default function NewJobDrawer({ onClose, onCreate, jobs = [] }) {
   const existingIds = useMemo(() => new Set(jobs.map((j) => j.job_id)), [jobs]);
@@ -12,9 +13,32 @@ export default function NewJobDrawer({ onClose, onCreate, jobs = [] }) {
   // Job ID builder parts.
   const [yy, setYy] = useState(currentYY());
   const [name, setName] = useState('');
-  const suggested = useMemo(() => pad3(nextJobNumber(jobs, yy)), [jobs, yy]);
+
+  // Numbers already used in Google Drive for this year — so the suggestion reflects
+  // jobs filed in Drive but not yet added to the app (the firm keeps adding to both
+  // until the app fully takes over). Refetched when the year changes; on failure or
+  // no-Drive we silently fall back to the app-DB-only suggestion.
+  const [drive, setDrive] = useState({ numbers: [], loading: true, ok: false });
+  useEffect(() => {
+    if (!/^\d{2}$/.test(yy)) { setDrive({ numbers: [], loading: false, ok: false }); return undefined; }
+    let alive = true;
+    setDrive((d) => ({ ...d, loading: true }));
+    apiFetch(`/api/jobs/next-number?yy=${yy}`)
+      .then((r) => r.json())
+      .then((data) => { if (alive) setDrive({ numbers: data.driveNumbers || [], loading: false, ok: data.source === 'drive' }); })
+      .catch(() => { if (alive) setDrive({ numbers: [], loading: false, ok: false }); });
+    return () => { alive = false; };
+  }, [yy]);
+
+  const suggested = useMemo(
+    () => pad3(nextJobNumberAcross(jobs, yy, drive.numbers)),
+    [jobs, yy, drive.numbers],
+  );
   const [nnn, setNnn] = useState(suggested);
   const [nnnEdited, setNnnEdited] = useState(false);
+  // Soft advisory: the entered number already exists as a Drive folder for this year
+  // (creating it would collide with an existing job filed in Drive).
+  const numTakenInDrive = /^\d{3}$/.test(nnn) && drive.numbers.includes(parseInt(nnn, 10));
   // Keep the number on the suggestion until the user edits it (and re-suggest
   // when the year changes).
   useEffect(() => {
@@ -120,7 +144,13 @@ export default function NewJobDrawer({ onClose, onCreate, jobs = [] }) {
                     {suggested}
                   </button>
                   {nnnEdited && nnn !== suggested && <span className="jobid-edited"> · using {nnn}</span>}
+                  <span className="jobid-source">
+                    {drive.loading ? ' · checking Drive…' : drive.ok ? ' · app + Drive' : ' · app only (Drive unavailable)'}
+                  </span>
                 </div>
+                {numTakenInDrive && (
+                  <div className="jobid-warn">⚠ {yy}_{nnn} already exists in Drive — pick another number.</div>
+                )}
               </>
             ) : (
               <input

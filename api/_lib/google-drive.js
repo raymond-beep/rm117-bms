@@ -123,6 +123,46 @@ async function resolveSharedDriveId() {
   return (_sharedDriveId = drives[0].id);
 }
 
+// The job numbers (NNN) already present in the Shared Drive for a 2-digit year —
+// so the New Job builder can recommend the truly-next number even when a job was
+// filed in Drive but not yet added to the app (the firm keeps adding jobs to both
+// until the app fully takes over). Project folders are named by Job ID (YY_NNN_…,
+// sometimes with an address suffix) and live either at the drive root or inside a
+// "YYYY Jobs" archive, so we search drive-wide by the year token and keep only the
+// folders whose name truly starts with YY_NNN (the anchored regex excludes false
+// hits like an address "260 Elm" or another year). Read-only. Returns
+// { numbers, max, source } — numbers ascending+unique; source 'drive' | 'no-drive'.
+export async function listJobNumbersForYear(yy) {
+  const y = String(yy).padStart(2, '0');
+  if (!hasDrive()) return { numbers: [], max: 0, source: 'no-drive' };
+  const driveId = await resolveSharedDriveId();
+  if (!driveId) return { numbers: [], max: 0, source: 'no-drive' };
+  const re = new RegExp(`^${y}_(\\d{3})`);
+  const seen = new Set();
+  let pageToken;
+  do {
+    const { data } = await drive().files.list({
+      // `contains` on name is a word-prefix match, so the 2-digit year token catches
+      // every "YY_…" folder; the anchored regex below is the real filter.
+      q: `mimeType = 'application/vnd.google-apps.folder' and trashed = false and name contains '${y}'`,
+      fields: 'nextPageToken, files(name)',
+      corpora: 'drive',
+      driveId,
+      pageSize: 1000,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      pageToken,
+    });
+    for (const f of data.files || []) {
+      const m = f.name.match(re);
+      if (m) seen.add(parseInt(m[1], 10));
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  const numbers = [...seen].sort((a, b) => a - b);
+  return { numbers, max: numbers.length ? numbers[numbers.length - 1] : 0, source: 'drive' };
+}
+
 // Find the project folder for a job. Folders are named by Job ID (sometimes with
 // an address suffix), and live at the Shared Drive root or one level inside a
 // "YYYY Jobs" archive. A targeted `name contains 'YY_NNN'` search keeps this cheap

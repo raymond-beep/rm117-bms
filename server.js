@@ -14,6 +14,7 @@ const routes = {
   '/api/health': () => import('./api/health.js'),
   '/api/jobs': () => import('./api/jobs.js'),
   '/api/jobs/create': () => import('./api/jobs/create.js'),
+  '/api/jobs/next-number': () => import('./api/jobs/next-number.js'),
   '/api/jobs/update': () => import('./api/jobs/update.js'),
   '/api/jobs/rename': () => import('./api/jobs/rename.js'),
   '/api/jobs/proposal-docs': () => import('./api/jobs/proposal-docs.js'),

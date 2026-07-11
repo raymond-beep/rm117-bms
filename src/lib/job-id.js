@@ -36,6 +36,22 @@ export function nextJobNumber(jobs, yy) {
   return max + 1;
 }
 
+// Next free job number considering BOTH the app's jobs and the numbers already used
+// in Google Drive for that year — max(dbMax, driveMax) + 1. Until the app fully takes
+// over, jobs are filed in Drive too, so the DB alone can lag behind and suggest a
+// number that's already taken in Drive. `driveNumbers` is the NNN list from
+// /api/jobs/next-number (may be empty when Drive is unconfigured/unreachable →
+// falls back to the DB-only suggestion).
+export function nextJobNumberAcross(jobs, yy, driveNumbers = []) {
+  const fromDb = nextJobNumber(jobs, yy); // already dbMax + 1
+  let driveMax = 0;
+  for (const n of driveNumbers || []) {
+    const v = Number(n);
+    if (Number.isFinite(v)) driveMax = Math.max(driveMax, v);
+  }
+  return Math.max(fromDb, driveMax + 1);
+}
+
 // Assemble a Job ID from the builder parts. Spaces in the name become
 // underscores (the format disallows spaces; e.g. "Malanga Subdivide" →
 // "Malanga_Subdivide"). Returns '' if any required part is missing.

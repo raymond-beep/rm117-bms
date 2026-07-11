@@ -2,7 +2,7 @@
 // (the QuickBooks Customer Display Name invariant) before a job is created.
 import { describe, it, expect } from 'vitest';
 import {
-  currentYY, pad3, nextJobNumber, buildJobId, validateJobId, JOB_ID_RE,
+  currentYY, pad3, nextJobNumber, nextJobNumberAcross, buildJobId, validateJobId, JOB_ID_RE,
 } from '../src/lib/job-id.js';
 
 describe('currentYY', () => {
@@ -39,6 +39,24 @@ describe('nextJobNumber', () => {
   });
   it('accepts plain id strings too', () => {
     expect(nextJobNumber(['26_005_A', '26_009_B'], '26')).toBe(10);
+  });
+});
+
+describe('nextJobNumberAcross (app DB + Drive)', () => {
+  const jobs = [{ job_id: '26_011_Kuhn' }, { job_id: '26_042_Gonzalez' }];
+  it('uses Drive when it is ahead of the app DB', () => {
+    // A job filed in Drive (045) but not yet added to the app → recommend 046, not 043.
+    expect(nextJobNumberAcross(jobs, '26', [11, 42, 45])).toBe(46);
+  });
+  it('uses the app DB when it is ahead of Drive', () => {
+    expect(nextJobNumberAcross(jobs, '26', [11, 40])).toBe(43);
+  });
+  it('falls back to the DB-only suggestion when Drive is empty/unavailable', () => {
+    expect(nextJobNumberAcross(jobs, '26', [])).toBe(43);
+    expect(nextJobNumberAcross(jobs, '26')).toBe(43);
+  });
+  it('ignores Drive numbers from other years (caller passes only this year)', () => {
+    expect(nextJobNumberAcross([], '27', [])).toBe(1);
   });
 });
 
