@@ -25,19 +25,42 @@ export function getDb() {
 // e.g. "26_011_Kuhn_352 Amherst"), but not lead or trail with whitespace.
 export const JOB_ID_RE = /^\d{2}_\d{3}_(FF_)?\S(.*\S)?$/;
 
-// Single phase field, Ang's vocabulary (see SCHEMA.md). Must stay in sync with the
-// jobs.phase / field_notes.phase CHECK constraints (migration 0008) and the frontend
-// PHASE_* lists in src/lib/format.js. 'canceled' = a job terminated early, kept as a record.
+// Single phase field, Ang's vocabulary (see SCHEMA.md + PHASE_MODEL.md). Must stay in
+// sync with the jobs.phase / field_notes.phase CHECK constraints (migration 0011) and
+// the frontend PHASE_* lists in src/lib/format.js.
+//   job_dropped = a proposal was rejected; the job never started.
+//   canceled    = a SIGNED job terminated early (kept as a record — retainer earned).
+//   on_hold     = paused, will resume.
 export const PHASES = [
+  'lead',
   'potential',
   'survey_zoning',
   'design_phase',
-  'cd_phase',
-  'active',
+  'cd_prep',
+  'cd_outgoing',
+  'permitting',
+  'construction',
   'on_hold',
   'completed',
+  'job_dropped',
   'canceled',
 ];
+
+// CD is split into two REAL phases (cd_prep / cd_outgoing) — Angelena works the CD stage
+// as two distinct piles, so they're board sections she drags between, not a chip on a
+// card. Design keeps sub-phases because DPI/II/III vary per job (the proposal sets how
+// many), which doesn't map to a fixed set of board sections.
+//
+// A job's sub_phase must belong to its phase (or be null). Clients never see sub-phases.
+export const SUB_PHASES = {
+  design_phase: ['dp1', 'dp2', 'dp3'],
+};
+
+// Validate a (phase, sub_phase) pair. Null/empty sub_phase is always allowed.
+export function isValidSubPhase(phase, subPhase) {
+  if (!subPhase) return true;
+  return (SUB_PHASES[phase] || []).includes(subPhase);
+}
 
 // outstanding is computed, never stored: job_total - sum(payments.amount).
 export function computeOutstanding(job, payments) {

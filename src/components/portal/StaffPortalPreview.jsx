@@ -52,6 +52,10 @@ export default function StaffPortalPreview() {
           <h1 className="greeting">Portal preview</h1>
         </div>
       </div>
+      <div className="cp-preview-banner">
+        <strong>Preview only.</strong> The client portal isn’t live to clients yet — nobody outside the
+        firm can sign in. This shows what a client <em>would</em> see once it is.
+      </div>
       <div className="card" style={{ padding: 16, marginBottom: 18 }}>
         <div className="cp-pick-row">
           <label htmlFor="cp-pick">See the portal as a client:</label>

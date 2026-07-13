@@ -3,20 +3,28 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { money, fmtDateOnly } from '../../lib/format.js';
+import { money, fmtDateOnly, addressLine, subPhaseLabel, isStalled, daysInPhase, PHASE_AGE_LIMITS } from '../../lib/format.js';
 
 // Presentational card contents — shared by the in-list card and the drag overlay.
 export function JobCardBody({ job, todayStr }) {
+  const sub = subPhaseLabel(job);            // Prep / Outgoing / DPI… — internal only
+  const stalled = isStalled(job);            // overstayed its phase (Ang's 14/21-day rules)
   return (
     <>
       <div className="job-card-left">
         <div className="job-card-id">
           {job.job_id}
+          {sub && <span className="badge badge-sub">{sub}</span>}
           {job.is_forefront && <span className="badge badge-ff">FF</span>}
           {job.bill_flag && <span className="badge badge-bill">BILL</span>}
         </div>
         <div className="job-card-client">{job.client_name || <span className="muted">—</span>}</div>
-        {job.address && <div className="job-card-sub">{job.address}</div>}
+        {job.address && <div className="job-card-sub">{addressLine(job.address)}</div>}
+        {stalled && (
+          <div className="job-card-stalled">
+            ⚠ {daysInPhase(job)} days in this phase (limit {PHASE_AGE_LIMITS[job.phase]})
+          </div>
+        )}
         {job.next_milestone_date && (
           <div className={`job-card-milestone${String(job.next_milestone_date).slice(0, 10) < todayStr ? ' overdue' : ''}`}>
             ◆ {job.next_milestone_label || 'Next'} · {fmtDateOnly(job.next_milestone_date)}

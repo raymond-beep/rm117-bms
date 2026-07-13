@@ -106,6 +106,35 @@ bug) · 📈 business signal (surfaced correctly; act on it). Effort: _S/M/L_.
 
 ## A) App fixes (in our control)
 
+> **✅ Cleared 2026-07-13 (all the S-effort items).** `UX2-01`, `UX2-02`, `UX2-03`, `UX2-04`, `UX2-06`,
+> `UX2-18` fixed; `UX2-05` verified as intentional (no change). **`UX2-17` (dead global search) is the one
+> app fix still open** — it's the M-effort build, deliberately left for its own pass. Two findings were
+> **misdiagnosed in the original sweep** — corrected below.
+>
+> - **UX2-01** — proposal picker now lists **PDFs only** and floats a signed/executed contract to the top.
+>   New pure helper `api/_lib/drive-docs.js` (`isPdf`/`pdfsOnly`/`rankProposals`), unit-tested.
+> - **UX2-02 — ⚠️ the original diagnosis was wrong.** It is **not** an inconsistent street+city join. Addresses
+>   are stored as real mailing blocks (`1 Knapp Ave\nFlorham Park, NJ 07932`) — **111 of 117 jobs carry a
+>   newline** (verified against prod). A `<div>` collapses that newline to a space (list looks fine); a
+>   single-line `<input>` **drops it entirely** → `204 Robinhood RoadMountainside` in the editor. The data is
+>   correct, so **no migration** (the multi-line form is what a letterhead wants). Fix = one shared
+>   `addressLine()` formatter in `src/lib/format.js`, used by both the BMS list and the JobEditor.
+> - **UX2-03** — Client Portal tab now leads with a "Preview only — not live to clients" banner
+>   (`.cp-preview-banner`).
+> - **UX2-04** — the manual **Log a payment** form is boxed (`.pay-manual`) so the sticky footer button
+>   visibly belongs to it, not to the QuickBooks panel above.
+> - **UX2-05** — **verified, no change.** Ray confirmed `tom@rm117.com` is the intended letterhead contact
+>   (Tom Dores is the RA who signs the documents).
+> - **UX2-06** — a phase the job moved past but never dated is now a distinct **`passed`** state (outlined
+>   green dot) instead of `done` (filled). Filled now means "we have a date," which is what green implied.
+> - **UX2-18** — (a) `CLAUDE.md` now documents **stored key → UI label** (`potential` → "Proposal Sent",
+>   `active` → "Outgoing") so the intentional mismatch isn't "fixed" later. (b) Checkset list is **PDFs only**
+>   (same `drive-docs` helper). **Known limit:** the `05.26.26 Zoom Meeting.pdf` example *is* a PDF, so it
+>   still shows — deliberately **not** hidden by a filename heuristic, because a false negative would hide a
+>   real drawing set, which is far worse than showing one stray file.
+>
+> Tests **148 green** (+13: `tests/drive-docs.test.js`, `tests/format.test.js`), clean build.
+
 | ID | Sev | Location | Finding | Suggested fix | Effort |
 |----|-----|----------|---------|---------------|--------|
 | **UX2-01** | 🔴 | JobEditor → Payments → "Signed Proposal" | Lists **every** file in the Drive "Proposal" folder — including `plot.log` (372 B), `.docx`, and `CONSTRUCTION ESTIMATE_….xlsx`. Presenting a `plot.log` as "the contract on file / your source for the fee schedule" is confusing/noisy. | Filter the list to the actual contract — PDFs only, or rank the signed proposal first and collapse the rest. | S |

@@ -15,6 +15,7 @@ import {
   getFileMeta,
   streamFileTo,
 } from '../_lib/google-drive.js';
+import { pdfsOnly } from '../_lib/drive-docs.js';
 
 // A job's Checksets-folder id essentially never changes, but resolving it costs
 // 2–3 serial Drive calls — memoize per warm instance. Only found folders are
@@ -107,7 +108,8 @@ export default async function handler(req, res) {
   return res.status(200).json({
     configured: true,
     folder: folderId,
-    files: files.map((f) => ({
+    // PDFs only — a drawing set is always a PDF, and only a PDF can be analyzed.
+    files: pdfsOnly(files).map((f) => ({
       id: f.id,
       name: f.name,
       mimeType: f.mimeType,

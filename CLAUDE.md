@@ -20,9 +20,16 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 - **Data (seed/fallback):** Google Sheets API, service account **Viewer-only**, through Phase 3
   (read for the import; never written by the app)
 - **Files:** Google Drive (per-job *Files Sent* / *Files Received*); backend brokers all access
-- **Auth:** Clerk (staff today; `client` role in Phase 7). **Clients authenticate by email
-  (magic link / email code) — never "Sign in with Google."** Client auth is entirely separate
-  from the Google OAuth app, so the portal does **not** touch the Google "test users" (100) cap.
+- **Auth:** **two separate systems, on purpose.**
+  - **Staff → Clerk** (Google sign-in, `@rm117.com`). Clerk is a **Development** instance; there is
+    no production instance and none is needed.
+  - **Clients → magic link, no Clerk account at all** (2026-07-13). A client clicks a signed,
+    expiring, revocable link in an email; `/api/portal/enter` exchanges the token for an HttpOnly
+    session cookie. See `api/_lib/portal-session.js` (the crypto) and `portal_links` (the table).
+    Rationale: a homeowner won't keep a password and a developer won't tolerate one, but both will
+    click a link — and the notification email is the portal's front door anyway. This also keeps a
+    Clerk production instance + client-facing DNS off the critical path entirely.
+  - Clients never touch the Google OAuth app, so the portal can't consume the Google 100-test-user cap.
 - **Email:** Resend (portal notifications + inbound reply bridge; Postmark fallback)
 - **E-sign / invoicing:** DocuSign (proposals); QuickBooks Online API (outbound invoices)
 - **Documents:** client-side PDF generation with **`pdf-lib`** (building-dept letters + proposals) — see
@@ -39,7 +46,7 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 ## Key files
 | File | Purpose |
 |------|---------|
-| `src/rm117-app-shell-v1.jsx` | App shell: sidebar, dashboard, calendar, inbox, BMS at `/bms`. Mobile bottom tab bar = `MOBILE_TABS` (Home · Jobs · **Financial** · Portal — Forefront is desktop-sidebar-only) |
+| `src/rm117-app-shell-v1.jsx` | App shell: sidebar, dashboard, calendar, inbox, the job board at `/bms`. **Sidebar label is "Project Management"** (renamed from "BMS" 2026-07-13) — the **route stays `/bms`** so links/bookmarks don't break, same as the Drawing QA → Checksets rename. Mobile bottom tab bar = `MOBILE_TABS` (Home · Jobs · **Financial** · Portal — Forefront is desktop-sidebar-only) |
 | `src/rm117-dashboard-v1.jsx` | BMS job dashboard — data layer being swapped Sheet→Supabase (Phase 3) |
 | `api/jobs.js` | GET /api/jobs — reads jobs from Supabase, joins each job's `client` record |
 | `api/jobs/update.js` | POST — `saveJob()` writes job edits; stamps a `job_phase_events` row on phase change |
@@ -73,6 +80,11 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `src/lib/doc-format.js` / `src/lib/doc-assets.js` | Pure formatters (`longDateOnly`, `dollarsToWords`, `wrapText`, `parseBodyBlocks`, …) / logo-trim + image→JPEG helpers |
 | **Drawing QA** (`/drawing-qa`) | Checkset QA/QC — the standalone "Checksets" app merged into the BMS. UI `src/components/drawing-qa/*`, API `api/checksets/*` + `api/jobs/checkset-files.js`, libs `api/_lib/checksets/*` (incl. canonical **CHECKS.md**). Full detail in the "Drawing QA" section below + `DRAWING_QA.md` |
 | **Weekly Planner** (`/delegation`) | Sidebar label "Weekly Planner"; route stays `/delegation`. Digital weekly delegation sheet (replaces Ang's paper grid): Mon–Fri × employee ink grid, one board per week (Monday-keyed). Native Pointer-Events → HTML5 canvas ink (**no tldraw**); strokes stored as normalized-0..1 point arrays. **Plus typed per-cell notes** via a `✏ Pen \| ⌨ Type` toggle (one note per employee×weekday). UI `src/components/delegation/Delegation.jsx`; API `api/delegation.js` (GET/POST/DELETE, staff-gated); tables `delegation_members` + `delegation_strokes` + `delegation_notes`. **Row-level write perms enforced server-side** (own row, or admin=Ang) via `canWrite()`/`canDelete()` (unit-tested `tests/delegation-perms.test.js`) — not RLS. Live sync = 4s polling (no Supabase Realtime). Each row is a light "paper" canvas so ink reads in dark mode. Roster (`delegation_members`, live DB is source of truth): Tom·Ray·Nicole·Ang·Dani. **Shared "Everyone" lane** pinned at the top (reserved `row_owner_email = '__studio__'` sentinel, admin-write only) for firm-wide items (e.g. a measure-up) written once instead of into every row — see SCHEMA.md. **⭐ The `__studio__` sentinel lives in 3 files that must stay in sync: `Delegation.jsx`, `api/delegation.js`, and `src/components/dashboard/MyWeekWidget.jsx`.** The dashboard **"My week" widget** (`MyWeekWidget.jsx`, on Home) surfaces both the signed-in user's own row **and** the shared Everyone lane so a firm-wide item reaches every dashboard without opening the planner. Phase 2 (not built) = faint BMS job-reference chips per row |
+| `api/_lib/portal-session.js` | **Client magic-link auth** (pure crypto, unit-tested): mint/hash link tokens, sign/verify the session cookie, cookie plumbing. Tokens are stored **hashed** (`portal_links.token_hash`) so the DB never holds a working credential; the session cookie is HMAC-signed and HttpOnly |
+| `api/_lib/portal-auth.js` | The one place portal authorization lives. **Two identity paths, cookie first:** magic-link session → `clients` row; else Clerk → staff (or a legacy Clerk-linked client). `getClientJob` scopes every job read by `client_id` |
+| `api/portal/[action].js` | All portal routes. Client-facing: `me`/`files`/`download`/`messages`/`send`. **Public:** `enter` (the magic-link landing — it *is* the login; redirects so the token leaves the URL) + `signout`. **Staff-only:** `invite` (mint a link), `links` (list), `revoke`. `buildPortalJobs` builds the payload incl. the per-job billing summary |
+| `src/components/shell/portal-gate.jsx` | Resolves the magic-link cookie **above** the Clerk gates in the shell — without it a client would land on the staff Google sign-in screen. Staff have no portal cookie, so they skip the probe entirely |
+| `src/rm117-portal-v1.jsx` | The client portal. **One project → card switcher** (homeowner); **several → `PortfolioTable`** (developer: every project, stage, next-up, balance on one screen). `BillingStrip` shows contract total / paid / outstanding. The only forward-looking date is the job's **next milestone** — blank if staff haven't set it (the Progress tab now flags that) |
 | `scripts/import-sheet.js` | One-time Sheet → Supabase migration (Phase 2) |
 | `scripts/link-jobs-to-clients.js` | Link unlinked jobs to existing clients (dry-run default) |
 | `scripts/create-clients-for-unlinked.js` | Create clients for unlinked jobs w/ real names (dry-run default) |
@@ -130,15 +142,51 @@ a future revisit.
 > by email only and never touch the Google OAuth app, so they can't consume the 100 test-user cap.
 > The remaining reason to defer is onboarding/login-management effort, not any staff-side limit.
 
-## Job phases (single `phase` field, in order — no separate status)
-Potential → Survey/Zoning → Design Phase → CD Phase → Active → On Hold → Completed → Canceled
-"Active" = finishing touches before completion. `phase_override` wins when set.
-**Canceled** = a job terminated early (client canceled while the contract allowed it) — a
-terminal record, distinct from Completed (finished work) and On Hold (paused). Like On Hold it
-sits outside the working pipeline (`PIPELINE_PHASES`) and the linear progress ladder
-(`PHASE_LADDER`); it groups at the bottom of the board. The phase set lives in three places that
-must stay in sync: `api/_lib/db.js` `PHASES`, `src/lib/format.js` `PHASE_*`, and the
-`jobs.phase`/`field_notes.phase` CHECK constraints (migration `0008_jobs_phase_canceled.sql`).
+## Job phases + sub-phases (rebuilt 2026-07-13 to Angelena's workflow — see `PHASE_MODEL.md`)
+
+**Lifecycle:** Lead → Proposal Sent → Survey/Zoning → Design → CD → Permitting → Construction →
+Completed. Off-ladder: **Job Dropped** (proposal rejected, work never began), **Canceled** (a
+*signed* job terminated early — retainer earned; these two are deliberately DIFFERENT), **On Hold**
+(paused, will resume). `phase_override` wins when set.
+
+Stored key → **BMS label** (`PHASE_LABELS`, `src/lib/format.js`). Labels deliberately differ from
+keys — don't "fix" one to match the other:
+`lead` → **Lead** · `potential` → **Proposal Sent** · `survey_zoning` → **Survey + Zoning Analysis
++ Schematics** · `design_phase` → **Design Phase** · `cd_prep` → **CD — Prep** · `cd_outgoing` →
+**CD — Outgoing** · `permitting` → **Permitting** · `construction` → **Construction** · `on_hold` → **On Hold** · `completed` →
+**Completed** · `job_dropped` → **Job Dropped** · `canceled` → **Canceled**
+
+⚠️ **`active` and `cd_phase` no longer exist.** `active` was never a phase (it was CD's wrap-up
+stage) — migration `0011` folded it in. Then Angelena reviewed and asked for the CD stage to be two
+board sections she drags between, so migration `0012` **split `cd_phase` into `cd_prep` +
+`cd_outgoing`**. Both migrations remapped the live jobs.
+
+**SUB-PHASES** (`sub_phase` column) — **only Design has them**:
+- `design_phase` → `dp1`/`dp2`/`dp3` (**DPI/DPII/DPIII**). How many a job has is set by its
+  proposal → `jobs.design_phase_count` (1–3). They vary per job, which is exactly why they can't be
+  fixed board sections the way CD's two piles can.
+
+**The internal CD split is a STAFF tool — clients never see it.** The portal's ladder
+(`src/rm117-portal-v1.jsx`) shows plain-English steps only (Proposal · Survey/Zoning · Design ·
+Construction Drawings · Permitting · Construction · Complete), and a ladder step may cover SEVERAL
+stored phases — `cd_prep` + `cd_outgoing` both render as one "Construction Drawings" step. Telling a
+client their CDs are "90% done" only invites "so where's my set?". Same for the Design sub-phases.
+
+**BOARD TABS** (`BOARD_TABS`) — the BMS board is the **Pipeline**; leads and construction are
+separate tabs so they don't clutter live design work:
+**Job Leads** (lead · potential · job_dropped) · **Pipeline** (cd_outgoing · cd_prep · design_phase ·
+survey_zoning · on_hold) · **In-Construction** (permitting · construction · completed · canceled).
+**The Pipeline ENDS with the CD stage** (Ang) — once drawings go out the door it's permitting /
+construction work, which lives in its own tab.
+
+**AGING FLAGS** (`PHASE_AGE_LIMITS`, measured from `jobs.phase_since`): a proposal sitting >**14
+days**, and >**21 days** in *either* CD phase, flag on the job card, with a stalled count on the board. A flag only —
+never an email (Ray's call: an automatic client-facing email on a phase change is unrecallable).
+
+⭐ **The phase set lives in 4 places that must stay in sync:** `PHASES` + `SUB_PHASES` (`api/_lib/db.js`),
+`PHASE_*` / `SUB_PHASE*` / `BOARD_TABS` (`src/lib/format.js`), the `jobs.phase` / `jobs.sub_phase` /
+`field_notes.phase` CHECK constraints (migrations `0011_phase_model.sql` + `0012_cd_split_phases.sql`), and the portal's own
+client-facing `LADDER`. `tests/phase-model.test.js` asserts the first three agree.
 
 ## Integrations
 - **QuickBooks two-way sync — LIVE (2026-06-30).** Connected to the real company
@@ -231,6 +279,12 @@ and a mis-typed escape hatch.
 
 ## Invariants (do not break)
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.
+- **The client portal shows only three money figures per job — contract total, paid-to-date,
+  outstanding — and nothing else.** (This deliberately supersedes the old "the portal is money-free"
+  rule, dropped 2026-07-13: clients, especially developers running several jobs, want to know what
+  they owe, and a large share of the firm's A/R sits 90+ days out.) Payment rows, Forefront
+  commissions, bill flags, QBO invoice ids and every other internal field stay server-side —
+  `buildPortalJobs` sums payments on the server and ships only the summary.
 - Through Phase 3 the Sheet is a **read-only fallback** — service account is Viewer-only;
   the app reads from Supabase and never writes back to the Sheet.
 - Clients never receive Google Drive permissions; the backend brokers every file access.

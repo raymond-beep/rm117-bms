@@ -32,8 +32,9 @@ export default function ProgressTab({ job, onSave }) {
 
   const onHold = job.phase === 'on_hold';
   const canceled = job.phase === 'canceled';
-  const terminal = onHold || canceled; // outside the ladder — no phase is "current"
-  const currentIdx = PHASE_LADDER.indexOf(job.phase); // -1 when on_hold / canceled
+  const dropped = job.phase === 'job_dropped';
+  const terminal = onHold || canceled || dropped; // outside the ladder — no phase is "current"
+  const currentIdx = PHASE_LADDER.indexOf(job.phase); // -1 for the off-ladder states
 
   async function saveMilestone() {
     setSaving(true);
@@ -83,13 +84,20 @@ export default function ProgressTab({ job, onSave }) {
         ) : (
           <>
             {onHold && <div className="onhold-banner">⏸ This job is currently On Hold.</div>}
-            {canceled && <div className="onhold-banner">✕ This job was canceled — kept as a record.</div>}
+            {canceled && <div className="onhold-banner">✕ This job was canceled — signed, then terminated early. Kept as a record.</div>}
+            {dropped && <div className="onhold-banner">✕ Proposal rejected — this job never started. Kept as a record.</div>}
             <ol className="timeline">
               {PHASE_LADDER.map((p, i) => {
                 const reached = reachedByPhase[p];
+                // A phase the job has moved past but never stamped is 'passed', not
+                // 'done' — a filled dot claims a date we don't have (UX2-06). Passed
+                // renders as an outlined dot: you got through it, nobody recorded when.
+                const behind = i < currentIdx;
                 const status = terminal
                   ? (reached ? 'done' : 'upcoming')
-                  : i < currentIdx ? 'done' : i === currentIdx ? 'current' : 'upcoming';
+                  : behind ? (reached ? 'done' : 'passed')
+                  : i === currentIdx ? 'current'
+                  : 'upcoming';
                 return (
                   <li key={p} className={`tl-step ${status}`}>
                     <span className="tl-dot" aria-hidden="true" />
@@ -118,8 +126,16 @@ export default function ProgressTab({ job, onSave }) {
         <div className="milestone-box">
           <div className="pay-form-title" style={{ margin: '0 0 4px' }}>Next milestone — upcoming date to follow</div>
           <div className="placeholder-note" style={{ padding: '0 0 10px' }}>
-            Shows in the dashboard “Coming up” list. This is a future deadline, not a phase date.
+            Shows in the dashboard “Coming up” list <strong>and is the one forward-looking date the
+            client sees in their portal</strong>. This is a future deadline, not a phase date.
           </div>
+          {/* The portal's "Next up" line is blank without this, which is the single most
+              common reason a client's project reads as stalled to them. */}
+          {!job.next_milestone_label && !onHold && !canceled && (
+            <div className="milestone-missing">
+              Not set — this client’s portal shows no upcoming date for this project.
+            </div>
+          )}
           <div className="field-row">
             <div className="field" style={{ marginBottom: 0 }}>
               <label>What's next</label>

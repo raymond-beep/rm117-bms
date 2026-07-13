@@ -11,7 +11,11 @@ import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
-import { money, phaseLabel, shortDate, fmtDateOnly, PHASE_LABELS, PHASE_ORDER, PIPELINE_PHASES } from './lib/format.js';
+import {
+  money, phaseLabel, shortDate, fmtDateOnly, addressLine,
+  PHASE_LABELS, PHASE_ORDER, PIPELINE_PHASES, BOARD_TABS,
+  subPhaseLabel, isStalled, daysInPhase, PHASE_AGE_LIMITS,
+} from './lib/format.js';
 import { SORT_MODES, orderJobs, findContainer, positionBetween, phaseCollision } from './components/bms/board-helpers.js';
 import { JobCardBody } from './components/bms/JobCard.jsx';
 import PhaseColumn from './components/bms/PhaseColumn.jsx';
@@ -26,7 +30,11 @@ export default function BmsDashboard() {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [phaseFilter, setPhaseFilter] = useState('pipeline');
+  // The board is split into three tabs (Ang's workflow): Job Leads · Pipeline ·
+  // In-Construction. Pipeline is the working board and stays the default — leads and
+  // construction are organised separately so they don't clutter live design work.
+  const [boardTab, setBoardTab] = useState('pipeline');
+  const [phaseFilter, setPhaseFilter] = useState('all'); // 'all' = every phase in the tab
   const [ffOnly, setFfOnly] = useState(false);
   const [billOnly, setBillOnly] = useState(false);
 
@@ -133,11 +141,17 @@ export default function BmsDashboard() {
 
   useEffect(() => { loadJobs(); }, []);
 
+  // Phases belonging to the active tab — the board never shows anything outside it.
+  const tabPhases = useMemo(
+    () => BOARD_TABS.find((t) => t.key === boardTab)?.phases || [],
+    [boardTab],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return jobs.filter((j) => {
-      if (phaseFilter === 'pipeline' && !PIPELINE_PHASES.includes(j.phase)) return false;
-      if (phaseFilter !== 'all' && phaseFilter !== 'pipeline' && j.phase !== phaseFilter) return false;
+      if (!tabPhases.includes(j.phase)) return false;
+      if (phaseFilter !== 'all' && j.phase !== phaseFilter) return false;
       if (ffOnly && !j.is_forefront) return false;
       if (billOnly && !j.bill_flag) return false;
       if (q) {
@@ -146,7 +160,16 @@ export default function BmsDashboard() {
       }
       return true;
     });
-  }, [jobs, search, phaseFilter, ffOnly, billOnly]);
+  }, [jobs, search, tabPhases, phaseFilter, ffOnly, billOnly]);
+
+  // Per-tab job counts for the tab strip, and how many jobs have overstayed their phase.
+  const tabCounts = useMemo(() => {
+    const counts = {};
+    for (const t of BOARD_TABS) counts[t.key] = jobs.filter((j) => t.phases.includes(j.phase)).length;
+    return counts;
+  }, [jobs]);
+
+  const stalled = useMemo(() => jobs.filter((j) => isStalled(j)), [jobs]);
 
   const stats = useMemo(() => {
     const pipeline = jobs.filter((j) => PIPELINE_PHASES.includes(j.phase));
@@ -177,10 +200,8 @@ export default function BmsDashboard() {
   // Phases to show as sections in grouped view. Show every in-scope phase (even
   // empty ones) so each is always a valid drop target — like Ang's Sheet sections.
   const scopePhases = phaseFilter === 'all'
-    ? PHASE_ORDER
-    : phaseFilter === 'pipeline'
-      ? PHASE_ORDER.filter((p) => PIPELINE_PHASES.includes(p))
-      : [phaseFilter];
+    ? PHASE_ORDER.filter((p) => tabPhases.includes(p))
+    : [phaseFilter];
 
   // Ordered job ids per in-scope phase, for the chosen sort mode. (Declared here,
   // after filtered/scopePhases exist; the drag handlers above read it at drag time.)
@@ -226,7 +247,7 @@ export default function BmsDashboard() {
       <div className="page-head">
         <div>
           <div className="eyebrow">The spine</div>
-          <h1 className="greeting">BMS — Job Log</h1>
+          <h1 className="greeting">Project Management</h1>
         </div>
         <div className="page-head-actions">
           <div className="view-toggle">
@@ -256,6 +277,26 @@ export default function BmsDashboard() {
         </div>
       )}
 
+      <div className="board-tabs" role="tablist">
+        {BOARD_TABS.map((t) => (
+          <button
+            key={t.key}
+            role="tab"
+            aria-selected={boardTab === t.key}
+            className={`board-tab${boardTab === t.key ? ' active' : ''}`}
+            onClick={() => { setBoardTab(t.key); setPhaseFilter('all'); }}
+          >
+            {t.label}
+            <span className="board-tab-count">{tabCounts[t.key] ?? 0}</span>
+          </button>
+        ))}
+        {stalled.length > 0 && (
+          <span className="board-stalled" title="Jobs that have overstayed their phase">
+            ⚠ {stalled.length} stalled
+          </span>
+        )}
+      </div>
+
       <div className="toolbar">
         <input
           type="search"
@@ -264,9 +305,8 @@ export default function BmsDashboard() {
           onChange={(e) => setSearch(e.target.value)}
         />
         <select value={phaseFilter} onChange={(e) => setPhaseFilter(e.target.value)}>
-          <option value="pipeline">Pipeline (not completed/held)</option>
-          <option value="all">All phases</option>
-          {PHASE_ORDER.map((p) => (
+          <option value="all">All phases in this tab</option>
+          {PHASE_ORDER.filter((p) => tabPhases.includes(p)).map((p) => (
             <option key={p} value={p}>{PHASE_LABELS[p]}</option>
           ))}
         </select>
@@ -337,7 +377,7 @@ export default function BmsDashboard() {
                   <td className="job-id">{job.job_id}</td>
                   <td>
                     {job.client_name || <span className="muted">—</span>}
-                    {job.address && <div className="muted" style={{ fontSize: 12 }}>{job.address}</div>}
+                    {job.address && <div className="muted" style={{ fontSize: 12 }}>{addressLine(job.address)}</div>}
                   </td>
                   <td><span className={`badge badge-${job.phase}`}>{phaseLabel(job)}</span></td>
                   <td className="num">{money(job.job_total)}</td>

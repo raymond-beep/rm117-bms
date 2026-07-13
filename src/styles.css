@@ -661,13 +661,20 @@ input, select, textarea { font: inherit; }
   font-size: 9.5px; font-weight: 600; letter-spacing: 0.5px; vertical-align: middle; white-space: nowrap;
 }
 .badge-pill { border-radius: 99px; padding: 2px 9px; font-size: 10px; }
+/* Phase badges — the soft-tint twin of the .phase-header-* palette above (same hue, tinted
+   background + dark ink). Keep the two sets in step: a phase with a header colour and no
+   badge colour falls back to bare grey and looks broken. */
+.badge-lead         { background: #e8eaed; color: #2f3540; }
 .badge-potential    { background: #ecebe6; color: #5c6066; }
 .badge-survey_zoning{ background: #ece8f2; color: #3a2f5e; }
 .badge-design_phase { background: #e6edf6; color: #1f3a5f; }
-.badge-cd_phase     { background: #e4e9ef; color: #21364a; }
-.badge-active       { background: var(--success-bg); color: #234d36; }
+.badge-cd_prep      { background: #dceaed; color: #1b4952; }
+.badge-cd_outgoing  { background: #d3eef3; color: #235d67; }
+.badge-permitting   { background: #e6eedd; color: #3a5330; }
+.badge-construction { background: var(--success-bg); color: #234d36; }
 .badge-on_hold      { background: #f4ead2; color: #6b4a17; }
 .badge-completed    { background: #ecebe6; color: var(--muted); }
+.badge-job_dropped  { background: #e9e7ec; color: #4a4550; }
 .badge-canceled     { background: #efe4e2; color: #6b3535; }
 .badge-ff           { background: var(--ff-bg); color: var(--ff); }
 .badge-bill         { background: var(--bill-bg); color: var(--bill); }
@@ -684,14 +691,27 @@ input, select, textarea { font: inherit; }
   font-family: var(--mono); font-size: 11px; font-weight: 600; color: #fff;
   background: rgba(255,255,255,0.18); border-radius: 99px; padding: 1px 9px;
 }
-.phase-header-active        { background: #234d36; }
-.phase-header-cd_phase      { background: #21364a; }
-.phase-header-design_phase  { background: #1f3a5f; }
-.phase-header-survey_zoning { background: #3a2f5e; }
-.phase-header-potential     { background: #3a3d42; }
-.phase-header-on_hold       { background: #6b4a17; }
-.phase-header-completed     { background: #3a3d42; }
-.phase-header-canceled      { background: #5e3535; }
+/* Phase colours follow the lifecycle, not decoration:
+     · design work runs a COOL ramp — violet → navy → teal (survey → design → CD)
+     · the two CD phases are ONE HUE, light/dark: they're a single stage worked as two piles,
+       and lighter = further along. They get their own hue (teal) rather than a shade of
+       Design's navy — a lighter navy collided with Design and the two were unreadable.
+     · post-CD work (the In-Construction tab) is a GREEN family: olive = with the town,
+       forest = being built.
+     · WARM = something stopped (amber on hold, maroon canceled).
+     · NEUTRAL GREY = inert — not started (lead), not yet won (proposal), or done. */
+.phase-header-lead          { background: #2f3540; }  /* dim slate — not a job yet          */
+.phase-header-potential     { background: #3a3d42; }  /* neutral — proposal out, not won    */
+.phase-header-survey_zoning { background: #3a2f5e; }  /* violet — design work begins        */
+.phase-header-design_phase  { background: #1f3a5f; }  /* navy                               */
+.phase-header-cd_prep       { background: #1b4952; }  /* teal, deep   — CDs, heads down     */
+.phase-header-cd_outgoing   { background: #2a707c; }  /* teal, light  — CDs wrapping up     */
+.phase-header-permitting    { background: #3f5a2f; }  /* olive — with the town              */
+.phase-header-construction  { background: #234d36; }  /* forest — being built                */
+.phase-header-on_hold       { background: #6b4a17; }  /* amber — paused                     */
+.phase-header-completed     { background: #3a3d42; }  /* neutral — done                     */
+.phase-header-job_dropped   { background: #4a4550; }  /* grey-violet — never started        */
+.phase-header-canceled      { background: #5e3535; }  /* maroon — signed, then terminated   */
 
 .phase-group-jobs { background: var(--surface); }
 .job-card {
@@ -1027,10 +1047,18 @@ input, select, textarea { font: inherit; }
 .tl-date-input:hover { border-color: var(--muted); }
 .tl-saving { font-family: var(--mono); font-size: 10px; color: var(--muted); }
 .tl-step.done .tl-dot { background: var(--success); border-color: var(--success); }
+/* passed = moved through, but no date on record — outlined, not filled (UX2-06) */
+.tl-step.passed .tl-dot { background: var(--surface); border-color: var(--success); }
 .tl-step.current .tl-dot { background: var(--brass); border-color: var(--brass-ink); box-shadow: 0 0 0 3px var(--ff-bg); }
 .tl-step.current .tl-phase { color: var(--brass-ink); }
 .tl-step.upcoming .tl-phase { color: var(--muted); font-weight: 500; }
 .pay-form-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 18px 0 10px; }
+/* The manual log-a-payment form, boxed off from the QuickBooks panel above it so
+   the sticky "Log payment" footer button reads as belonging to it (UX2-04). */
+.pay-manual {
+  margin-top: 20px; padding: 14px 16px 4px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+}
 
 /* Type / method chips (Log a payment) */
 .chip-row { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -1315,6 +1343,79 @@ input, select, textarea { font: inherit; }
 .cp-nextup-label { font-weight: 600; font-size: 13px; }
 .cp-nextup-date { font-family: var(--mono); font-size: 12px; color: var(--brass-ink); margin-left: auto; }
 
+/* ---- BMS board tabs (Job Leads · Pipeline · In-Construction) ---- */
+.board-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin: 0 0 14px; border-bottom: 1px solid var(--border); }
+.board-tab {
+  display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px;
+  background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+  font-family: var(--ui); font-size: 13px; font-weight: 500; color: var(--muted);
+  margin-bottom: -1px;
+}
+.board-tab:hover { color: var(--ink); }
+.board-tab.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--brass); }
+.board-tab-count {
+  font-family: var(--mono); font-size: 10px; padding: 1px 6px; border-radius: 9px;
+  background: var(--border); color: var(--muted);
+}
+.board-tab.active .board-tab-count { background: var(--brass); color: #fff; }
+.board-stalled { margin-left: auto; font-size: 12px; color: var(--danger, #b4453c); font-weight: 600; padding: 0 6px; }
+
+/* Sub-phase chip (Prep / Outgoing / DPI…) — a STAFF workload marker; never shown to clients. */
+.badge-sub { background: var(--ff-bg, var(--success-soft)); color: var(--brass-ink); }
+/* A job that has overstayed its phase (proposal > 14 days, CDs > 21). */
+.job-card-stalled { margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--danger, #b4453c); }
+
+/* Staff nudge: an unset milestone = a blank "Next up" in the client's portal. */
+.milestone-missing {
+  margin: 0 0 12px; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--border); border-left: 3px solid var(--brass);
+  background: var(--surface); font-size: 12px; color: var(--muted);
+}
+
+/* ---- Portal: billing strip (contract total / paid / outstanding) ---- */
+.cp-billing {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px;
+  margin: 16px 0 4px; padding: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--border);
+}
+.cp-bill-cell { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--surface); }
+.cp-bill-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+.cp-bill-value { font-size: 18px; font-weight: 600; }
+.cp-bill-cell.owed .cp-bill-value { color: var(--brass-ink); }
+
+/* ---- Portal: portfolio table (the multi-project / developer view) ---- */
+.cp-portfolio { margin-bottom: 24px; overflow: hidden; }
+.cp-portfolio-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--border);
+}
+.cp-portfolio-title { font-weight: 600; font-size: 14px; }
+.cp-portfolio-owed { font-family: var(--mono); font-size: 12px; color: var(--brass-ink); }
+.cp-portfolio-scroll { overflow-x: auto; }
+.cp-portfolio-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cp-portfolio-table th {
+  text-align: left; padding: 9px 16px; font-family: var(--mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 1px; color: var(--muted); font-weight: 500;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.cp-portfolio-table td { padding: 11px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.cp-portfolio-table tbody tr:last-child td { border-bottom: 0; }
+.cp-portfolio-table tbody tr { cursor: pointer; }
+.cp-portfolio-table tbody tr:hover { background: var(--success-soft); }
+.cp-portfolio-table tbody tr.selected { background: var(--ff-bg, var(--success-soft)); box-shadow: inset 3px 0 0 var(--brass); }
+.cp-portfolio-table .cp-num { text-align: right; white-space: nowrap; }
+.cp-pf-addr { font-weight: 600; }
+.cp-pf-id { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+.cp-pf-next { color: var(--ink-2); }
+.cp-pf-date { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.cp-pf-none { color: var(--muted); }
+.cp-pf-owed { font-family: var(--mono); font-weight: 600; color: var(--brass-ink); }
+.cp-pf-paid { font-size: 12px; color: var(--success); }
+
+@media (max-width: 720px) {
+  .cp-billing { grid-template-columns: 1fr; }
+}
+
 .cp-stepper { position: relative; padding: 0 2%; }
 .cp-stepper-track { position: absolute; top: 11px; left: 10.3%; right: 10.3%; height: 2px; background: #e0dccf; }
 .cp-stepper-fill { position: absolute; top: 11px; left: 10.3%; max-width: 79.4%; height: 2px; background: var(--primary); transition: width 0.3s; }
@@ -1397,6 +1498,14 @@ input, select, textarea { font: inherit; }
   font-family: var(--mono); font-size: 10px; letter-spacing: 1px; color: #14202e;
   background: #c8a45c; padding: 4px 8px; border-radius: 5px; font-weight: 700;
 }
+/* "this isn't live to clients" status line above the portal preview (UX2-03) */
+.cp-preview-banner {
+  display: block; margin-bottom: 14px; padding: 10px 14px;
+  border: 1px solid var(--border); border-left: 3px solid var(--brass);
+  border-radius: 6px; background: var(--surface);
+  font-size: 13px; line-height: 1.5; color: var(--muted);
+}
+.cp-preview-banner strong { color: var(--ink); }
 .cp-pick-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .cp-pick-row label { font-size: 13px; color: var(--paper-ink-2); }
 .cp-pick {

@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/enter", "destination": "/api/portal/enter" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [

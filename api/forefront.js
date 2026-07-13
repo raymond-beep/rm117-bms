@@ -5,7 +5,7 @@ import { requireStaff } from './_lib/require-staff.js';
 
 const MOCK = [
   { id: 'mock-1', job_id: '26_009_FF_Chou', total_commission: 1200, amount_paid: 0, payment_history: [], status: 'active', notes: null, jobs: { client_name: 'Frank Chou', phase: 'design_phase', address: '622 Prospect Ave, Westfield NJ' } },
-  { id: 'mock-2', job_id: '25_038_FF_Basho', total_commission: 1200, amount_paid: 600, payment_history: [{ amount: 600, date: '2025-10-01', method: 'check', notes: '' }], status: 'active', notes: null, jobs: { client_name: 'Ardit & Sonia Basho', phase: 'active', address: '204 Robinhood Rd, Mountainside' } },
+  { id: 'mock-2', job_id: '25_038_FF_Basho', total_commission: 1200, amount_paid: 600, payment_history: [{ amount: 600, date: '2025-10-01', method: 'check', notes: '' }], status: 'active', notes: null, jobs: { client_name: 'Ardit & Sonia Basho', phase: 'cd_phase', address: '204 Robinhood Rd, Mountainside' } },
 ];
 
 export default async function handler(req, res) {

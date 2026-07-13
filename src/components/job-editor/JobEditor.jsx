@@ -2,7 +2,10 @@
 // Details edits save optimistically through the parent's onSave (rollback there).
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
-import { money, shortDate, PHASE_ORDER, PHASE_LABELS } from '../../lib/format.js';
+import {
+  money, shortDate, addressLine, PHASE_ORDER, PHASE_LABELS,
+  SUB_PHASES, SUB_PHASE_LABELS, subPhasesFor,
+} from '../../lib/format.js';
 import ProgressTab from './ProgressTab.jsx';
 import PaymentsTab from './PaymentsTab.jsx';
 import MessagesTab from './MessagesTab.jsx';
@@ -18,8 +21,10 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
   const [form, setForm] = useState(() => ({
     client_id: job.client_id || '',
     client_name: job.client_name || '',
-    address: job.address || '',
+    address: addressLine(job.address),
     phase: job.phase,
+    sub_phase: job.sub_phase || '',
+    design_phase_count: job.design_phase_count || '',
     phase_override: job.phase_override || '',
     job_total: job.job_total ?? 0,
     bill_flag: Boolean(job.bill_flag),
@@ -46,6 +51,21 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
   }, []);
 
   const linkedClient = clients.find((c) => c.id === form.client_id) || null;
+
+  // Sub-phases available for the phase currently selected in the form. Design is capped
+  // by the proposal (design_phase_count), so a 2-phase job offers DPI–DPII only.
+  const subOptions = subPhasesFor({ phase: form.phase, design_phase_count: form.design_phase_count });
+
+  // Changing phase clears any sub-phase from the old one — "Prep" is meaningless in
+  // Permitting, and the DB constraint would reject the pair anyway.
+  const onPhaseChange = (e) => {
+    const phase = e.target.value;
+    setForm((f) => ({
+      ...f,
+      phase,
+      sub_phase: (SUB_PHASES[phase] || []).includes(f.sub_phase) ? f.sub_phase : '',
+    }));
+  };
 
   // Sync the editable contact fields to whichever client is linked.
   useEffect(() => {
@@ -90,6 +110,8 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
         ...form,
         client_id: form.client_id || null,
         phase_override: form.phase_override || null,
+        sub_phase: form.sub_phase || null,
+        design_phase_count: form.design_phase_count === '' ? null : Number(form.design_phase_count),
         job_total: Number(form.job_total) || 0,
         ff_commission: form.ff_commission === '' ? null : Number(form.ff_commission),
         last_correspondence: form.last_correspondence || null,
@@ -188,10 +210,39 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
               <div className="field-row">
                 <div className="field">
                   <label>Phase <PortalTag /></label>
-                  <select value={form.phase} onChange={set('phase')}>
+                  <select value={form.phase} onChange={onPhaseChange}>
                     {PHASE_ORDER.map((p) => <option key={p} value={p}>{PHASE_LABELS[p]}</option>)}
                   </select>
                 </div>
+                {/* Sub-phase: only Design and CD have one, so the control simply isn't
+                    there for the other phases. Internal workload split — never shown to
+                    the client (no <PortalTag />). */}
+                {subOptions.length > 0 && (
+                  <div className="field">
+                    <label>Sub-phase</label>
+                    <select value={form.sub_phase || ''} onChange={set('sub_phase')}>
+                      <option value="">— none —</option>
+                      {subOptions.map((s) => (
+                        <option key={s} value={s}>{SUB_PHASE_LABELS[s]}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="field-row">
+                {/* How many design phases the signed proposal bought — caps this job's
+                    DPI/II/III ladder. */}
+                {form.phase === 'design_phase' && (
+                  <div className="field">
+                    <label>Design phases in the proposal</label>
+                    <select value={form.design_phase_count || ''} onChange={set('design_phase_count')}>
+                      <option value="">— not set —</option>
+                      <option value="1">1 (DPI)</option>
+                      <option value="2">2 (DPI–DPII)</option>
+                      <option value="3">3 (DPI–DPIII)</option>
+                    </select>
+                  </div>
+                )}
                 <div className="field">
                   <label>Phase override (wins if set)</label>
                   <input type="text" value={form.phase_override} onChange={set('phase_override')} placeholder="optional label" />

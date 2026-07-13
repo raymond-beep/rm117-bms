@@ -8,13 +8,14 @@ import CalendarWidget from './CalendarWidget.jsx';
 import InboxWidget from './InboxWidget.jsx';
 import MyWeekWidget from './MyWeekWidget.jsx';
 
-// Pipeline shape: job counts per phase, ordered earliest → latest stage
-// (Potential → Outgoing). A real current snapshot — unlike created_at, which only
-// records the Sheet→Supabase import date and so can't drive a meaningful trend.
-const PIPELINE_SHAPE = ['potential', 'survey_zoning', 'design_phase', 'cd_phase', 'active'];
+// Pipeline shape: job counts per phase, ordered earliest → latest stage. A real current
+// snapshot — unlike created_at, which only records the Sheet→Supabase import date and so
+// can't drive a meaningful trend. (Sub-phases are not shown here: this is the shape of
+// the funnel, not the workload split inside a phase.)
+const PIPELINE_SHAPE = ['lead', 'potential', 'survey_zoning', 'design_phase', 'cd_prep', 'cd_outgoing', 'permitting', 'construction'];
 const PIPELINE_SHAPE_LABELS = {
-  potential: 'Proposal Sent', survey_zoning: 'Survey/Zoning', design_phase: 'Design',
-  cd_phase: 'CD', active: 'Outgoing',
+  lead: 'Lead', potential: 'Proposal Sent', survey_zoning: 'Survey/Zoning', design_phase: 'Design',
+  cd_prep: 'CD Prep', cd_outgoing: 'CD Out', permitting: 'Permitting', construction: 'Construction',
 };
 function pipelineShape(jobs) {
   return PIPELINE_SHAPE.map((phase) => ({

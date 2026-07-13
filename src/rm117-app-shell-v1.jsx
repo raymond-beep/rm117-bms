@@ -5,6 +5,7 @@ import React, { Suspense, lazy, useState } from 'react';
 import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { SignedIn, SignedOut, SignIn, UserButton } from '@clerk/clerk-react';
 import { ErrorBoundary, RoleGate } from './components/shell/auth-gate.jsx';
+import { usePortalSession, PortalSplash, PortalLinkExpired, PortalClient } from './components/shell/portal-gate.jsx';
 import UserChip from './components/shell/UserChip.jsx';
 import TopBar from './components/shell/TopBar.jsx';
 
@@ -39,13 +40,14 @@ const MOBILE_TABS = [
 ];
 
 // "Drafting + data" nav: Templates and Client Portal are first-class items
-// alongside Dashboard / BMS / Forefront. Settings is pinned to the bottom.
+// alongside Dashboard / Project Management / Forefront. Settings is pinned to the bottom.
 const NAV_GROUPS = [
   {
     caption: 'Workspace',
     items: [
       { to: '/', label: 'Dashboard', end: true },
-      { to: '/bms', label: 'BMS' },
+      // Label only — the route stays /bms so existing links and bookmarks keep working.
+      { to: '/bms', label: 'Project Management' },
       { to: '/financial', label: 'Financial' },
       { to: '/drawing-qa', label: 'Checksets' },
       { to: '/delegation', label: 'Weekly Planner' },
@@ -64,6 +66,16 @@ export default function AppShell() {
   // render it full-bleed without the sidebar/topbar/tabbar chrome. Still staff-only
   // (inside SignedIn + RoleGate; the API is staff-gated too).
   const isReport = location.pathname.startsWith('/report/');
+
+  // Magic-link clients resolve BEFORE Clerk: they have no Clerk account, so without
+  // this they'd hit the staff Google sign-in screen. Staff have no portal cookie, so
+  // this costs them nothing (no probe, no delay) and falls straight through.
+  const portal = usePortalSession();
+  const linkExpired = new URLSearchParams(location.search).get('portal_error');
+  if (portal.status === 'loading') return <PortalSplash />;
+  if (portal.status === 'client') return <PortalClient client={portal.client} jobs={portal.jobs} />;
+  if (linkExpired) return <PortalLinkExpired />;
+
   return (
     <>
       <SignedOut>

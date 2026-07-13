@@ -105,7 +105,10 @@ export default function PaymentsTab({ job, onLogged }) {
 
         {qboConfigured && <QboInvoicePanel job={job} onInvoiced={loadPayments} />}
 
-        <div className="pay-form-title">Log a payment</div>
+        {/* Boxed so it reads as its own form — the sticky footer button below belongs
+            to THIS section, not to the QuickBooks panel above it (UX2-04). */}
+        <div className="pay-manual">
+        <div className="pay-form-title" style={{ marginTop: 0 }}>Log a payment</div>
         <div className="placeholder-note" style={{ padding: '0 0 10px' }}>
           QuickBooks payments sync automatically — log only payments received outside QuickBooks
           (check, Venmo, Zelle, cash).
@@ -155,6 +158,7 @@ export default function PaymentsTab({ job, onLogged }) {
         <div className="field">
           <label>Notes</label>
           <input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+        </div>
         </div>
       </div>
       <div className="drawer-foot">

@@ -55,7 +55,10 @@ The heart of everything. One row per job.
 | `referred_by_id` | uuid FK → clients.id | nullable — contractor/partner who brought the job in |
 | `client_name` | text | denormalized for display/search (kept in sync with `clients.name`) |
 | `address` | text | |
-| `phase` | text | single lifecycle field, Ang's vocabulary: `check in ('potential','survey_zoning','design_phase','cd_phase','active','on_hold','completed','canceled')` (migration `0008`). "Active" = finishing touches before completion (a late phase, not a status). "Canceled" = terminated early, kept as a record (outside the pipeline + ladder). |
+| `phase` | text | single lifecycle field, Ang's vocabulary (migrations `0011` + `0012`, see **PHASE_MODEL.md**): `check in ('lead','potential','survey_zoning','design_phase','cd_prep','cd_outgoing','permitting','construction','on_hold','completed','job_dropped','canceled')`. **`active` AND `cd_phase` were retired** — `active` was really CD's wrap-up stage, and the CD stage is now two phases Ang drags between (`cd_prep` / `cd_outgoing`). `job_dropped` = proposal rejected (never started); `canceled` = a *signed* job terminated early — **different things, kept apart on purpose**. |
+| `sub_phase` | text | nullable — **only Design has sub-phases**: `design_phase` → `dp1\|dp2\|dp3` (DPI/II/III). Any other phase must be null (CHECK). Never shown to clients. |
+| `design_phase_count` | integer | nullable, 1–3 — how many design phases the signed proposal bought; caps this job's DPI/II/III ladder |
+| `phase_since` | timestamptz | when the job entered its current phase; stamped on every phase change. Powers the aging flags (proposal >14 days, CDs >21). Backfilled by `0011` from `job_phase_events`. |
 | `phase_override` | text | nullable — manual phase label that wins over the derived phase |
 | `job_total` | numeric(12,2) | contracted total |
 | `amount_billed` | numeric(12,2) | running total invoiced |
@@ -338,6 +341,27 @@ Email-bridge state for outbound notifications + inbound reply matching.
 | `status` | text | `check in ('pending','sent','failed')` |
 | `provider_message_id` | text | nullable — Resend/Postmark message ID for inbound matching |
 | `created_at` | timestamptz | |
+
+### `portal_links`
+**How clients authenticate** (migration `0010`). Clients have no Clerk account — Clerk is staff-only
+Google sign-in. Instead a client clicks a signed link in an email; `/api/portal/enter` validates it,
+swaps it for an HttpOnly session cookie, and redirects so the token leaves the URL. See
+`api/_lib/portal-session.js`.
+
+Only the **hash** of the token is stored, so this table never holds a working credential. A client may
+hold several live links (a re-send); revoke one by setting `revoked_at`, and every link hard-expires.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `client_id` | uuid FK → clients.id | `on delete cascade` |
+| `token_hash` | text unique | `sha256(token)` — the raw token is emailed once and never stored |
+| `created_at` | timestamptz | default `now()` |
+| `created_by` | text | staff who minted it |
+| `expires_at` | timestamptz | hard expiry (default 60 days) |
+| `revoked_at` | timestamptz | nullable — set to kill the link immediately |
+| `last_used_at` | timestamptz | nullable — audit |
+| `use_count` | integer | default 0 — audit |
 
 ---
 

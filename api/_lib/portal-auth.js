@@ -1,19 +1,52 @@
 // Shared identity + isolation for every client-portal endpoint.
-// Resolves the Clerk session to a single `clients` record (by clerk_user_id,
-// then verified email — backfilling the link), and scopes job access by
-// client_id. This is the one place portal authorization lives, so /api/portal/*
-// routes can never accidentally diverge on who-can-see-what.
+//
+// TWO identity paths, checked in this order:
+//   1. Portal session cookie — a CLIENT who arrived via a magic link. No Clerk
+//      account exists for them (Clerk is staff-only Google sign-in); the signed
+//      cookie carries their client id. See portal-session.js for why.
+//   2. Clerk session — staff, plus any client historically linked to a Clerk user.
+//
+// Job access is scoped by client_id either way. This is the one place portal
+// authorization lives, so /api/portal/* routes can never diverge on who-sees-what.
 import { hasClerk, getUserId, getUserEmail } from './clerk.js';
 import { getDb, hasDb } from './db.js';
+import { SESSION_COOKIE, readCookie, verifySession } from './portal-session.js';
 
 const STAFF_EMAIL_DOMAIN = 'rm117.com';
 const isStaffEmail = (email) => Boolean(email && email.endsWith('@' + STAFF_EMAIL_DOMAIN));
+
+const CLIENT_COLS = 'id, name, email, type, company, clerk_user_id, is_active';
+
+// Resolve a client from the magic-link session cookie. Returns null when there's no
+// cookie, the signature/expiry fails, or the client is gone/deactivated — in which
+// case the caller falls through to the Clerk path (so staff are never affected).
+async function identityFromCookie(req) {
+  const raw = readCookie(req, SESSION_COOKIE);
+  if (!raw) return null;
+
+  const session = verifySession(raw);
+  if (!session || !hasDb()) return null;
+
+  const db = getDb();
+  const { data: client } = await db
+    .from('clients')
+    .select(CLIENT_COLS)
+    .eq('id', session.clientId)
+    .maybeSingle();
+
+  // Deactivating a client immediately kills their portal session.
+  if (!client || client.is_active === false) return null;
+  return { role: 'client', client, db };
+}
 
 // Returns one of:
 //   { unauthorized: true }                  -> caller should 401
 //   { role: 'client', client, db }          -> authenticated client
 //   { role: 'staff' } | { role: 'none' }    -> not a portal client
 export async function resolvePortalIdentity(req) {
+  const viaCookie = await identityFromCookie(req);
+  if (viaCookie) return viaCookie;
+
   if (!hasClerk()) return { role: 'none', reason: 'clerk_not_configured' };
 
   const userId = await getUserId(req);
@@ -24,7 +57,7 @@ export async function resolvePortalIdentity(req) {
   if (!hasDb()) return { role: isStaffEmail(email) ? 'staff' : 'none' };
   const db = getDb();
 
-  const cols = 'id, name, email, type, company, clerk_user_id, is_active';
+  const cols = CLIENT_COLS;
   let client = (await db.from('clients').select(cols).eq('clerk_user_id', userId).maybeSingle()).data || null;
 
   if (!client && email) {

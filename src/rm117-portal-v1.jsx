@@ -9,23 +9,44 @@
 // backends built — until then their panels render an on-brand empty state.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth, useClerk } from '@clerk/clerk-react';
-import { shortDate, fileSize } from './lib/format.js';
+import { shortDate, fileSize, money } from './lib/format.js';
 
 const fmtMsgTime = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
-// Client-facing phase vocabulary (shorter/friendlier than the staff BMS labels).
+// Client-facing phase vocabulary — plain English, not the staff BMS shorthand ("CD" reads
+// as a compact disc to a homeowner; "Outgoing" means nothing at all).
+//
+// SUB-PHASES ARE DELIBERATELY ABSENT. Prep/Outgoing and DPI/II/III are an internal
+// workload split; telling a client their drawings are "90% done" only invites "so where
+// is my set?". Staff see them on the BMS board; clients never do.
+//
+// 'lead' is absent too — a lead has no portal (they aren't a client until they sign).
+// A ladder step can cover SEVERAL stored phases — the firm splits CDs into Prep and
+// Outgoing to manage workload, but a client sees one "Construction Drawings" step. They
+// don't need to know their drawings are 90% done; it only invites "so where's my set?".
 const LADDER = [
-  { key: 'potential', label: 'Potential' },
-  { key: 'survey_zoning', label: 'Survey / Zoning' },
-  { key: 'design_phase', label: 'Design' },
-  { key: 'cd_phase', label: 'CD' },
-  { key: 'active', label: 'Active' },
-  { key: 'completed', label: 'Complete' },
+  { key: 'potential', label: 'Proposal', phases: ['potential'] },
+  { key: 'survey_zoning', label: 'Survey / Zoning', phases: ['survey_zoning'] },
+  { key: 'design_phase', label: 'Design', phases: ['design_phase'] },
+  { key: 'cd', label: 'Construction Drawings', phases: ['cd_prep', 'cd_outgoing'] },
+  { key: 'permitting', label: 'Permitting', phases: ['permitting'] },
+  { key: 'construction', label: 'Construction', phases: ['construction'] },
+  { key: 'completed', label: 'Complete', phases: ['completed'] },
 ];
 const SHORT_PHASE = {
-  potential: 'Potential', survey_zoning: 'Survey / Zoning', design_phase: 'Design',
-  cd_phase: 'CD', active: 'Active', on_hold: 'On hold', completed: 'Completed',
+  lead: 'Lead',
+  potential: 'Proposal',
+  survey_zoning: 'Survey / Zoning',
+  design_phase: 'Design',
+  cd_prep: 'Construction Drawings',
+  cd_outgoing: 'Construction Drawings',
+  permitting: 'Permitting',
+  construction: 'Construction',
+  on_hold: 'On hold',
+  completed: 'Completed',
+  job_dropped: 'Closed',
+  canceled: 'Canceled',
 };
 
 const firstName = (name) => (name || '').trim().split(/\s+/)[0] || '';
@@ -42,6 +63,12 @@ const pickDefault = (jobs) =>
 
 export default function ClientPortal({ client, jobs = [], preview = false }) {
   const clerk = useClerk();
+  const { isSignedIn } = useAuth();
+  // Two ways a client can be here: a magic-link cookie session (the normal path — no
+  // Clerk account exists) or a Clerk session (staff preview / legacy Clerk-linked
+  // client). Clerk's signOut can't clear our cookie, so route each to its own exit.
+  const signOut = () =>
+    isSignedIn ? clerk.signOut({ redirectUrl: '/' }) : window.location.assign('/api/portal/signout');
   const [selectedId, setSelectedId] = useState(() => pickDefault(jobs));
   const selected = jobs.find((j) => j.job_id === selectedId) || jobs[0] || null;
   const activeCount = jobs.filter((j) => j.phase !== 'completed').length;
@@ -68,7 +95,7 @@ export default function ClientPortal({ client, jobs = [], preview = false }) {
           <span className="cp-avatar">{initials(displayName)}</span>
           {preview
             ? <span className="cp-preview-tag">PREVIEW</span>
-            : <button className="cp-signout" onClick={() => clerk.signOut({ redirectUrl: '/' })}>Sign out</button>}
+            : <button className="cp-signout" onClick={signOut}>Sign out</button>}
         </div>
       </header>
 
@@ -84,11 +111,18 @@ export default function ClientPortal({ client, jobs = [], preview = false }) {
           </div>
         ) : (
           <>
-            <div className="cp-switcher">
-              {jobs.map((j) => (
-                <JobCard key={j.job_id} job={j} selected={j.job_id === selected?.job_id} onClick={() => setSelectedId(j.job_id)} />
-              ))}
-            </div>
+            {/* One project (the homeowner) gets the card switcher — it's warmer and there's
+                nothing to compare. Several projects (the developer) get a portfolio table:
+                the whole book on one screen, rather than clicking through them one by one. */}
+            {jobs.length > 1 ? (
+              <PortfolioTable jobs={jobs} selectedId={selected?.job_id} onSelect={setSelectedId} />
+            ) : (
+              <div className="cp-switcher">
+                {jobs.map((j) => (
+                  <JobCard key={j.job_id} job={j} selected={j.job_id === selected?.job_id} onClick={() => setSelectedId(j.job_id)} />
+                ))}
+              </div>
+            )}
 
             {selected && <JobOverview job={selected} />}
 
@@ -104,11 +138,105 @@ export default function ClientPortal({ client, jobs = [], preview = false }) {
 }
 
 function phaseTone(phase) {
-  if (phase === 'active') return 'green';
-  if (phase === 'design_phase' || phase === 'cd_phase' || phase === 'survey_zoning') return 'blue';
+  if (phase === 'construction' || phase === 'permitting') return 'green';
+  if (phase === 'design_phase' || phase === 'cd_prep' || phase === 'cd_outgoing' || phase === 'survey_zoning') return 'blue';
   if (phase === 'completed') return 'muted';
-  if (phase === 'on_hold') return 'hold';
+  if (phase === 'on_hold' || phase === 'job_dropped' || phase === 'canceled') return 'hold';
   return 'default';
+}
+
+// Contract total / paid / outstanding for one project. Only the three summary figures
+// are sent to the browser — never the payment records themselves.
+//
+// A "Pay now" button belongs here, but it needs QuickBooks Payments enabled on the
+// company (and card fees are ~2.9% — ACH is the sane channel for invoices this size).
+// Until that's confirmed, we state the balance and let the client settle it the way
+// they already do rather than dangle a button that can't work.
+function BillingStrip({ billing }) {
+  const { total, paid, outstanding } = billing;
+  const settled = outstanding <= 0;
+  return (
+    <div className="cp-billing">
+      <div className="cp-bill-cell">
+        <span className="cp-bill-label">Contract total</span>
+        <span className="cp-bill-value">{money(total)}</span>
+      </div>
+      <div className="cp-bill-cell">
+        <span className="cp-bill-label">Paid to date</span>
+        <span className="cp-bill-value">{money(paid)}</span>
+      </div>
+      <div className={`cp-bill-cell${settled ? '' : ' owed'}`}>
+        <span className="cp-bill-label">{settled ? 'Balance' : 'Outstanding'}</span>
+        <span className="cp-bill-value">{settled ? 'Paid in full' : money(outstanding)}</span>
+      </div>
+    </div>
+  );
+}
+
+// The developer's view: every project on one screen. Answers "where does everything
+// stand, and what do I owe?" without clicking into each job. Doubles as the selector —
+// clicking a row loads that project below.
+function PortfolioTable({ jobs, selectedId, onSelect }) {
+  const owed = jobs.reduce((s, j) => s + Math.max(0, Number(j.billing?.outstanding || 0)), 0);
+  const openCount = jobs.filter((j) => j.phase !== 'completed').length;
+
+  return (
+    <div className="cp-card cp-portfolio">
+      <div className="cp-portfolio-head">
+        <span className="cp-portfolio-title">Your projects</span>
+        {owed > 0 && (
+          <span className="cp-portfolio-owed">
+            {money(owed)} outstanding across {openCount} project{openCount === 1 ? '' : 's'}
+          </span>
+        )}
+      </div>
+      <div className="cp-portfolio-scroll">
+        <table className="cp-portfolio-table">
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Stage</th>
+              <th>Next up</th>
+              <th className="cp-num">Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.map((j) => {
+              const [line1] = splitAddr(j.address);
+              const bal = Number(j.billing?.outstanding || 0);
+              return (
+                <tr
+                  key={j.job_id}
+                  className={j.job_id === selectedId ? 'selected' : ''}
+                  onClick={() => onSelect(j.job_id)}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(j.job_id); } }}
+                >
+                  <td>
+                    <div className="cp-pf-addr">{line1 || j.title}</div>
+                    <div className="cp-pf-id">{j.job_id}</div>
+                  </td>
+                  <td>
+                    <span className={`cp-phase-tone ${phaseTone(j.phase)}`}>{SHORT_PHASE[j.phase] || j.phase}</span>
+                  </td>
+                  <td className="cp-pf-next">
+                    {j.next_milestone_label
+                      ? <>{j.next_milestone_label}{j.next_milestone_date && <span className="cp-pf-date"> · {shortDate(j.next_milestone_date)}</span>}</>
+                      : <span className="cp-pf-none">—</span>}
+                  </td>
+                  <td className="cp-num">
+                    {j.billing
+                      ? (bal > 0 ? <span className="cp-pf-owed">{money(bal)}</span> : <span className="cp-pf-paid">Paid</span>)
+                      : <span className="cp-pf-none">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function JobCard({ job, selected, onClick }) {
@@ -134,10 +262,14 @@ function JobOverview({ job }) {
   for (const e of job.timeline || []) {
     if (!reachedAt[e.phase] || new Date(e.at) < new Date(reachedAt[e.phase])) reachedAt[e.phase] = e.at;
   }
-  const currentIdx = LADDER.findIndex((s) => s.key === job.phase);
+  // A step is "reached" if ANY of the stored phases it covers was reached (CD covers both
+  // cd_prep and cd_outgoing).
+  const stepReached = (step) => step.phases.some((p) => reachedAt[p]);
+
+  const currentIdx = LADDER.findIndex((s) => s.phases.includes(job.phase));
   const progressIdx = currentIdx >= 0
     ? currentIdx
-    : Math.max(-1, ...LADDER.map((s, i) => (reachedAt[s.key] ? i : -1)));
+    : Math.max(-1, ...LADDER.map((s, i) => (stepReached(s) ? i : -1)));
   // Fill the connector line up to the current step.
   const fillPct = progressIdx <= 0 ? 0 : (progressIdx / (LADDER.length - 1)) * 100;
 
@@ -163,12 +295,14 @@ function JobOverview({ job }) {
         </div>
       )}
 
+      {job.billing && <BillingStrip billing={job.billing} />}
+
       <div className="cp-stepper">
         <div className="cp-stepper-track" />
         <div className="cp-stepper-fill" style={{ width: `${fillPct}%` }} />
         <div className="cp-stepper-row">
           {LADDER.map((step, i) => {
-            const done = completed || i < progressIdx || (onHold && reachedAt[step.key]);
+            const done = completed || i < progressIdx || (onHold && stepReached(step));
             const current = !completed && !onHold && i === progressIdx;
             const cls = done ? 'done' : current ? 'current' : 'upcoming';
             return (
