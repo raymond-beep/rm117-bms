@@ -1378,6 +1378,37 @@ input, select, textarea { font: inherit; }
 }
 .board-notice-x:hover { color: var(--ink); }
 
+/* ---- "Notify client": the portal's front door ---- */
+.notify-box {
+  margin-top: 20px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+}
+
+/* The review dialog — nothing is sent until a person has read the exact wording. */
+.modal.notify-modal {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  display: flex; flex-direction: column; z-index: 60;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.28);
+}
+.modal.notify-modal .drawer-body { overflow-y: auto; }
+.notify-to {
+  margin-bottom: 14px; padding: 8px 12px; border-radius: 6px;
+  background: var(--success-soft); font-size: 13px; color: var(--ink);
+}
+.notify-body {
+  width: 100%; resize: vertical; font-family: var(--ui); font-size: 13px; line-height: 1.6;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--ink);
+}
+.notify-err {
+  margin-top: 12px; padding: 10px 12px; border-radius: 6px;
+  border: 1px solid var(--border); border-left: 3px solid var(--danger, #b4453c);
+  background: var(--surface); font-size: 12px; line-height: 1.5; color: var(--ink);
+}
+.notify-sent { padding: 8px 0; font-size: 14px; line-height: 1.6; }
+
 /* The design-phase count read out of the signed proposal — a SUGGESTION awaiting Save. */
 .dp-note {
   margin-top: 7px; padding: 8px 10px; border-radius: 6px;

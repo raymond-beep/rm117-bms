@@ -2,14 +2,17 @@
 // one upcoming "next milestone" date that drives the dashboard "Coming up" feed.
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
-import { PHASE_LABELS, PHASE_LADDER } from '../../lib/format.js';
+import { PHASE_LABELS, PHASE_LADDER, shortDate } from '../../lib/format.js';
 import FieldNotesPanel from './FieldNotesPanel.jsx';
+import NotifyClientModal from './NotifyClientModal.jsx';
 
 export default function ProgressTab({ job, onSave }) {
   const [events, setEvents] = useState(null);
   const [label, setLabel] = useState(job.next_milestone_label || '');
   const [date, setDate] = useState(job.next_milestone_date ? job.next_milestone_date.slice(0, 10) : '');
   const [saving, setSaving] = useState(false);
+  const [notifying, setNotifying] = useState(false);
+  const [lastNotified, setLastNotified] = useState(null);
   const [error, setError] = useState(null);
   const [savingPhase, setSavingPhase] = useState(null);
 
@@ -23,6 +26,21 @@ export default function ProgressTab({ job, onSave }) {
     }
   }
   useEffect(() => { loadEvents(); }, [job.job_id]);
+
+  // When was this client last told anything? Best-effort — a failure here just hides the
+  // line, it must never break the Progress tab.
+  useEffect(() => {
+    let live = true;
+    apiFetch(`/api/portal/history?job_id=${encodeURIComponent(job.job_id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!live || !d) return;
+        const sent = (d.notifications || []).find((n) => n.status === 'sent');
+        if (sent) setLastNotified(sent.sent_at || sent.created_at);
+      })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [job.job_id]);
 
   // Earliest reached-date per phase, from the append-only event log.
   const reachedByPhase = {};
@@ -154,6 +172,27 @@ export default function ProgressTab({ job, onSave }) {
             </button>
           </div>
         </div>
+
+        {/* Tell the client where things stand — the whole point of the portal. The email goes
+            from the staffer's own Gmail (so replies come back to a person) and carries the
+            magic link that signs them in. Nothing sends until they've read it and pressed Send. */}
+        <div className="notify-box">
+          <div className="pay-form-title" style={{ marginTop: 0 }}>Keep the client in the loop</div>
+          <div className="placeholder-note" style={{ padding: '0 0 10px' }}>
+            Sends a short update from <strong>your Gmail</strong> with a link that signs them in —
+            no password. You’ll see the exact wording before anything goes out.
+            {lastNotified && <> Last update sent <strong>{shortDate(lastNotified)}</strong>.</>}
+          </div>
+          <button className="btn" onClick={() => setNotifying(true)}>✉ Notify client…</button>
+        </div>
+
+        {notifying && (
+          <NotifyClientModal
+            job={job}
+            onClose={() => setNotifying(false)}
+            onSent={() => setLastNotified(new Date().toISOString())}
+          />
+        )}
 
         <FieldNotesPanel job={job} />
       </div>

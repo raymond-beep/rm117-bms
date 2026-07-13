@@ -339,8 +339,16 @@ Email-bridge state for outbound notifications + inbound reply matching.
 | `type` | text | `check in ('new_message','file_published','invoice_sent','login_invite')` |
 | `channel` | text | default `'email'` |
 | `status` | text | `check in ('pending','sent','failed')` |
-| `provider_message_id` | text | nullable — Resend/Postmark message ID for inbound matching |
+| `provider_message_id` | text | nullable — the Gmail message id of a sent update (or Resend/Postmark id for the inbound bridge) |
+| `to_email` / `subject` / `body` | text | migration `0013` — **the update email, stored verbatim.** A summary is useless six months later when a client says "you never told me"; the sent text is not |
+| `sent_by` | text | the staff member who pressed Send (there is no automatic trigger) |
+| `sent_at` / `error` | timestamptz / text | when it went, or why it failed |
 | `created_at` | timestamptz | |
+
+> **`status_update`** (migration `0013`) is the client update email — the portal's front door. Staff press
+> "Notify client"; the app sends a short update **from their own Gmail** carrying a magic link. **There is no
+> automatic trigger on purpose:** phase changes get made for bookkeeping reasons constantly and an email can't be
+> recalled — one bad batch teaches clients to ignore them, which destroys the point.
 
 ### `portal_links`
 **How clients authenticate** (migration `0010`). Clients have no Clerk account — Clerk is staff-only
