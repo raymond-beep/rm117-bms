@@ -1,4 +1,119 @@
 # RM117 BMS — Next Session Start Here
+**Last updated:** 2026-07-13 — **Ang's whole job-phase workflow is BUILT AND LIVE, plus the client portal now has real
+client access.** Three commits shipped and verified in prod: `2c8445b` (phase model + portal magic-link + UX fixes),
+`0329290` (lead placeholder Job IDs), `0edf5c8` (read design-phase count from the signed proposal). **Working tree clean,
+`main` in sync, 211 tests green, prod verified.**
+
+> ## ▶ NEXT SESSION = THE CLIENT PORTAL (Ray's explicit next topic)
+> Ray is reviewing everything below first, then wants to go back to the portal. **The access spine is already built and
+> live** (see the portal section) — what's left is the layer that makes anyone actually use it:
+> 1. **The notification layer** — the "Notify client" button + the Resend email carrying the magic link. **Decided:
+>    staff press a button; NO automatic emails.** (Ray's call: a phase change fires for bookkeeping reasons all the time
+>    and an auto-email is unrecallable — one bad batch teaches clients to ignore them, which destroys the point.)
+>    This is the piece that delivers the actual goal Ray chose: **kill "any update?" status emails.**
+> 2. **"Pay now"** — BLOCKED ON RAY. Needs (a) confirmation QuickBooks *Payments* is enabled on the company, and (b) a
+>    decision on **ACH (~1%) vs card (~2.9%)**. On invoices this size card fees are real money (~$600 on a single $21K
+>    contract) and A/R is $281K. `BillingStrip` has a clean seam for the button.
+> 3. **portal.rm117.com** — a **free** subdomain of the domain Ray already owns (NOT a new purchase; this was his worry).
+>    Optional polish, not a prerequisite — the magic-link design deliberately keeps Clerk-prod + DNS off the critical path.
+>
+> **Ray's product decisions, already made — don't re-litigate:** portal's job = kill status emails · audience = homeowners
+> AND developers equally · multi-project clients get a portfolio table · clients see money (balance) · clients NEVER see
+> sub-phases · the only forward-looking date is the "Next up" milestone.
+
+---
+
+## ✅ DONE 2026-07-13 — Ang's job-phase model (her hand-drawn workflow, now the app's spine)
+
+**Canonical doc: `PHASE_MODEL.md`** (read it — the diagram is a photo and shouldn't be the only copy).
+
+Lifecycle: **Lead → Proposal Sent → Survey/Zoning → Design → CD (Prep → Outgoing) → Permitting → Construction →
+Completed**, with **Job Dropped** (proposal rejected) and **Canceled** (a *signed* job terminated early) kept as
+**deliberately different** terminal states, plus On Hold.
+
+- ⚠️ **`active` and `cd_phase` are both RETIRED.** `active` was never a phase — it was CD's wrap-up stage under a
+  misleading name (migration `0011`). Then **Ang reviewed the build and asked for the CD stage to be two board sections
+  she drags between**, so `0012` split it into **`cd_prep` + `cd_outgoing`**. Live jobs remapped by both.
+- **Sub-phases: ONLY Design has them** (DPI/DPII/DPIII), because how many a job has varies by proposal
+  (`design_phase_count`) — a varying count can't be fixed board sections, which is exactly why CD *could* be.
+- **3 board tabs:** Job Leads · **Pipeline** (the working board; **ENDS with the CD stage** — Ang) · In-Construction
+  (permitting · construction · completed · canceled). Sidebar renamed **BMS → "Project Management"** (route stays `/bms`).
+- **Aging flags** from `jobs.phase_since`: proposal >**14 days**, either CD phase >**21 days** → flag on the card + a
+  stalled count. **A flag, never an email.**
+- **Phase colours follow the lifecycle**, not decoration: cool ramp through design work (violet → navy → teal), the CD
+  pair as **one hue light/dark** (they're one stage, two piles), a green family for the In-Construction tab, warm =
+  stopped, grey = inert. ⚠️ I first made the CD pair a shade of Design's navy and the swatch showed they were
+  **indistinguishable** — check a real swatch, don't trust hex values.
+- **⭐ The phase set now lives in 4 places that must stay in sync:** `PHASES`+`SUB_PHASES` (`api/_lib/db.js`),
+  `PHASE_*`/`BOARD_TABS` (`src/lib/format.js`), the CHECK constraints (migrations `0011`+`0012`), and the portal's own
+  client-facing `LADDER`. `tests/phase-model.test.js` asserts the first three agree.
+
+### Lead placeholder Job IDs (`0329290`)
+A lead runs as **`26_xxx_Smith`** until the proposal is signed, so leads that never convert don't burn job numbers.
+Moving a job **out of** `lead`/`potential`/`job_dropped` **IS the signing event** → `assignOfficialJobId()`
+(`api/_lib/job-number.js`) picks the next free number (**app DB *and* Drive** — jobs are still filed in Drive by hand, so
+the DB alone lags), renames the job (children follow via `ON UPDATE CASCADE`), and provisions the Drive folder.
+**A placeholder job never reaches QBO or Drive** — both are *named after* the Job ID; the QBO endpoints refuse one (409).
+Not best-effort: it throws rather than half-succeed. Verified end-to-end on live data (a retainer followed the rename).
+
+### Reading `design_phase_count` from the signed proposal (`0edf5c8`)
+"✨ Read proposal" button → `GET /api/jobs/design-phases?jobId=` reads the job's signed PDF from Drive (native PDF
+`document` block + **structured outputs** JSON schema) and **SUGGESTS** the count, showing the quoted contract language.
+**It never writes** — staff confirm with Save. A wrong count silently truncates a client's design ladder and *nobody
+would notice*; that's the whole reason for the design.
+**Measured on the firm's REAL proposals: 5 of 6 correct, high confidence, ~6s each.**
+⚠️ **The 6th is unreadable**: a safety classifier false-positives on **`26_033_Guido`** (a house renovation comes back
+`category: "bio"`). It auto-retries on Opus (refusals aren't billed) — **Opus declines it too**. That job is typed by
+hand; the UI says so plainly.
+
+---
+
+## ✅ DONE 2026-07-13 — Client portal: clients can actually get in now (dormant until Ray sends a link)
+
+**Clients authenticate by MAGIC LINK — no Clerk account, no password, no Google.** Clerk stays staff-only. A client
+clicks a signed, expiring, revocable link; `/api/portal/enter` swaps the token for an HttpOnly session cookie and
+redirects so the token leaves the URL. Only the token's **SHA-256 hash** is stored (`portal_links`, migration `0010`), so
+the DB never holds a working credential. `resolvePortalIdentity` gained a second identity path (**cookie first, then
+Clerk**); `portal-gate.jsx` resolves it **above** the Clerk gates, or a client would land on the staff sign-in screen.
+**This is why Clerk-prod + DNS are off the critical path** — and why Ray's "paying for a domain" worry was moot
+(portal.rm117.com is a free subdomain of a domain he already owns).
+
+- **Portfolio table** for multi-project clients (every project, stage, next-up, balance on one screen); a one-job
+  homeowner keeps the warmer card layout.
+- **⚠️ THE PORTAL NOW SHOWS MONEY** — contract total / paid / outstanding per job. This **deliberately supersedes the old
+  "money-free" invariant** (recorded in CLAUDE.md so nobody "restores" it). Only those three figures cross the wire;
+  payment rows, Forefront commissions and QBO ids stay server-side.
+- **Verified against real data:** minted a link for Mike Costello (7 jobs) — anonymous callers 401, forged token refused,
+  revocation instant, **all 7 of his jobs and zero others**, every balance matching the DB, **$30,900 outstanding**.
+  Test link deleted.
+- **Dormant in prod until Ray mints someone a link.** Nothing has reached a client.
+
+---
+
+## ✅ DONE 2026-07-13 — UX audit backlog (`USER_TEST_FINDINGS.md` Round 2)
+`UX2-01` (proposal picker → PDFs only, signed first) · `UX2-02` · `UX2-03` · `UX2-04` · `UX2-06` · `UX2-18` fixed;
+`UX2-05` verified intentional (Ray: `tom@rm117.com` is the right letterhead contact). **`UX2-17` (dead global search) is
+the ONE app-fix still open.**
+⚠️ **UX2-02 was misdiagnosed in the original sweep** — it is *not* a bad street+city join. Addresses are stored as real
+mailing blocks (`1 Knapp Ave\nFlorham Park, NJ 07932`); **111 of 117 jobs carry a newline**. A `<div>` collapses it (list
+looked fine); a single-line `<input>` **drops it entirely** → `204 Robinhood RoadMountainside`. The data is correct → **no
+migration**; fix is one shared `addressLine()` formatter.
+
+---
+
+## Open items / loose ends
+- **`UX2-17`** — the top-bar global search is inert. The last open app fix.
+- **`CD — Prep` is empty** — the migration put all 5 CD jobs in Outgoing. Ang will populate it as she works.
+- **Pipeline reads 44** because it includes the **23 On Hold** jobs. Ang didn't comment; worth asking whether she wants
+  them on her working board.
+- **Each CD half has its own 21-day clock** — a job could sit 3 weeks in Prep *and* 3 in Outgoing without flagging. That
+  follows "no longer than 3 weeks *in this phase*" literally; confirm that's what she meant.
+- **`QBO_CLIENT_SECRET` still missing from Vercel _Preview_** (Ray, dashboard). Not a security gap.
+- **Dunn `24_008` pair** — Ray's parked data decision.
+- Ang was **editing jobs in the app while I worked** (a Completed job → Permitting; that's the Kuhn job). Her edits are
+  real and in the DB.
+
+---
 **Last updated:** 2026-07-10 — **Weekly Planner "Everyone" lane now surfaces on the dashboard.** Ray's concern: he'd just added the shared **Everyone** row to the planner (so a firm-wide item is written once instead of into all 5 people's boxes), but it **didn't show on his dashboard "My week" widget** — which defeated the point (people still had to open the planner to see it). **Root cause:** the Everyone lane writes to a reserved `row_owner_email = '__studio__'` sentinel, but `MyWeekWidget.jsx` filtered strokes/notes to the signed-in user's **own** email, so it never rendered the shared row. (The GET already returns all rows for the week — only client-side filtering was the gap.) **Fix (commit `7e387a9`, prod READY + Ray-verified live):** the widget now also pulls the `__studio__` row and renders it as a **captioned, accent-bordered "Everyone" strip pinned above the personal row** (mirrors the planner). Refactored the strip markup into a reusable `<Strip>` so both lanes render identically; the board shows whenever there's a personal row **OR** a firm-wide item (so a non-roster viewer still sees studio items). Files: `src/components/dashboard/MyWeekWidget.jsx` + `.myweek-lane*` styles in `styles.css`. **135 tests green, clean build.** ⭐ The `__studio__` sentinel now lives in **3 files that must stay in sync**: `Delegation.jsx`, `api/delegation.js`, and now `MyWeekWidget.jsx`.
 > **Also landed on `main` before this session (4 commits, not yet in older handoff notes):** `8d839cb` the Everyone lane itself; `0815eb5` New Job recommends the next number from **Drive** too (not just app DB); `d7b5ae1` My-week widget `‹ ›` week toggle + Today snap-back; `d19df46` Weekly Planner rows grow to fit long notes (no clipping).
 > **▶ NEXT (unchanged backlog):** (1) ask Angelena if she has ANY MORE Weekly-Planner feedback (zoom, My-week widget, Everyone lane, row-growth all shipped); WP zoom-OUT residual still DEFERRED. (2) UX-audit backlog `UX2-01` (proposal file noise), `UX2-17` (dead global search). (3) Ang's Financial feedback (durable "Mark as sent" fix deferred). **Loose ends:** add `QBO_CLIENT_SECRET` to Vercel _Preview_; Dunn `24_008` pair.
