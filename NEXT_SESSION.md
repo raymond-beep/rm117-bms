@@ -1,25 +1,95 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-13 — **Ang's whole job-phase workflow is BUILT AND LIVE, plus the client portal now has real
-client access.** Three commits shipped and verified in prod: `2c8445b` (phase model + portal magic-link + UX fixes),
-`0329290` (lead placeholder Job IDs), `0edf5c8` (read design-phase count from the signed proposal). **Working tree clean,
-`main` in sync, 211 tests green, prod verified.**
+**Last updated:** 2026-07-13 (end of a long session) — **Ang's entire job-phase workflow AND the client portal are
+BUILT, LIVE, and PROVEN.** Ray is showing Angelena at this point. Working tree clean, `main` in sync,
+**231 tests green**, prod verified.
 
-> ## ▶ NEXT SESSION = THE CLIENT PORTAL (Ray's explicit next topic)
-> Ray is reviewing everything below first, then wants to go back to the portal. **The access spine is already built and
-> live** (see the portal section) — what's left is the layer that makes anyone actually use it:
-> 1. **The notification layer** — the "Notify client" button + the Resend email carrying the magic link. **Decided:
->    staff press a button; NO automatic emails.** (Ray's call: a phase change fires for bookkeeping reasons all the time
->    and an auto-email is unrecallable — one bad batch teaches clients to ignore them, which destroys the point.)
->    This is the piece that delivers the actual goal Ray chose: **kill "any update?" status emails.**
-> 2. **"Pay now"** — BLOCKED ON RAY. Needs (a) confirmation QuickBooks *Payments* is enabled on the company, and (b) a
->    decision on **ACH (~1%) vs card (~2.9%)**. On invoices this size card fees are real money (~$600 on a single $21K
->    contract) and A/R is $281K. `BillingStrip` has a clean seam for the button.
-> 3. **portal.rm117.com** — a **free** subdomain of the domain Ray already owns (NOT a new purchase; this was his worry).
->    Optional polish, not a prerequisite — the magic-link design deliberately keeps Clerk-prod + DNS off the critical path.
->
-> **Ray's product decisions, already made — don't re-litigate:** portal's job = kill status emails · audience = homeowners
-> AND developers equally · multi-project clients get a portfolio table · clients see money (balance) · clients NEVER see
-> sub-phases · the only forward-looking date is the "Next up" milestone.
+## ▶ START HERE: ask Ray what Angelena said
+Everything below shipped today and she has not seen it yet. Her feedback is the next unit of work — she has already
+sent the build back once (the CD split), so expect more and treat it as the priority.
+
+**Three things she will notice, and they are DATA gaps, not bugs — say so plainly:**
+1. **"Next up" is blank on every active job.** It is the one forward-looking line a client reads, so the update
+   emails currently read thin. **Filling these in is the single highest-value thing Ang can do** — data entry, not code.
+2. **51 of 95 clients have no email on file** → they cannot be notified at all.
+3. **The Pipeline tab counts 44** because it includes the **23 On Hold** jobs. Ang never commented; ask whether she
+   wants them off her working board. One-line change.
+
+**Also ask:** each CD half has its own 21-day clock, so a job can sit 3 weeks in Prep *and* 3 in Outgoing without
+flagging. That is the literal reading of her diagram — confirm it is what she meant.
+
+## Open items (Ray-blocked, not code-blocked)
+- **"Pay now" — BLOCKED ON RAY.** Needs (a) confirmation QuickBooks *Payments* is enabled (zero payment links have
+  ever been created and the firm collects by Zelle/check — it may well be OFF), and (b) **ACH (~1%) vs card (~2.9%)**.
+  On a $21K contract that is ~$210 vs ~$600, against $281K of A/R. `BillingStrip` has a clean seam for the button.
+- **Staff must sign out and back in** and accept the new **Gmail permission** before they can send client updates.
+  Ray has done this; he is having the rest of the firm do it. The scope is already configured in Google Cloud + Clerk.
+- **`UX2-17`** (top-bar global search is inert) — the one remaining app fix from the UX audit.
+- **`QBO_CLIENT_SECRET` missing from Vercel _Preview_** · **Dunn `24_008` pair** (Ray's parked data decision).
+- **`26_033_Guido`'s proposal cannot be read** — a safety classifier false-positives (`category: "bio"`) on an
+  ordinary house renovation and even the Opus retry declines. That job's design-phase count is typed by hand.
+
+---
+
+# What shipped 2026-07-13 (6 commits, all live)
+
+## 1. Ang's phase model — her hand-drawn workflow is now the app's spine
+**Canonical doc: `PHASE_MODEL.md`.** Lead → Proposal Sent → Survey/Zoning → Design → **CD (Prep → Outgoing)** →
+Permitting → Construction → Completed. **Job Dropped** (proposal rejected) and **Canceled** (a *signed* job terminated
+early) are deliberately DIFFERENT terminal states.
+
+- ⚠️ **`active` AND `cd_phase` are both RETIRED.** `active` was never a phase — it was CD's wrap-up stage under a
+  misleading name (`0011`). Then **Ang reviewed the build** and asked for CD to be **two board sections she drags
+  between**, so `0012` split it into `cd_prep` + `cd_outgoing`. Live jobs remapped by both.
+- **Sub-phases: only Design has them** (DPI/II/III) — the count varies per proposal, which is exactly why CD *could*
+  be real phases and Design cannot.
+- **3 board tabs:** Job Leads · **Pipeline** (the working board; **ENDS with CD**) · In-Construction. Sidebar
+  **"BMS" → "Project Management"** (route stays `/bms`).
+- **Aging flags** from `jobs.phase_since`: proposal >14d, either CD phase >21d. **A flag, never an email.**
+- ⚠️ **Phase colours:** I first made the CD pair a shade of Design's navy and a real swatch showed they were
+  **indistinguishable**. Check a rendered swatch — do not trust hex values.
+- ⭐ **The phase set lives in 4 places that must stay in sync:** `PHASES`+`SUB_PHASES` (`api/_lib/db.js`),
+  `PHASE_*`/`BOARD_TABS` (`src/lib/format.js`), the CHECK constraints, and the portal's client-facing `LADDER`.
+
+## 2. Leads carry a placeholder Job ID
+`26_xxx_Smith` until the proposal is signed, so unconverted leads don't burn numbers. Moving a job **out of**
+lead/potential/job_dropped **IS the signing event** → next free number (from the app DB **and Drive**), rename
+(children cascade), Drive folder created. **A placeholder never reaches QBO or Drive** — both are *named after* the
+Job ID; the QBO endpoints refuse one (409).
+
+## 3. `design_phase_count` read from the signed proposal
+"✨ Read proposal" → native PDF `document` block + **structured outputs**. **It SUGGESTS, never writes** — staff
+confirm with Save, seeing the quoted contract language. A wrong count silently truncates a client's ladder and nobody
+would notice. **5 of 6 real proposals correct** (the 6th is the Guido classifier problem, above).
+
+## 4. THE CLIENT PORTAL — live and proven end-to-end
+**Clients get in by MAGIC LINK — no Clerk account, no password, no Google.** See [[rm117-client-portal]] memory.
+- ⚠️ **THE LINK IS THE LOGIN. There is NO identity check, and Ray CONFIRMED he wants it that way.** Possession of the
+  link = access; the email on file only decides who it is MAILED to. **Do not "harden" this into an email/OTP step** —
+  friction is what stops a portal being used, and an unused portal kills no status emails.
+- **"✉ Notify client"** (Progress tab) — the email IS the front door. Sent **from the staffer's own Gmail**
+  (`gmail.send`), because rm117.com's DNS is on a Wix account the firm doesn't control *and* because "Ray Arocha sent
+  you an update" gets opened while `noreply@` gets ignored. Replies land in his inbox.
+- **STAFF PRESS THE BUTTON — no automatic trigger, ever.** A phase change fires for bookkeeping reasons constantly and
+  an email cannot be recalled.
+- ⚠️ **`draft` must stay side-effect-free.** An early version minted a magic link on *preview*, so merely opening the
+  dialog revoked the client's working link.
+- **Portfolio table** for multi-project clients; **clients see money** (contract total / paid / outstanding — this
+  deliberately supersedes the old "money-free" invariant); clients **never** see sub-phases.
+- **Staff who follow a client link** get a "← Back to the staff app" bar. (Also fixed: Sign out keyed off Clerk's
+  `isSignedIn`, so a Clerk-signed-in staffer clicking it stayed stuck.)
+
+## 5. Several people per client — developers run projects with teams
+Contacts hang off the **CLIENT, not the job** (Tyler Deuel's PM is on all 5 of his projects).
+⭐ **Each contact gets their OWN email and OWN magic link — never one message with the team CC'd.** A CC'd link is a
+*shared* credential: when a PM leaves the firm you'd have to revoke the whole team. Removal **deactivates** (their
+links are revoked; the record of what they were told survives). The 44 clients that had an email became their own
+primary contact.
+
+## 6. UX audit backlog
+`UX2-01/02/03/04/06/18` fixed; `UX2-05` verified intentional. **`UX2-17` is the one left.**
+⚠️ **UX2-02 was misdiagnosed in the original sweep** — addresses are stored as real mailing blocks with a **newline**
+(111 of 117 jobs); a `<div>` collapses it, a single-line `<input>` **drops it**. Data is correct → **no migration**;
+fix is one shared `addressLine()` formatter.
 
 ---
 
