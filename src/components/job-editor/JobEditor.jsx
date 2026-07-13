@@ -11,6 +11,7 @@ import ProgressTab from './ProgressTab.jsx';
 import PaymentsTab from './PaymentsTab.jsx';
 import MessagesTab from './MessagesTab.jsx';
 import CorrectJobIdModal from './CorrectJobIdModal.jsx';
+import ClientContacts from './ClientContacts.jsx';
 
 // Field tags: which fields the client sees in the portal vs internal-only.
 const PortalTag = () => <span className="tag-portal" title="Visible to the client in the portal">👁 client</span>;
@@ -217,6 +218,10 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
                     {cMsg && <span className="client-card-saved">{cMsg}</span>}
                   </div>
                   <div className="client-card-note">Shared with the client portal. Saving updates the client record everywhere it's used.</div>
+
+                  {/* Developers run projects with a team. Everyone here gets the update email
+                      and their own portal link — see ClientContacts. */}
+                  <ClientContacts clientId={linkedClient.id} />
                 </div>
               ) : (
                 <div className="placeholder-note">Not linked to a client record — this job won't appear in the client portal. Pick a client above to connect it.</div>

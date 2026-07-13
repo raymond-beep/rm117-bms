@@ -18,6 +18,10 @@ export default function NotifyClientModal({ job, onClose, onSent }) {
   const [edited, setEdited] = useState(false);
   const [status, setStatus] = useState('loading'); // loading | ready | sending | sent | error
   const [error, setError] = useState(null);
+  // Who this send goes to. Everyone attached to the client is ticked by default; a staffer can
+  // drop someone for THIS send without removing them from the project.
+  const [picked, setPicked] = useState(null);
+  const [result, setResult] = useState(null);
 
   const load = useCallback(async (n) => {
     setStatus('loading');
@@ -31,6 +35,8 @@ export default function NotifyClientModal({ job, onClose, onSent }) {
       setDraft(d);
       // Don't clobber wording the staffer has already edited.
       if (!edited) { setSubject(d.subject); setText(d.text); }
+      // Default: notify everyone attached to the client.
+      setPicked((prev) => prev ?? (d.recipients || []).map((r) => r.id));
       setStatus('ready');
     } catch (e) {
       setError(e.message);
@@ -47,10 +53,11 @@ export default function NotifyClientModal({ job, onClose, onSent }) {
       const r = await apiFetch('/api/portal/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ job_id: job.job_id, note, subject, text }),
+        body: JSON.stringify({ job_id: job.job_id, note, subject, text, contact_ids: picked }),
       });
       const d = await r.json();
       if (!r.ok) { const e = new Error(d.error || 'Send failed'); e.code = d.code; throw e; }
+      setResult(d);
       setStatus('sent');
       onSent?.(d);
     } catch (e) {
@@ -59,7 +66,7 @@ export default function NotifyClientModal({ job, onClose, onSent }) {
     }
   }
 
-  const canSend = status === 'ready' && draft?.to && subject.trim() && text.trim();
+  const canSend = status === 'ready' && (picked || []).length > 0 && subject.trim() && text.trim();
 
   return (
     <>
@@ -78,14 +85,47 @@ export default function NotifyClientModal({ job, onClose, onSent }) {
         <div className="drawer-body">
           {status === 'sent' ? (
             <div className="notify-sent">
-              ✅ Sent to <strong>{draft?.to}</strong>. It’s in your Gmail Sent folder, and their
-              reply will come straight to you.
+              ✅ Sent to <strong>{(result?.sent_to || []).length}</strong>{' '}
+              {(result?.sent_to || []).length === 1 ? 'person' : 'people'}:{' '}
+              {(result?.sent_to || []).join(', ')}.
+              <div style={{ marginTop: 8 }}>
+                Each got their own link. It’s all in your Gmail Sent folder, and replies come
+                straight to you.
+              </div>
+              {/* A partial failure is surfaced, not swallowed — "sent to 2 of 3" is actionable. */}
+              {result?.failed?.length > 0 && (
+                <div className="notify-err" style={{ marginTop: 10 }}>
+                  Could not send to {result.failed.map((f) => f.email).join(', ')}.
+                </div>
+              )}
             </div>
           ) : (
             <>
-              {draft?.to && (
+              {draft?.recipients?.length > 0 && (
                 <div className="notify-to">
-                  To <strong>{draft.client_name}</strong> &lt;{draft.to}&gt;
+                  <div className="notify-to-head">
+                    Goes to {draft.recipients.length}{' '}
+                    {draft.recipients.length === 1 ? 'person' : 'people'} on{' '}
+                    <strong>{draft.client_name}</strong>’s team — each gets their own link.
+                  </div>
+                  {draft.recipients.map((r) => (
+                    <label key={r.id} className="notify-recip">
+                      <input
+                        type="checkbox"
+                        checked={(picked || []).includes(r.id)}
+                        onChange={(e) => setPicked((prev) => (
+                          e.target.checked
+                            ? [...(prev || []), r.id]
+                            : (prev || []).filter((x) => x !== r.id)
+                        ))}
+                      />
+                      <span>
+                        <strong>{r.name || r.email}</strong>
+                        {r.role && <span className="notify-recip-role"> · {r.role}</span>}
+                        {r.name && <span className="notify-recip-email"> &lt;{r.email}&gt;</span>}
+                      </span>
+                    </label>
+                  ))}
                 </div>
               )}
 
@@ -113,7 +153,12 @@ export default function NotifyClientModal({ job, onClose, onSent }) {
               </div>
 
               <div className="field">
-                <label>Message — this is exactly what they’ll receive</label>
+                <label>
+                  Message — this is what they’ll receive
+                  {draft?.recipients?.length > 1 && (
+                    <span className="notify-hint"> (each greeted by their own name)</span>
+                  )}
+                </label>
                 <textarea
                   className="notify-body"
                   rows={14}
@@ -134,7 +179,9 @@ export default function NotifyClientModal({ job, onClose, onSent }) {
               <>
                 <button className="btn" onClick={onClose}>Cancel</button>
                 <button className="btn btn-primary" onClick={send} disabled={!canSend || status === 'sending'}>
-                  {status === 'sending' ? 'Sending…' : 'Send email'}
+                  {status === 'sending'
+                    ? 'Sending…'
+                    : `Send to ${(picked || []).length} ${(picked || []).length === 1 ? 'person' : 'people'}`}
                 </button>
               </>
             )}

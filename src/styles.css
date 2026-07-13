@@ -1392,6 +1392,39 @@ input, select, textarea { font: inherit; }
 }
 .cp-staff-back:hover { background: rgba(255,255,255,0.28); }
 
+/* ---- Client contacts: everyone attached to a client (developers run projects with teams) ---- */
+.contacts { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.contacts-empty {
+  padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+  border-left: 3px solid var(--brass); background: var(--surface);
+  font-size: 12px; color: var(--muted); margin-bottom: 10px;
+}
+.contacts-err { margin-top: 8px; font-size: 12px; color: var(--danger, #b4453c); }
+.contact-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.contact-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.contact-row:last-child { border-bottom: 0; }
+.contact-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.contact-primary { background: var(--success-soft); color: #234d36; }
+.contact-role { font-size: 11px; font-weight: 500; color: var(--muted); }
+.contact-email { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.contact-add {
+  margin-top: 10px; padding: 12px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--surface);
+}
+.contact-add-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Recipients in the notify dialog — everyone who'll get this, each with their own link. */
+.notify-to-head { margin-bottom: 8px; }
+.notify-recip {
+  display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  font-size: 13px; cursor: pointer;
+}
+.notify-recip-role, .notify-recip-email { color: var(--muted); font-weight: 400; }
+.notify-hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); }
+
 /* ---- "Notify client": the portal's front door ---- */
 .notify-box {
   margin-top: 20px; padding: 14px 16px;

@@ -350,6 +350,23 @@ Email-bridge state for outbound notifications + inbound reply matching.
 > automatic trigger on purpose:** phase changes get made for bookkeeping reasons constantly and an email can't be
 > recalled — one bad batch teaches clients to ignore them, which destroys the point.
 
+### `client_contacts`
+**Everyone attached to a client** — who gets project updates and portal access (migration `0014`). One
+`clients.email` never matched reality: the firm's biggest clients are **developers with teams**. Contacts hang off
+the **CLIENT, not the job**, so a developer's PM added once is on all of that client's projects.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `client_id` | uuid FK → clients.id | `on delete cascade` |
+| `name` / `email` / `role` | text | unique per client on `lower(email)` — a duplicate would email them twice |
+| `is_primary` | boolean | exactly one per client; mirrored back into `clients.email` for older screens |
+| `is_active` | boolean | **removal deactivates, never deletes** — their links and the record of what they were told survive them leaving the firm (and their magic links are revoked) |
+
+> **Each contact gets their OWN magic link** (`portal_links.contact_id`) and their own email — never one message
+> with the team CC'd. A CC'd link is a *shared* credential: revoking one person would mean revoking the whole team.
+> Backfill: the 44 clients that had an email became their own primary contact, so nothing regressed.
+
 ### `portal_links`
 **How clients authenticate** (migration `0010`). Clients have no Clerk account — Clerk is staff-only
 Google sign-in. Instead a client clicks a signed link in an email; `/api/portal/enter` validates it,

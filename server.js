@@ -46,6 +46,7 @@ const routes = {
   '/api/portal/invite': () => import('./api/portal/[action].js'),
   '/api/portal/links': () => import('./api/portal/[action].js'),
   '/api/portal/revoke': () => import('./api/portal/[action].js'),
+  '/api/client-contacts': () => import('./api/client-contacts.js'),
   '/api/portal/draft': () => import('./api/portal/[action].js'),
   '/api/portal/notify': () => import('./api/portal/[action].js'),
   '/api/portal/history': () => import('./api/portal/[action].js'),

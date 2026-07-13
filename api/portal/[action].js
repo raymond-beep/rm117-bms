@@ -500,10 +500,10 @@ async function handleRevoke(req, res) {
 // and `notify` swaps in the real link at the moment of sending.
 const LINK_PLACEHOLDER = '[your personal link — added when you send]';
 
-// Everything both `draft` and `notify` need. They share this so the text a staffer approves
-// is byte-for-byte the text that gets sent — a preview that can drift from the real thing is
-// worse than no preview at all. `mint: false` (the draft) touches nothing.
-async function composeUpdate(db, jobId, staff, note, { mint = false } = {}) {
+// Resolve the job, its client, and EVERYONE attached to that client. The firm's biggest
+// clients are developers with teams, so an update goes to all of them — not just whoever's
+// address happened to be typed into the client record first.
+async function resolveRecipients(db, jobId) {
   const { data: job } = await db
     .from('jobs')
     .select('job_id, client_id, client_name, address, phase, next_milestone_label, next_milestone_date')
@@ -516,34 +516,55 @@ async function composeUpdate(db, jobId, staff, note, { mint = false } = {}) {
 
   const { data: client } = await db
     .from('clients')
-    .select('id, name, email, is_active')
+    .select('id, name, is_active')
     .eq('id', job.client_id)
     .maybeSingle();
   if (!client) return { error: 'client_not_found', status: 404 };
-  if (!client.email) {
-    return { error: `${client.name || 'This client'} has no email address on file.`, status: 409 };
-  }
   if (client.is_active === false) return { error: 'That client is deactivated.', status: 409 };
 
-  // Only the SEND mints a link. We store token hashes, so an existing link's raw token can
-  // never be recovered and put back into an email — every send therefore mints a fresh one
-  // and revokes the client's previous live links, so they only ever hold one working link
-  // and "revoke" actually means something.
+  const { data: contacts } = await db
+    .from('client_contacts')
+    .select('id, name, email, role, is_primary')
+    .eq('client_id', client.id)
+    .eq('is_active', true)
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: true });
+
+  if (!contacts?.length) {
+    return {
+      error: `${client.name || 'This client'} has nobody to email — add a contact on the Details tab.`,
+      status: 409,
+    };
+  }
+  return { job, client, contacts };
+}
+
+// Compose the email for ONE recipient. `mint: false` (the draft) touches nothing.
+//
+// EVERY RECIPIENT GETS THEIR OWN LINK. A shared link would mean that when a developer's
+// project manager leaves the firm you'd have to revoke the whole team and re-send; a personal
+// link means you revoke that one person. It also tells you who actually opened it.
+async function composeFor(db, { job, client, contact }, staff, note, senderName, { mint = false } = {}) {
   let link = LINK_PLACEHOLDER;
+
   if (mint) {
+    // Only that PERSON'S previous links are revoked — not the whole team's. (We store token
+    // hashes, so an old link's raw token can never be recovered and re-sent; every send
+    // therefore issues a fresh one, and each person only ever holds one working link.)
     const { data: existing } = await db
       .from('portal_links')
       .select('id, expires_at, revoked_at')
-      .eq('client_id', client.id);
+      .eq('contact_id', contact.id);
 
     const token = mintToken();
     const { error: insErr } = await db.from('portal_links').insert({
       client_id: client.id,
+      contact_id: contact.id,
       token_hash: hashToken(token),
       expires_at: linkExpiry(DEFAULT_LINK_TTL_DAYS),
       created_by: String(staff),
     });
-    if (insErr) return { error: insErr.message, status: 500 };
+    if (insErr) return { error: insErr.message };
 
     const stale = (existing || []).filter((l) => isLinkUsable(l)).map((l) => l.id);
     if (stale.length) {
@@ -556,10 +577,11 @@ async function composeUpdate(db, jobId, staff, note, { mint = false } = {}) {
     link = `${origin}/enter?t=${token}`;
   }
 
-  const senderName = await staffDisplayName(staff);
-  const email = buildUpdateEmail({ job, client, link, senderName, note });
-
-  return { job, client, email, link, senderName };
+  // The greeting uses the CONTACT's name, not the client's — "Hi Sarah," to the project
+  // manager, not "Hi Tyler," to everyone on Tyler's team.
+  const person = { name: contact.name || client.name, email: contact.email };
+  const email = buildUpdateEmail({ job, client: person, link, senderName, note });
+  return { email, link };
 }
 
 // The sign-off. The whole point of sending through Gmail is that it comes from a person, so
@@ -580,86 +602,128 @@ async function staffDisplayName(staffUserId) {
 }
 
 // GET /api/portal/draft?job_id=…&note=… — STAFF. Compose the email and SEND NOTHING.
-// This is what the confirm dialog shows.
+// Returns the recipient list + the body each of them will get, which is what the confirm
+// dialog shows. Everyone attached to the client is listed — for a developer that's their
+// whole team.
 async function handleDraft(req, res, staff) {
   if (!hasDb()) return res.status(503).json({ error: 'db_not_configured' });
   const url = new URL(req.url, 'http://localhost');
   const jobId = url.searchParams.get('job_id');
   if (!jobId) return res.status(400).json({ error: 'job_id required' });
 
-  const out = await composeUpdate(getDb(), jobId, staff, url.searchParams.get('note') || '');
-  if (out.error) return res.status(out.status || 400).json({ error: out.error });
+  const db = getDb();
+  const found = await resolveRecipients(db, jobId);
+  if (found.error) return res.status(found.status || 400).json({ error: found.error });
+
+  const note = url.searchParams.get('note') || '';
+  const senderName = await staffDisplayName(staff);
+
+  // The body is personalised per recipient (it greets them by name), so show the staffer the
+  // version the FIRST recipient gets — and list everyone, so nobody is surprised by who
+  // received it.
+  const primary = found.contacts[0];
+  const { email } = await composeFor(db, { ...found, contact: primary }, staff, note, senderName);
 
   return res.status(200).json({
-    to: out.email.to,
-    client_name: out.client.name,
-    subject: out.email.subject,
-    text: out.email.text,
-    sender: out.senderName,
+    client_name: found.client.name,
+    recipients: found.contacts.map((c) => ({
+      id: c.id, name: c.name, email: c.email, role: c.role, is_primary: c.is_primary,
+    })),
+    to: primary.email,
+    subject: email.subject,
+    text: email.text,
+    sender: senderName,
   });
 }
 
-// POST /api/portal/notify { job_id, note?, subject?, text? } — STAFF. Actually sends.
+// POST /api/portal/notify { job_id, note?, subject?, text?, contact_ids? } — STAFF. Sends.
 //
-// The client sees exactly what the staffer approved: if the dialog sent back an edited
-// subject/body we send THAT, not a freshly-composed one that might differ.
+// ONE EMAIL PER PERSON, each carrying THEIR OWN magic link. Not a single email with everyone
+// CC'd: a CC'd link would be a shared credential, so revoking one person would mean revoking
+// the whole team. Personal links also tell you who actually opened it.
+//
+// The greeting is personalised, so the body is rebuilt per recipient — but any wording the
+// staffer edited in the dialog is preserved verbatim.
 async function handleNotify(req, res, staff) {
   if (!hasDb()) return res.status(503).json({ error: 'db_not_configured' });
   const db = getDb();
 
-  const { job_id, note, subject, text } = req.body || {};
+  const { job_id, note, subject, text, contact_ids } = req.body || {};
   if (!job_id) return res.status(400).json({ error: 'job_id required' });
 
-  const out = await composeUpdate(db, job_id, staff, note || '', { mint: true });
-  if (out.error) return res.status(out.status || 400).json({ error: out.error });
+  const found = await resolveRecipients(db, job_id);
+  if (found.error) return res.status(found.status || 400).json({ error: found.error });
 
-  // The staffer may have edited the wording in the dialog — send what they approved, not a
-  // freshly-composed variant they never saw.
-  const finalSubject = (subject && String(subject).trim()) || out.email.subject;
-  const finalText = (text && String(text).trim()) || out.email.text;
+  // The dialog can un-tick someone for this one send (e.g. don't bother the owner about a
+  // scheduling detail). Absent = everyone.
+  const wanted = Array.isArray(contact_ids) && contact_ids.length
+    ? found.contacts.filter((c) => contact_ids.includes(c.id))
+    : found.contacts;
+  if (!wanted.length) return res.status(400).json({ error: 'Nobody selected to notify.' });
 
-  // Swap the draft's placeholder for the real link. If the staffer deleted it while editing,
-  // append it — an update with no way in is a dead end, and the link is the whole point.
-  let body = finalText.split(LINK_PLACEHOLDER).join(out.link);
-  if (!body.includes(out.link)) body = `${body}\n\n${out.link}`;
+  const senderName = await staffDisplayName(staff);
+  const edited = Boolean(text && String(text).trim());
+  const sent = [];
+  const failed = [];
 
-  const row = {
-    job_id,
-    type: 'status_update',
-    channel: 'email',
-    status: 'pending',
-    to_email: out.email.to,
-    subject: finalSubject,
-    body,
-    sent_by: String(staff),
-  };
-  const { data: logged } = await db.from('notifications').insert(row).select('id').single();
+  for (const contact of wanted) {
+    const composed = await composeFor(
+      db, { ...found, contact }, staff, note || '', senderName, { mint: true },
+    );
+    if (composed.error) { failed.push({ email: contact.email, error: composed.error }); continue; }
 
-  try {
-    const sent = await sendAsUser(staff, {
-      to: out.email.to,
+    const finalSubject = (subject && String(subject).trim()) || composed.email.subject;
+
+    // If the staffer rewrote the body, send THEIR words — but swap in this person's own link.
+    // A body they edited may have dropped the placeholder; an update with no way in is a dead
+    // end, so put the link back rather than send one.
+    let body = edited ? String(text) : composed.email.text;
+    body = body.split(LINK_PLACEHOLDER).join(composed.link);
+    if (!body.includes(composed.link)) body = `${body}\n\n${composed.link}`;
+
+    const { data: logged } = await db.from('notifications').insert({
+      job_id,
+      contact_id: contact.id,
+      type: 'status_update',
+      channel: 'email',
+      status: 'pending',
+      to_email: contact.email,
       subject: finalSubject,
-      text: body,
-      fromName: out.senderName,
-    });
-    if (logged?.id) {
-      await db.from('notifications')
-        .update({ status: 'sent', sent_at: new Date().toISOString(), provider_message_id: sent.id })
-        .eq('id', logged.id);
+      body,
+      sent_by: String(staff),
+    }).select('id').single();
+
+    try {
+      const out = await sendAsUser(staff, {
+        to: contact.email, subject: finalSubject, text: body, fromName: senderName,
+      });
+      if (logged?.id) {
+        await db.from('notifications')
+          .update({ status: 'sent', sent_at: new Date().toISOString(), provider_message_id: out.id })
+          .eq('id', logged.id);
+      }
+      sent.push(contact.email);
+    } catch (err) {
+      if (logged?.id) {
+        await db.from('notifications')
+          .update({ status: 'failed', error: String(err.message).slice(0, 300) })
+          .eq('id', logged.id);
+      }
+      console.error('[portal/notify]', contact.email, err.code || '', err.message);
+      failed.push({ email: contact.email, error: err.message, code: err.code });
     }
-    return res.status(200).json({ sent: true, to: out.email.to, message_id: sent.id });
-  } catch (err) {
-    if (logged?.id) {
-      await db.from('notifications')
-        .update({ status: 'failed', error: String(err.message).slice(0, 300) })
-        .eq('id', logged.id);
-    }
-    console.error('[portal/notify]', err.code || '', err.message, err.detail || '');
-    // 409 when it's a "you need to grant permission" problem — the UI can say so plainly
-    // instead of showing a bare 500.
-    const needsConsent = err.code === 'google_send_not_granted' || err.code === 'google_not_connected';
-    return res.status(needsConsent ? 409 : 502).json({ error: err.message, code: err.code });
   }
+
+  // A partial failure is reported honestly rather than swallowed — "sent to 2 of 3" is
+  // actionable; a bare success message that quietly dropped someone is not.
+  if (!sent.length) {
+    const first = failed[0] || {};
+    const needsConsent = first.code === 'google_send_not_granted' || first.code === 'google_not_connected';
+    return res.status(needsConsent ? 409 : 502).json({
+      error: first.error || 'Nothing could be sent.', code: first.code, failed,
+    });
+  }
+  return res.status(200).json({ sent: true, sent_to: sent, failed });
 }
 
 // GET /api/portal/history?job_id=… — STAFF. What this client has already been told. The
