@@ -282,6 +282,17 @@ and a mis-typed escape hatch.
 
 ## Invariants (do not break)
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.
+- **The client portal's magic link IS the credential — there is NO identity check, by design.**
+  Whoever opens the link is in; they never type an email or a code. The `clients.email` on file only
+  decides *who the link is mailed to*, not who may use it. **Ray's explicit decision (2026-07-13),
+  reaffirmed when asked — do not "harden" this into an email/OTP step.** A homeowner won't keep a
+  password and a developer won't tolerate one; friction here means the portal simply doesn't get used,
+  which defeats its whole purpose (killing "any update?" emails). Same model as a DocuSign or
+  airline check-in link. **The real failure mode is a forwarded email, not an attacker** — and the blast
+  radius is that ONE client seeing their OWN project (status, documents, balance). Mitigations already in
+  place: the token is scoped to a single `client_id`, stored only as a SHA-256 hash, expires in 60 days,
+  is revocable, and **each new "Notify client" email revokes the previous link** so a client only ever
+  holds one live link.
 - **A LEAD has no job number** — it runs as `YY_xxx_LastName` until the proposal is signed, so leads
   that never convert don't burn a number. A placeholder job must **never** reach QuickBooks or Drive
   (both are keyed by the Job ID); the QBO endpoints refuse one with a 409, and no Drive folder is
