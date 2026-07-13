@@ -23,7 +23,24 @@ export function getDb() {
 // Job ID format: YY_NNN_[FF_]LastName — must match the QBO Customer Display Name.
 // The name part may contain internal spaces (real Job IDs / QBO customer names do,
 // e.g. "26_011_Kuhn_352 Amherst"), but not lead or trail with whitespace.
-export const JOB_ID_RE = /^\d{2}_\d{3}_(FF_)?\S(.*\S)?$/;
+//
+// A LEAD carries a PLACEHOLDER number — `YY_xxx_LastName` (Ang's workflow): the official
+// sequential number is only assigned when the proposal is SIGNED, so a lead that never
+// converts doesn't burn a job number. `xxx` is therefore a legal id, but a placeholder
+// job must never reach QuickBooks or Drive — see isPlaceholderJobId() below.
+export const PLACEHOLDER_NUM = 'xxx';
+export const JOB_ID_RE = /^\d{2}_(\d{3}|xxx)_(FF_)?\S(.*\S)?$/;
+
+// True for an un-numbered lead (`26_xxx_Smith`). These jobs are deliberately NOT given a
+// Drive folder or a QBO customer — both are keyed by the Job ID, and provisioning them
+// under a placeholder would just have to be renamed later.
+export function isPlaceholderJobId(jobId) {
+  return typeof jobId === 'string' && /^\d{2}_xxx_/.test(jobId);
+}
+
+// Phases in which a job may still carry a placeholder number: it isn't won yet.
+// Moving beyond these means the proposal was signed → the job earns its real number.
+export const UNNUMBERED_PHASES = ['lead', 'potential', 'job_dropped'];
 
 // Single phase field, Ang's vocabulary (see SCHEMA.md + PHASE_MODEL.md). Must stay in
 // sync with the jobs.phase / field_notes.phase CHECK constraints (migration 0011) and

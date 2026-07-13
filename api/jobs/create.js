@@ -1,7 +1,7 @@
 // POST /api/jobs/create — new-job creation from the app (Phase 3; replaces
 // entering jobs in the Sheet). Job ID must match YY_NNN_[FF_]LastName — it is
 // the shared key across Drive, QBO, and Supabase.
-import { getDb, hasDb, JOB_ID_RE, PHASES } from '../_lib/db.js';
+import { getDb, hasDb, JOB_ID_RE, PHASES, isPlaceholderJobId } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
 import { hasDrive, provisionJobFolders } from '../_lib/google-drive.js';
 
@@ -56,8 +56,13 @@ export default async function handler(req, res) {
     // Best-effort: provision the job's Drive folder tree (keyed by Job ID) and
     // persist its "Files Sent" id for the portal vault. Non-fatal — a Drive
     // hiccup must never fail job creation; the self-heal can map it later.
+    // A LEAD (`26_xxx_Smith`) gets NO Drive folder: the folder is named after the Job ID,
+    // and a placeholder folder would only have to be renamed when the proposal is signed.
+    // It's provisioned at promotion instead (api/_lib/job-number.js).
     let drive = null;
-    if (hasDrive()) {
+    if (isPlaceholderJobId(job_id)) {
+      drive = { skipped: 'lead — folder is created when the proposal is signed' };
+    } else if (hasDrive()) {
       try {
         const prov = await provisionJobFolders(job_id);
         if (prov.ok) {

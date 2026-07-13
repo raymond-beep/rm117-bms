@@ -1,6 +1,7 @@
 // POST /api/jobs/update — saveJob(): writes job edits to Supabase (Phase 3).
 // Body: { job_id, fields: { ...editable fields } }
-import { getDb, hasDb, PHASES, isValidSubPhase } from '../_lib/db.js';
+import { getDb, hasDb, PHASES, isValidSubPhase, isPlaceholderJobId, UNNUMBERED_PHASES } from '../_lib/db.js';
+import { assignOfficialJobId } from '../_lib/job-number.js';
 import { requireStaff } from '../_lib/require-staff.js';
 
 // Whitelist — only fields the JobEditor may write. Everything else is computed,
@@ -116,7 +117,30 @@ export default async function handler(req, res) {
       if (evErr) console.error('[api/jobs/update] phase-event insert', evErr);
     }
 
-    res.status(200).json({ source: 'supabase', persisted: true, job: data });
+    // ── The proposal was signed → the lead earns its official Job ID ──
+    // Ang's workflow: a lead runs as `26_xxx_Smith` and only takes a real sequential
+    // number once it's won, so leads that never convert don't burn numbers. Moving a
+    // placeholder job past the un-numbered phases IS the signing event.
+    let renamed = null;
+    if (
+      phaseChanged &&
+      isPlaceholderJobId(job_id) &&
+      !UNNUMBERED_PHASES.includes(updates.phase)
+    ) {
+      // Deliberately NOT best-effort: a job that advanced without getting its number
+      // would be invisible to QuickBooks and Drive, both of which key off the Job ID.
+      // Fail loudly and leave the phase change in place for a retry.
+      const result = await assignOfficialJobId(db, job_id);
+      if (result.renamed) {
+        renamed = result;
+        const { data: fresh } = await db.from('jobs').select().eq('job_id', result.to).single();
+        if (fresh) Object.assign(data, fresh);
+      }
+    }
+
+    // `renamed` tells the UI the primary key moved, so it must reload rather than patch
+    // the row it optimistically updated under the old id.
+    res.status(200).json({ source: 'supabase', persisted: true, job: data, renamed });
   } catch (err) {
     console.error('[api/jobs/update]', err);
     res.status(500).json({ error: err.message });

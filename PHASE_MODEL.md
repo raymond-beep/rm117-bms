@@ -121,11 +121,27 @@ batch teaches clients to ignore the emails, which destroys the point.
 
 ## Job ID lifecycle
 
-- A **lead** carries a placeholder: `YY_xxx_LASTNAME` (e.g. `26_xxx_Smith`).
-- The **official sequential number** is assigned when the **proposal is signed** (the job moves to
-  Survey/Zoning). So a dropped lead never burns a job number.
+**BUILT 2026-07-13.**
 
-*(Not yet built — this is the next slice. Today's New Job flow still assigns a real number up front.)*
+- A **lead** carries a placeholder: `YY_xxx_LASTNAME` (e.g. `26_xxx_Smith`). `xxx` is a legal Job ID
+  (`JOB_ID_RE` accepts it), but a placeholder job is **never given a Drive folder or a QBO customer**
+  — both are named after the Job ID, so provisioning them early would just mean renaming them later.
+  The QBO endpoints hard-refuse a placeholder (409).
+- **Un-numbered phases:** `lead`, `potential` (Proposal Sent), `job_dropped`. A job may sit in these
+  with no number. **Moving it OUT of them is the signing event** → `assignOfficialJobId()`
+  (`api/_lib/job-number.js`) fires from `api/jobs/update.js` and:
+  1. picks the next free number for the year, checking **both** the app DB and Drive (jobs are still
+     filed in Drive by hand, so the DB alone lags and would re-use a number);
+  2. renames `jobs.job_id` — every child row follows via `ON UPDATE CASCADE` (migration `0007`);
+  3. provisions the Drive folder tree under the **real** id.
+- The rename is **not** best-effort: a job that advanced without a number would be invisible to
+  QuickBooks and Drive, both of which key off the Job ID. It throws and the save fails.
+- The UI says so out loud — the New Job drawer disables the number field for an unwon job, and the
+  board shows *"Proposal signed — 26_xxx_Smith is now 26_043_Smith. Drive folder created."* A Job ID
+  changing itself silently would be alarming.
+- **Verified end-to-end against live data:** a retainer logged against `99_xxx_ZZTestDelete` followed
+  the rename to `99_001_ZZTestDelete`, no orphans, Drive folder created under the real id and named
+  correctly; all artifacts cleaned up.
 
 ---
 
@@ -145,8 +161,7 @@ sits in exactly one board tab, and that no sub-phase can be attached to the wron
 
 ## Still to build
 
-1. **Lead placeholder Job IDs** + assigning the real number on proposal signing.
-2. **AI-assisted `design_phase_count`** — read the signed proposal PDF (the Drive viewer already
+1. **AI-assisted `design_phase_count`** — read the signed proposal PDF (the Drive viewer already
    resolves it; the Anthropic vision pipeline already exists for Drawing QA) and **pre-fill** the
    count for staff to confirm. Decided: **suggest, don't auto-apply** — a wrong number silently
    corrupts a client's ladder and nobody would notice.

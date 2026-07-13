@@ -50,7 +50,7 @@ One record per person/company; all their jobs hang off it. Portal login (Phase 7
 The heart of everything. One row per job.
 | Field | Type | Notes |
 |-------|------|-------|
-| `job_id` | text PK | format `YY_NNN_[FF_]LastName`; matches QBO Customer Display Name |
+| `job_id` | text PK | format `YY_NNN_[FF_]LastName`; matches QBO Customer Display Name. **A lead carries the placeholder `YY_xxx_LastName`** — the real sequential number is assigned when the proposal is signed (see PHASE_MODEL.md), so unconverted leads don't burn numbers. Placeholder jobs get no Drive folder and no QBO customer. |
 | `client_id` | uuid FK → clients.id | who is billed for this job |
 | `referred_by_id` | uuid FK → clients.id | nullable — contractor/partner who brought the job in |
 | `client_name` | text | denormalized for display/search (kept in sync with `clients.name`) |

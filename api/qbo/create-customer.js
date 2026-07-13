@@ -5,7 +5,7 @@
 // webhook also relies on). We read the job + its linked client from Supabase to
 // fill name/email/phone/company, then find-or-create the matching QBO customer.
 // Idempotent: if the customer already exists it's returned untouched.
-import { getDb, hasDb, JOB_ID_RE } from '../_lib/db.js';
+import { getDb, hasDb, JOB_ID_RE, isPlaceholderJobId } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
 import { hasQbo, findOrCreateCustomer } from '../_lib/qbo.js';
 
@@ -20,6 +20,14 @@ export default async function handler(req, res) {
   const { job_id } = req.body || {};
   if (!job_id || !JOB_ID_RE.test(job_id)) {
     return res.status(400).json({ error: 'A valid job_id (YY_NNN_[FF_]LastName) is required' });
+  }
+  // A LEAD (`26_xxx_Smith`) has no official number yet, and the Job ID IS the QuickBooks
+  // Customer Display Name — the invariant the whole sync rests on. Never let a placeholder
+  // into QBO; it would have to be renamed the moment the proposal is signed.
+  if (isPlaceholderJobId(job_id)) {
+    return res.status(409).json({
+      error: 'This job is still a lead (no official Job ID). Move it past Proposal Sent to assign its number first.',
+    });
   }
   if (!hasDb()) return res.status(503).json({ error: 'Database not configured' });
 

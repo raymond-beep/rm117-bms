@@ -2,6 +2,7 @@
 // Details edits save optimistically through the parent's onSave (rollback there).
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
+import { isPlaceholderJobId } from '../../lib/job-id.js';
 import {
   money, shortDate, addressLine, PHASE_ORDER, PHASE_LABELS,
   SUB_PHASES, SUB_PHASE_LABELS, subPhasesFor,
@@ -207,6 +208,14 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
                 <label>Address <PortalTag /></label>
                 <input type="text" value={form.address} onChange={set('address')} />
               </div>
+              {/* A lead runs as 26_xxx_Smith until the proposal is signed — say so, and say
+                  what will happen, because a Job ID silently changing itself is alarming. */}
+              {isPlaceholderJobId(job.job_id) && (
+                <div className="lead-notice">
+                  <strong>Lead — no job number yet.</strong> Moving this job past <em>Proposal Sent</em>
+                  {' '}assigns the next official Job ID and creates its Drive folder.
+                </div>
+              )}
               <div className="field-row">
                 <div className="field">
                   <label>Phase <PortalTag /></label>

@@ -6,7 +6,15 @@
 
 // Mirror of api/_lib/db.js JOB_ID_RE (the server is the source of truth).
 // Name part may contain internal spaces (legacy/real Job IDs do), no lead/trail space.
-export const JOB_ID_RE = /^\d{2}_\d{3}_(FF_)?\S(.*\S)?$/;
+//
+// `xxx` is the LEAD placeholder (`26_xxx_Smith`): a lead only earns its sequential number
+// when the proposal is signed, so leads that never convert don't burn job numbers.
+export const PLACEHOLDER_NUM = 'xxx';
+export const JOB_ID_RE = /^\d{2}_(\d{3}|xxx)_(FF_)?\S(.*\S)?$/;
+
+export function isPlaceholderJobId(jobId) {
+  return typeof jobId === 'string' && /^\d{2}_xxx_/.test(jobId);
+}
 
 // Current year as a 2-digit string ('26').
 export function currentYY(now = new Date()) {

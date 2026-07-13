@@ -1365,6 +1365,27 @@ input, select, textarea { font: inherit; }
 /* A job that has overstayed its phase (proposal > 14 days, CDs > 21). */
 .job-card-stalled { margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--danger, #b4453c); }
 
+/* "This lead just became 26_043_Smith" — a Job ID changing itself needs saying out loud. */
+.board-notice {
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 0 14px; padding: 10px 14px; border-radius: 8px;
+  border: 1px solid var(--border); border-left: 3px solid var(--success);
+  background: var(--success-soft); color: var(--ink); font-size: 13px;
+}
+.board-notice-x {
+  margin-left: auto; background: none; border: 0; cursor: pointer;
+  color: var(--muted); font-size: 13px; line-height: 1; padding: 2px 4px;
+}
+.board-notice-x:hover { color: var(--ink); }
+
+/* A lead has no job number yet — explain what will happen when it's won. */
+.lead-notice {
+  margin: 0 0 14px; padding: 9px 12px; border-radius: 6px;
+  border: 1px solid var(--border); border-left: 3px solid var(--brass);
+  background: var(--surface); font-size: 12px; line-height: 1.5; color: var(--muted);
+}
+.lead-notice strong { color: var(--ink); }
+
 /* Staff nudge: an unset milestone = a blank "Next up" in the client's portal. */
 .milestone-missing {
   margin: 0 0 12px; padding: 8px 12px; border-radius: 6px;

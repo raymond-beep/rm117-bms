@@ -121,6 +121,12 @@ export const PHASE_LADDER = [
 // Terminal / off-ladder states: no "current" marker, group at the bottom.
 export const TERMINAL_PHASES = ['on_hold', 'completed', 'job_dropped', 'canceled'];
 
+// Phases in which a job may still carry the PLACEHOLDER number (`26_xxx_Smith`) — it
+// isn't won yet. Moving beyond these means the proposal was signed, so the job earns its
+// official sequential number (and its Drive folder). Mirrors UNNUMBERED_PHASES in
+// api/_lib/db.js — the server is the source of truth and performs the promotion.
+export const UNNUMBERED_PHASES = ['lead', 'potential', 'job_dropped'];
+
 export function phaseLabel(job) {
   if (job.phase_override) return job.phase_override; // manual label wins
   return PHASE_LABELS[job.phase] || job.phase;

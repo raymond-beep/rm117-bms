@@ -279,6 +279,12 @@ and a mis-typed escape hatch.
 
 ## Invariants (do not break)
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.
+- **A LEAD has no job number** — it runs as `YY_xxx_LastName` until the proposal is signed, so leads
+  that never convert don't burn a number. A placeholder job must **never** reach QuickBooks or Drive
+  (both are keyed by the Job ID); the QBO endpoints refuse one with a 409, and no Drive folder is
+  provisioned until promotion. Moving a job out of `lead`/`potential`/`job_dropped` IS the signing
+  event: `assignOfficialJobId()` (`api/_lib/job-number.js`) picks the next free number (app DB **and**
+  Drive), renames the job (children follow via `ON UPDATE CASCADE`), and creates the Drive folder.
 - **The client portal shows only three money figures per job — contract total, paid-to-date,
   outstanding — and nothing else.** (This deliberately supersedes the old "the portal is money-free"
   rule, dropped 2026-07-13: clients, especially developers running several jobs, want to know what

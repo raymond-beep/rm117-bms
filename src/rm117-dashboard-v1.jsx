@@ -50,6 +50,8 @@ export default function BmsDashboard() {
   const [activeId, setActiveId] = useState(null);
   const [dragItems, setDragItems] = useState(null); // working {phase:[jobId]} during a drag
   const [moveError, setMoveError] = useState(null);
+  // One-off confirmation, e.g. "this lead just became 26_043_Smith".
+  const [notice, setNotice] = useState(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
@@ -228,7 +230,22 @@ export default function BmsDashboard() {
       setJobs(prev); // rollback
       throw new Error((await res.json()).error || `Save failed (HTTP ${res.status})`);
     }
-    return res.json();
+    const out = await res.json();
+    // Signing a lead's proposal renames it (26_xxx_Smith → 26_043_Smith), so the row we
+    // just patched optimistically is keyed under an id that no longer exists. Reload
+    // rather than try to reconcile a moved primary key, close the stale editor, and say
+    // plainly what happened — a job silently changing its ID would be alarming.
+    if (out.renamed) {
+      await loadJobs();
+      setDrawer(null);
+      const folder = out.renamed.drive?.folderId
+        ? ' Drive folder created.'
+        : out.renamed.drive?.error
+          ? ' (Drive folder could not be created — add it by hand.)'
+          : '';
+      setNotice(`Proposal signed — ${out.renamed.from} is now ${out.renamed.to}.${folder}`);
+    }
+    return out;
   }
 
   async function createJob(fields) {
@@ -324,6 +341,13 @@ export default function BmsDashboard() {
           <input type="checkbox" checked={billOnly} onChange={(e) => setBillOnly(e.target.checked)} /> Bill flag
         </label>
       </div>
+
+      {notice && (
+        <div className="board-notice">
+          {notice}
+          <button className="board-notice-x" onClick={() => setNotice(null)} aria-label="Dismiss">✕</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="card"><div className="empty">Loading jobs…</div></div>

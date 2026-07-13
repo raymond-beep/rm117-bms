@@ -3,8 +3,8 @@
 // name, + the Forefront flag → FF_) with a live preview and validation. An
 // "enter manually" escape hatch covers legacy/odd ids.
 import React, { useEffect, useMemo, useState } from 'react';
-import { PHASE_ORDER, PHASE_LABELS } from '../../lib/format.js';
-import { currentYY, pad3, nextJobNumberAcross, buildJobId, validateJobId } from '../../lib/job-id.js';
+import { PHASE_ORDER, PHASE_LABELS, UNNUMBERED_PHASES } from '../../lib/format.js';
+import { currentYY, pad3, nextJobNumberAcross, buildJobId, validateJobId, PLACEHOLDER_NUM } from '../../lib/job-id.js';
 import { apiFetch } from '../../lib/api.js';
 
 export default function NewJobDrawer({ onClose, onCreate, jobs = [] }) {
@@ -51,7 +51,7 @@ export default function NewJobDrawer({ onClose, onCreate, jobs = [] }) {
   const [form, setForm] = useState({
     client_name: '',
     address: '',
-    phase: 'potential',
+    phase: 'lead',
     job_total: '',
     is_forefront: false,
     ff_commission: '',
@@ -65,7 +65,14 @@ export default function NewJobDrawer({ onClose, onCreate, jobs = [] }) {
     setForm((f) => ({ ...f, [key]: value }));
   };
 
-  const builtId = buildJobId({ yy, nnn, forefront: form.is_forefront, name });
+  // An unwon job (Lead / Proposal Sent) carries the PLACEHOLDER number `xxx` — it earns a
+  // real sequential number only when the proposal is signed, so leads that fall through
+  // don't burn job numbers. Ang's workflow; the promotion happens automatically on the
+  // phase change (see api/_lib/job-number.js).
+  const unnumbered = UNNUMBERED_PHASES.includes(form.phase);
+  const effectiveNnn = unnumbered ? PLACEHOLDER_NUM : nnn;
+
+  const builtId = buildJobId({ yy, nnn: effectiveNnn, forefront: form.is_forefront, name });
   const jobId = manualMode ? manualId.trim() : builtId;
   const check = validateJobId(jobId, existingIds);
 
@@ -122,9 +129,12 @@ export default function NewJobDrawer({ onClose, onCreate, jobs = [] }) {
                   <div className="jobid-part jobid-part-nnn">
                     <span className="jobid-sublabel">Number</span>
                     <input
-                      type="text" inputMode="numeric" value={nnn}
+                      type="text" inputMode="numeric"
+                      value={effectiveNnn}
                       onChange={(e) => { setNnnEdited(true); digitsOnly(3)(setNnn)(e); }}
                       placeholder="012" aria-label="Number"
+                      disabled={unnumbered}
+                      title={unnumbered ? 'Assigned when the proposal is signed' : undefined}
                     />
                   </div>
                   <div className="jobid-part jobid-part-name">
@@ -135,21 +145,31 @@ export default function NewJobDrawer({ onClose, onCreate, jobs = [] }) {
                     />
                   </div>
                 </div>
-                <div className="jobid-hint">
-                  Next available for ’{yy}:{' '}
-                  <button
-                    type="button" className="jobid-link"
-                    onClick={() => { setNnnEdited(false); setNnn(suggested); }}
-                  >
-                    {suggested}
-                  </button>
-                  {nnnEdited && nnn !== suggested && <span className="jobid-edited"> · using {nnn}</span>}
-                  <span className="jobid-source">
-                    {drive.loading ? ' · checking Drive…' : drive.ok ? ' · app + Drive' : ' · app only (Drive unavailable)'}
-                  </span>
-                </div>
-                {numTakenInDrive && (
-                  <div className="jobid-warn">⚠ {yy}_{nnn} already exists in Drive — pick another number.</div>
+                {unnumbered ? (
+                  <div className="jobid-hint">
+                    No job number yet — this job isn’t won. It takes the next number
+                    (<strong>{suggested}</strong>) automatically when you move it past Proposal Sent,
+                    and its Drive folder is created then.
+                  </div>
+                ) : (
+                  <>
+                    <div className="jobid-hint">
+                      Next available for ’{yy}:{' '}
+                      <button
+                        type="button" className="jobid-link"
+                        onClick={() => { setNnnEdited(false); setNnn(suggested); }}
+                      >
+                        {suggested}
+                      </button>
+                      {nnnEdited && nnn !== suggested && <span className="jobid-edited"> · using {nnn}</span>}
+                      <span className="jobid-source">
+                        {drive.loading ? ' · checking Drive…' : drive.ok ? ' · app + Drive' : ' · app only (Drive unavailable)'}
+                      </span>
+                    </div>
+                    {numTakenInDrive && (
+                      <div className="jobid-warn">⚠ {yy}_{nnn} already exists in Drive — pick another number.</div>
+                    )}
+                  </>
                 )}
               </>
             ) : (
