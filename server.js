@@ -39,6 +39,7 @@ const routes = {
   '/api/portal/files': () => import('./api/portal/[action].js'),
   '/api/portal/download': () => import('./api/portal/[action].js'),
   '/api/portal/messages': () => import('./api/portal/[action].js'),
+  '/api/jobs/design-phases': () => import('./api/jobs/design-phases.js'),
   '/api/portal/send': () => import('./api/portal/[action].js'),
   '/api/portal/enter': () => import('./api/portal/[action].js'),
   '/api/portal/signout': () => import('./api/portal/[action].js'),

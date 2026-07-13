@@ -57,6 +57,27 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
   // by the proposal (design_phase_count), so a 2-phase job offers DPI–DPII only.
   const subOptions = subPhasesFor({ phase: form.phase, design_phase_count: form.design_phase_count });
 
+  // Reading the design-phase count out of the signed proposal. It PRE-FILLS the dropdown —
+  // it never saves. Staff eyeball the quoted evidence and hit Save, so a bad read can't slip
+  // through silently. (Accurate on 5 of 6 real proposals tested; the 6th couldn't be read.)
+  const [dp, setDp] = useState({ loading: false, result: null, error: null });
+
+  async function readProposal() {
+    setDp({ loading: true, result: null, error: null });
+    try {
+      const r = await apiFetch(`/api/jobs/design-phases?jobId=${encodeURIComponent(job.job_id)}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not read the proposal');
+      setDp({ loading: false, result: d, error: null });
+      // Pre-fill only when there's an actual number; never overwrite with a blank.
+      if (d.design_phase_count) {
+        setForm((f) => ({ ...f, design_phase_count: String(d.design_phase_count) }));
+      }
+    } catch (e) {
+      setDp({ loading: false, result: null, error: e.message });
+    }
+  }
+
   // Changing phase clears any sub-phase from the old one — "Prep" is meaningless in
   // Permitting, and the DB constraint would reject the pair anyway.
   const onPhaseChange = (e) => {
@@ -240,16 +261,41 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
               </div>
               <div className="field-row">
                 {/* How many design phases the signed proposal bought — caps this job's
-                    DPI/II/III ladder. */}
+                    DPI/II/III ladder. The app can read it out of the signed proposal, but it
+                    only ever SUGGESTS: staff confirm, because a wrong count silently
+                    truncates the client's ladder and nobody would notice. */}
                 {form.phase === 'design_phase' && (
                   <div className="field">
-                    <label>Design phases in the proposal</label>
+                    <label>
+                      Design phases in the proposal
+                      <button
+                        type="button"
+                        className="btn-link-tiny"
+                        onClick={readProposal}
+                        disabled={dp.loading}
+                        title="Read the signed proposal in Drive and suggest the number"
+                      >
+                        {dp.loading ? 'Reading…' : '✨ Read proposal'}
+                      </button>
+                    </label>
                     <select value={form.design_phase_count || ''} onChange={set('design_phase_count')}>
                       <option value="">— not set —</option>
                       <option value="1">1 (DPI)</option>
                       <option value="2">2 (DPI–DPII)</option>
                       <option value="3">3 (DPI–DPIII)</option>
                     </select>
+                    {dp.error && <div className="dp-note dp-bad">{dp.error} — set it by hand.</div>}
+                    {dp.result && (
+                      dp.result.design_phase_count
+                        ? (
+                          <div className="dp-note">
+                            Suggested <strong>{dp.result.design_phase_count}</strong> ({dp.result.confidence} confidence)
+                            {' '}from <em>{dp.result.source?.name}</em>. <strong>Check it, then Save.</strong>
+                            {dp.result.evidence && <div className="dp-quote">“{dp.result.evidence}”</div>}
+                          </div>
+                        )
+                        : <div className="dp-note dp-bad">The proposal doesn’t say — set it by hand.</div>
+                    )}
                   </div>
                 )}
                 <div className="field">

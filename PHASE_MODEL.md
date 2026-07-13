@@ -159,9 +159,29 @@ sits in exactly one board tab, and that no sub-phase can be attached to the wron
 
 ---
 
+## Reading `design_phase_count` from the signed proposal (BUILT 2026-07-13)
+
+Angelena's ask: the app should work out how many design phases a job bought instead of making
+someone type it. **`GET /api/jobs/design-phases?jobId=`** (staff-gated, read-only) resolves the
+job's signed proposal from Drive — the same PDFs-only, signed-contract-first ranking the Payments
+tab uses — sends it to Claude as a native `document` block, and gets the count back through a
+**JSON schema** (structured outputs), so a malformed reply is impossible by construction.
+
+**It SUGGESTS — it never writes.** The JobEditor's "✨ Read proposal" button pre-fills the
+dropdown and shows the **quoted contract language** it relied on; staff confirm with the normal
+Save. This was a deliberate call: a wrong count silently truncates a client's design ladder and
+nobody would ever notice. `normalize()` (`api/_lib/proposal-extract.js`) is the guard between the
+model and a DB column with a CHECK constraint — anything outside 1–3 becomes `null`, and "the
+proposal doesn't say" stays a first-class answer so the model never has to invent a number.
+
+**Measured on the firm's real proposals: 5 of 6 correct, high confidence**, each quoting the fee
+schedule (`Design Phase I (DPI)… Design Phase II (DPII)…`). ~6s per read.
+
+⚠️ **The 6th could not be read at all.** A safety classifier false-positives on
+`26_033_Guido` — an ordinary house-renovation proposal comes back `category: "bio"`. A refusal
+retries once on `claude-opus-4-8` (refusals aren't billed), but **Opus declines it too**, so that
+job simply falls back to typing the number by hand. The UI says so plainly rather than pretending.
+
 ## Still to build
 
-1. **AI-assisted `design_phase_count`** — read the signed proposal PDF (the Drive viewer already
-   resolves it; the Anthropic vision pipeline already exists for Drawing QA) and **pre-fill** the
-   count for staff to confirm. Decided: **suggest, don't auto-apply** — a wrong number silently
-   corrupts a client's ladder and nobody would notice.
+1. *(nothing outstanding from Ang's diagram)*

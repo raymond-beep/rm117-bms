@@ -1378,6 +1378,19 @@ input, select, textarea { font: inherit; }
 }
 .board-notice-x:hover { color: var(--ink); }
 
+/* The design-phase count read out of the signed proposal — a SUGGESTION awaiting Save. */
+.dp-note {
+  margin-top: 7px; padding: 8px 10px; border-radius: 6px;
+  border: 1px solid var(--border); border-left: 3px solid var(--success);
+  background: var(--surface); font-size: 12px; line-height: 1.5; color: var(--muted);
+}
+.dp-note strong { color: var(--ink); }
+.dp-note.dp-bad { border-left-color: var(--brass); }
+.dp-quote {
+  margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--border);
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+}
+
 /* A lead has no job number yet — explain what will happen when it's won. */
 .lead-notice {
   margin: 0 0 14px; padding: 9px 12px; border-radius: 6px;
