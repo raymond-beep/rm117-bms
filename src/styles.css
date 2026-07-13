@@ -1378,6 +1378,20 @@ input, select, textarea { font: inherit; }
 }
 .board-notice-x:hover { color: var(--ink); }
 
+/* Staff who followed a client's magic link — say where they are, and give them the door.
+   Without this the staff board looks broken and they don't know "Sign out" is the way back. */
+.cp-staff-bar {
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+  padding: 9px 16px; background: #3a2f5e; color: #fff;
+  font-size: 13px; line-height: 1.4; text-align: center;
+}
+.cp-staff-bar strong { color: #fff; }
+.cp-staff-back {
+  background: rgba(255,255,255,0.16); color: #fff; border: 0; border-radius: 6px;
+  padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.cp-staff-back:hover { background: rgba(255,255,255,0.28); }
+
 /* ---- "Notify client": the portal's front door ---- */
 .notify-box {
   margin-top: 20px; padding: 14px 16px;

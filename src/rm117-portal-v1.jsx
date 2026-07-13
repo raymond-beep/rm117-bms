@@ -8,8 +8,9 @@
 // Documents (Drive file broker) and Messages (thread + email bridge) need their
 // backends built — until then their panels render an on-brand empty state.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useAuth, useClerk } from '@clerk/clerk-react';
+import { useAuth, useClerk, useUser } from '@clerk/clerk-react';
 import { shortDate, fileSize, money } from './lib/format.js';
+import { hasPortalHint } from './components/shell/portal-gate.jsx';
 
 const fmtMsgTime = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
@@ -63,12 +64,23 @@ const pickDefault = (jobs) =>
 
 export default function ClientPortal({ client, jobs = [], preview = false }) {
   const clerk = useClerk();
-  const { isSignedIn } = useAuth();
-  // Two ways a client can be here: a magic-link cookie session (the normal path — no
-  // Clerk account exists) or a Clerk session (staff preview / legacy Clerk-linked
-  // client). Clerk's signOut can't clear our cookie, so route each to its own exit.
+  const { user } = useUser();
+
+  // Which session actually got you in here? A magic-link COOKIE (the normal client path —
+  // no Clerk account exists) or a CLERK session (a legacy Clerk-linked client). They need
+  // different exits: Clerk's signOut cannot clear our cookie, so keying off `isSignedIn`
+  // would leave a Clerk-signed-in staffer stuck in the portal after "signing out".
+  const viaCookie = hasPortalHint();
   const signOut = () =>
-    isSignedIn ? clerk.signOut({ redirectUrl: '/' }) : window.location.assign('/api/portal/signout');
+    viaCookie ? window.location.assign('/api/portal/signout') : clerk.signOut({ redirectUrl: '/' });
+
+  // A STAFF member who clicks a client's magic link becomes that client in this browser —
+  // which is genuinely useful (it's how you see what a client sees) but reads as "the app
+  // is broken" when you then try to get back to the staff board. Say what's happening and
+  // give them the door. Ray hit exactly this the first time he tested a real link.
+  const staffEmail = user?.primaryEmailAddress?.emailAddress || '';
+  const staffViewing = !preview && viaCookie && staffEmail.endsWith('@rm117.com');
+
   const [selectedId, setSelectedId] = useState(() => pickDefault(jobs));
   const selected = jobs.find((j) => j.job_id === selectedId) || jobs[0] || null;
   const activeCount = jobs.filter((j) => j.phase !== 'completed').length;
@@ -82,6 +94,18 @@ export default function ClientPortal({ client, jobs = [], preview = false }) {
       {preview && (
         <div className="cp-preview-bar">
           Staff preview — viewing the portal as <strong>{displayName}</strong> ({client?.email || 'no email on file'})
+        </div>
+      )}
+      {/* Staff who followed a client's link: tell them where they are and how to get back,
+          instead of letting the staff board look broken. */}
+      {staffViewing && (
+        <div className="cp-staff-bar">
+          <span>
+            You followed a client link — you’re seeing this exactly as <strong>{displayName}</strong> does.
+          </span>
+          <button className="cp-staff-back" onClick={() => window.location.assign('/api/portal/signout')}>
+            ← Back to the staff app
+          </button>
         </div>
       )}
       <header className="cp-header">
