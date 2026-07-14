@@ -60,6 +60,7 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `api/qbo/status.js` | `{configured,env,realm}` (no secrets) — the UI flag-gates the "Send to QuickBooks" panel on it |
 | `api/jobs/next-number.js` | GET `?yy=26` — job numbers already used in **Google Drive** for a year, so the New Job builder recommends `max(app DB, Drive) + 1` (jobs are filed in Drive too until the app fully takes over, so the DB alone lags). Staff-gated, read-only; folder scan via `listJobNumbersForYear` in `google-drive.js`. Frontend combines via `nextJobNumberAcross` (`src/lib/job-id.js`) |
 | `api/jobs/rename.js` | **"Correct Job ID"** — renames a job across App (cascade) + QBO customer + Drive folder together, with dry-run preview + rollback |
+| **Drive → app sync** (2026-07-14) | The firm works BOTH ways round: often the Drive folder exists weeks before anything reaches the app. `api/_lib/drive-sync.js` (pure: `parseFolderName` + `buildQueue`) · `api/drive/new-folders.js` (GET the queue, 60s cache) · `api/drive/import.js` (POST: create the job/lead, or dismiss the folder) · `src/components/bms/DriveInbox.jsx` (the **"New in Drive"** strip on the board; renders nothing when empty). Drive already speaks the app's language by accident: `26_XXX_Onorato` IS the app's lead placeholder, `26_044_Seesman` is a numbered job. See the invariants below |
 | `src/components/job-editor/QboInvoicePanel.jsx` | "Send to QuickBooks" invoice UI (in PaymentsTab; shown only when QBO configured). Shows the job's app-generated proposal fee schedule (via `/api/proposals?job_id=`) as a **contract reference** with one-click "Use" → invoice line |
 | `api/jobs/proposal-docs.js` | GET — a job's **signed proposal(s)** from its Drive "Proposal" folder: `?jobId=` lists files; `?jobId=&fileId=` streams a chosen PDF through the app (staff-gated; fileId validated to live in that folder). The contract of record for **existing** jobs (whose proposals are Drive PDFs, not in the `proposals` table) |
 | `src/components/job-editor/ProposalDocs.jsx` | **Signed-proposal viewer** in the PaymentsTab — lists proposals + inline iframe viewer (blob fetch carries auth) + "Open full screen"; renders nothing when none on file |
@@ -283,6 +284,28 @@ and a mis-typed escape hatch.
 
 ## Invariants (do not break)
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.
+- **The Drive → app sync NEVER creates a job on its own, and its watermark is not a bug.**
+  A folder name carries no phase, no client record and no contract value — and the Job ID is what
+  QuickBooks matches on, so a folder auto-promoted to a job is a QBO matching problem later. Every
+  import is a staff click, and lands with `client_id` NULL + `import_needs_review` set ("Deuel" names
+  five different projects; a wrong client link is worse than none).
+  - **`drive_sync.watermark` (1 Jan 2026) is load-bearing.** A full scan finds 255 job folders + 104
+    lead folders against 134 app jobs — but that 233-folder gap is almost all HISTORY (the app was
+    seeded from Ang's Sheet, which only held live work). Ray's call is to leave it out. Do **not**
+    "fix" the sync by lowering the watermark to catch everything; it would bury the board.
+  - **Match on the NUMBER (`YY_NNN`), never the folder name.** Drive and the app genuinely disagree
+    about names: Drive has `26_002 = 544 Valley`, the app has `26_002 = 542 Valley` (the addresses are
+    swapped, and O'Bagel is `24_081` in Drive but `25_085` in the app). Those are Ang's reconciliation
+    items — a name-matching sync would silently duplicate the jobs.
+  - **A numbered folder's name is never tidied on import.** Job ID === folder name === QBO display
+    name, character for character; a folder with stray spaces is FLAGGED for a rename in Drive, not
+    imported as a cleaned-up string. Leads are exempt (a placeholder id never reaches QBO or Drive).
+- **A lead imported FROM Drive already HAS a folder — promotion must RENAME it, not provision one.**
+  `assignOfficialJobId` originally assumed a lead never has a folder ("precisely so we never have to
+  rename one"), which is true only for leads created IN THE APP. For an imported one that assumption
+  would create `26_047_Onorato` beside the original `26_XXX_Onorato` and orphan every file in it. The
+  job remembers its folder in **`jobs.drive_folder_id`** and promotion renames that — which is exactly
+  the rename staff do by hand today.
 - **EVERY CONTACT GETS THEIR OWN MAGIC LINK** (`portal_links.contact_id`) and **their own email** — never one
   email with the team CC'd. A CC'd link would be a shared credential: when a developer's project manager leaves
   the firm you'd have to revoke the whole team and re-send. Per-person links mean you revoke that one person,

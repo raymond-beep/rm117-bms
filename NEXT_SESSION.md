@@ -1,9 +1,29 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-13 (end of a long session) — **Ang's entire job-phase workflow AND the client portal are
-BUILT, LIVE, and PROVEN.** Ray is showing Angelena at this point. Working tree clean, `main` in sync,
-**231 tests green**, prod verified.
+**Last updated:** 2026-07-14 — **Drive → app sync is LIVE**, and the top bar is a real global search.
+Working tree clean, `main` in sync, **258 tests green**, prod verified. Angelena is cleaning up QuickBooks;
+Ray is refining the app alongside her.
 
-## ▶ START HERE: ask Ray what Angelena said
+## ▶ START HERE: the Drive queue has 28 folders waiting
+The Drive → app sync shipped today with its start line at **1 Jan 2026**, so the board now shows a
+**"New in Drive — 5 jobs · 23 leads"** strip. Nobody has worked through it yet. **Ask Ray whether he and Ang
+have added them** — `26_044_Seesman` was on that week's planner and still isn't in the app, and the Job Leads
+tab shows **2** while Drive holds **23** live leads.
+
+**Do NOT auto-import them.** Each one lands with the client UNLINKED and no contract total, on purpose:
+"Deuel" names five different projects and a wrong client link is worse than none. Adding is a person's job.
+
+### The Drive backlog — deliberately out of reach
+A full scan finds **255 job folders + 104 lead folders** against the app's 134 jobs. The **233-folder gap is
+almost entirely HISTORY** (dead 2023/24 work — the app was seeded from Ang's Sheet, which only held live jobs).
+The watermark (`drive_sync.watermark`, migration `0015`) exists to keep it out. **Ray's call: leave it out.**
+If asked to "sync everything", push back — it would bury the board.
+
+### Two real data conflicts this surfaced (Ang's, not the app's)
+- **`26_002` / `26_003` Deuel addresses are SWAPPED** between Drive and the app (Drive: 26_002 = 544 Valley;
+  app: 26_002 = 542 Valley). This is why the sync matches on the **NUMBER, never the name**.
+- **O'Bagel has two different numbers:** Drive `24_081_O'Bagel _Montclair` vs app `25_085_O'Bagel_Montclair`.
+
+## Also: ask Ray what Angelena said
 Everything below shipped today and she has not seen it yet. Her feedback is the next unit of work — she has already
 sent the build back once (the CD split), so expect more and treat it as the priority.
 
