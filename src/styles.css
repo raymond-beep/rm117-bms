@@ -2059,6 +2059,12 @@ input, select, textarea { font: inherit; }
 /* Editable client contact card (JobEditor Details) */
 .client-card-actions { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .client-card-saved { font-size: 12px; color: var(--accent-ink); }
+/* The "no client linked" state — the note plus the create-a-client button. */
+.unlinked-note {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; border: 1px dashed var(--border); border-radius: var(--radius-sm);
+  background: var(--inset);
+}
 
 /* ── Delegation Board (/delegation) ──────────────────────────────────────────
    Weekly Mon–Fri × employee ink grid. Each row is a light "paper" canvas so the

@@ -42,6 +42,16 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
   const [cSaving, setCSaving] = useState(false);
   const [cMsg, setCMsg] = useState('');
 
+  // Creating a brand-new client from here. The app never had this — every client came from
+  // the one-time Sheet migration, so the picker could only choose EXISTING records. A job
+  // whose client was never in the app (every lead imported from Drive, and any genuinely new
+  // job) had no way to get one. This is that missing path, and it lives in the one place that
+  // serves all of them, not just leads.
+  const [creatingClient, setCreatingClient] = useState(false);
+  const [newClient, setNewClient] = useState({ name: '', type: 'homeowner', email: '', phone: '', company: '' });
+  const [ncSaving, setNcSaving] = useState(false);
+  const [ncError, setNcError] = useState(null);
+
   // Load the client list for the picker — one identity shared with the portal.
   useEffect(() => {
     let live = true;
@@ -138,6 +148,37 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setForm((f) => ({ ...f, [key]: value }));
   };
+
+  const ncset = (key) => (e) => { setNewClient((f) => ({ ...f, [key]: e.target.value })); setNcError(null); };
+
+  // Open the create-client form, seeding the name from the job's display name — a Drive-
+  // imported "Corrigan" is then one click from a real, reusable client record.
+  function openCreateClient() {
+    setNewClient({ name: form.client_name || '', type: 'homeowner', email: '', phone: '', company: '' });
+    setNcError(null);
+    setCreatingClient(true);
+  }
+
+  // Create the client record immediately (it's a real, reusable row the moment it exists),
+  // then LINK it to this job by setting client_id — which persists with the normal drawer Save,
+  // exactly like every other field here. Also mirror the display name onto the new client so
+  // the two don't start out disagreeing.
+  async function createClient() {
+    const name = newClient.name.trim();
+    if (!name) { setNcError('Give the client a name.'); return; }
+    setNcSaving(true); setNcError(null);
+    try {
+      const r = await apiFetch('/api/clients', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newClient, name }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not create the client');
+      setClients((list) => [...list, d.client].sort((a, b) => (a.name || '').localeCompare(b.name || '')));
+      setForm((f) => ({ ...f, client_id: d.client.id, client_name: f.client_name || d.client.name }));
+      setCreatingClient(false);
+    } catch (e) { setNcError(e.message); } finally { setNcSaving(false); }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -237,8 +278,54 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
                       and their own portal link — see ClientContacts. */}
                   <ClientContacts clientId={linkedClient.id} />
                 </div>
+              ) : creatingClient ? (
+                <div className="client-card">
+                  <div className="client-card-note" style={{ marginTop: 0, marginBottom: 12 }}>
+                    New client profile. It becomes a reusable record right away; it links to this job when you Save.
+                  </div>
+                  <div className="field">
+                    <label>Name</label>
+                    <input type="text" value={newClient.name} onChange={ncset('name')} placeholder="Client or company name" autoFocus />
+                  </div>
+                  <div className="field-row">
+                    <div className="field">
+                      <label>Type</label>
+                      <select value={newClient.type} onChange={ncset('type')}>
+                        <option value="homeowner">homeowner</option>
+                        <option value="investor">investor</option>
+                        <option value="contractor">contractor</option>
+                        <option value="other">other</option>
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label>Phone <PortalTag /></label>
+                      <input type="tel" value={newClient.phone} onChange={ncset('phone')} placeholder="(908) 555-1234" />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label>Email <PortalTag /></label>
+                    <input type="email" value={newClient.email} onChange={ncset('email')} placeholder="name@example.com" />
+                  </div>
+                  <div className="field">
+                    <label>Company</label>
+                    <input type="text" value={newClient.company} onChange={ncset('company')} placeholder="optional" />
+                  </div>
+                  <div className="client-card-actions">
+                    <button className="btn btn-primary" onClick={createClient} disabled={ncSaving || !newClient.name.trim()}>
+                      {ncSaving ? 'Creating…' : 'Create + link'}
+                    </button>
+                    <button className="btn" onClick={() => setCreatingClient(false)} disabled={ncSaving}>Cancel</button>
+                    {ncError && <span className="error">{ncError}</span>}
+                  </div>
+                </div>
               ) : (
-                <div className="placeholder-note">Not linked to a client record — this job won't appear in the client portal. Pick a client above to connect it.</div>
+                <div className="unlinked-note">
+                  <div className="placeholder-note" style={{ padding: 0 }}>
+                    Not linked to a client record — this job won’t appear in the client portal.
+                    Pick one above, or:
+                  </div>
+                  <button className="btn" onClick={openCreateClient}>+ Create a client profile</button>
+                </div>
               )}
               <div className="field">
                 <label>Display name on this job</label>
