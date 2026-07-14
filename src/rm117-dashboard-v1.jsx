@@ -22,6 +22,7 @@ import { JobCardBody } from './components/bms/JobCard.jsx';
 import PhaseColumn from './components/bms/PhaseColumn.jsx';
 import JobEditor from './components/job-editor/JobEditor.jsx';
 import NewJobDrawer from './components/job-editor/NewJobDrawer.jsx';
+import DriveInbox from './components/bms/DriveInbox.jsx';
 
 export default function BmsDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -294,6 +295,11 @@ export default function BmsDashboard() {
           <button className="btn btn-primary" onClick={() => setDrawer({ mode: 'create' })}>+ New Job</button>
         </div>
       </div>
+
+      <DriveInbox onImported={(job) => {
+        loadJobs();
+        setNotice(`${job.job_id} added from Drive — open it to link the client and set the contract total.`);
+      }} />
 
       {upcoming.length > 0 && (
         <div className="comingup">

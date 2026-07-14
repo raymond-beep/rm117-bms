@@ -754,6 +754,58 @@ input, select, textarea { font: inherit; }
 .job-card-milestone.overdue { color: var(--bill); font-weight: 600; }
 
 /* "Coming up" milestone feed (dashboard) */
+/* ---------- "New in Drive" inbox (Drive → app sync) ----------
+   Collapsed by default and invisible when empty (the normal state), so it never
+   competes with the board itself. */
+.drive-inbox {
+  margin: 4px 0 16px; border: 1px solid var(--accent);
+  border-radius: var(--radius); background: var(--accent-soft, var(--inset)); overflow: hidden;
+}
+.di-head {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 11px 14px; border: none; background: none; color: var(--ink);
+  font-size: 13px; cursor: pointer;
+}
+.di-badge {
+  flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #fff; font-family: var(--mono);
+  font-size: 11px; font-weight: 700;
+}
+.di-title { font-weight: 600; }
+.di-sub { color: var(--ink3); font-size: 12px; }
+.di-caret { margin-left: auto; color: var(--ink3); }
+.di-body { padding: 0 14px 12px; }
+.di-error {
+  margin-bottom: 10px; padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--warn-soft); color: var(--warn); font-size: 12px;
+}
+.di-row {
+  display: flex; align-items: center; gap: 12px; padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+.di-row.invalid { opacity: 0.75; }
+.di-main { flex: 1; min-width: 0; }
+.di-name { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; }
+.di-kind {
+  font-family: var(--mono); font-size: 9px; font-weight: 700; letter-spacing: 0.8px;
+  padding: 2px 6px; border-radius: 4px; background: var(--panel); color: var(--ink3);
+}
+.di-kind.lead { background: var(--accent); color: #fff; }
+.di-meta { font-size: 12px; color: var(--ink3); margin-top: 2px; }
+.di-problem { font-size: 12px; color: var(--warn); margin-top: 4px; }
+.di-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.di-actions select {
+  padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--panel); color: var(--ink); font-size: 12px;
+}
+.di-dismiss {
+  flex: none; border: none; background: none; color: var(--ink3);
+  font-size: 12px; text-decoration: underline; cursor: pointer;
+}
+.di-dismiss:hover { color: var(--ink); }
+.di-note { margin-top: 10px; font-size: 12px; color: var(--ink3); line-height: 1.5; }
+
 .comingup { margin: 4px 0 18px; }
 .comingup-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 9px; }
 .comingup-list { display: flex; gap: 10px; flex-wrap: wrap; }

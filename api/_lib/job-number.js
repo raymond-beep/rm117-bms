@@ -9,13 +9,20 @@
 //      jobs are still filed in Drive by hand, so the DB alone lags and would re-use a
 //      number that already exists on disk;
 //   2. rename the job_id (child rows follow via ON UPDATE CASCADE, migration 0007);
-//   3. provision the Drive folder tree under the REAL id — a lead never gets one,
-//      precisely so we never have to rename a folder.
+//   3. give the job its Drive folder under the REAL id — see the two cases below.
+//
+// ⚠️ TWO KINDS OF LEAD, and they need OPPOSITE Drive handling:
+//   - a lead CREATED IN THE APP has no folder (deliberately: the folder is named after
+//     the Job ID, so a placeholder folder would only have to be renamed later) → PROVISION.
+//   - a lead IMPORTED FROM DRIVE (`26_XXX_Onorato`) already HAS one, and its id is in
+//     jobs.drive_folder_id → RENAME it. Provisioning here would create `26_047_Onorato`
+//     next to the original and orphan every file already in it. This is exactly the
+//     rename staff do by hand today when a lead gets its number.
 //
 // The QBO customer is NOT created here: it's created lazily on the first invoice, and
 // that already keys off the (now real) Job ID.
 import { isPlaceholderJobId, PLACEHOLDER_NUM } from './db.js';
-import { hasDrive, provisionJobFolders, listJobNumbersForYear } from './google-drive.js';
+import { hasDrive, provisionJobFolders, listJobNumbersForYear, renameFolder } from './google-drive.js';
 
 // Split `26_xxx_FF_Smith` → { yy: '26', num: 'xxx', ff: 'FF_', name: 'Smith' }.
 // Returns null when the id isn't a placeholder.
@@ -66,6 +73,12 @@ export async function assignOfficialJobId(db, jobId) {
   const parts = parsePlaceholder(jobId);
   if (!parts) return { renamed: false, reason: 'not_a_placeholder' };
 
+  // Was this lead imported from a Drive folder that already exists? Read it BEFORE the
+  // rename, while the row still answers to the placeholder id.
+  const { data: existing } = await db
+    .from('jobs').select('drive_folder_id').eq('job_id', jobId).maybeSingle();
+  const existingFolderId = existing?.drive_folder_id || null;
+
   const n = await nextFreeNumber(db, parts.yy);
   let newId = officialJobId(parts, n);
 
@@ -86,17 +99,25 @@ export async function assignOfficialJobId(db, jobId) {
   let drive = null;
   if (hasDrive()) {
     try {
-      const prov = await provisionJobFolders(newId);
-      if (prov?.folderId) {
-        drive = { created: prov.created, folderId: prov.folderId };
-        if (prov.filesSentId) {
-          await db.from('jobs').update({ drive_files_sent_folder_id: prov.filesSentId }).eq('job_id', newId);
-        }
+      if (existingFolderId) {
+        // Imported from Drive: the folder is already there, full of the client's files.
+        // Rename it onto the real Job ID — never provision a second one beside it.
+        const renamedFolder = await renameFolder(existingFolderId, newId);
+        drive = { renamed: true, folderId: existingFolderId, name: renamedFolder?.name || newId };
       } else {
-        drive = { error: prov?.reason || 'not provisioned' };
+        const prov = await provisionJobFolders(newId);
+        if (prov?.folderId) {
+          drive = { created: prov.created, folderId: prov.folderId };
+          if (prov.filesSentId) {
+            await db.from('jobs').update({ drive_files_sent_folder_id: prov.filesSentId }).eq('job_id', newId);
+          }
+          await db.from('jobs').update({ drive_folder_id: prov.folderId }).eq('job_id', newId);
+        } else {
+          drive = { error: prov?.reason || 'not provisioned' };
+        }
       }
     } catch (err) {
-      console.error('[job-number] Drive provisioning failed', err);
+      console.error('[job-number] Drive step failed', err);
       drive = { error: err.message };
     }
   }

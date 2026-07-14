@@ -237,6 +237,38 @@ export function resolveChecksetsFolderId(jobId) {
 }
 
 // ── Folder rename (for the "Correct Job ID" flow) ─────────────────────────────
+// Every folder in the Shared Drive that could be a job or a lead, for the Drive → app
+// sync (api/_lib/drive-sync.js decides which ones actually are). Drive-wide, because a
+// job folder may sit at the root OR inside a "YYYY Jobs" archive, and we can't know
+// which without looking. ~3,600 folders = 4 pages; the endpoint caches the result.
+//
+// `createdTime` is the load-bearing field: it's what the watermark compares against, so
+// a folder made before the sync existed stays in the backlog instead of storming the board.
+export async function listAllFolders() {
+  if (!hasDrive()) return { folders: [], source: 'no-drive' };
+  const driveId = await resolveSharedDriveId();
+  if (!driveId) return { folders: [], source: 'no-drive' };
+
+  const folders = [];
+  let pageToken;
+  do {
+    const { data } = await drive().files.list({
+      q: "mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+      fields: 'nextPageToken, files(id, name, createdTime)',
+      corpora: 'drive',
+      driveId,
+      pageSize: 1000,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      pageToken,
+    });
+    folders.push(...(data.files || []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return { folders, source: 'drive' };
+}
+
 // Locate a job's Drive folder for renaming. Returns { id, name, exact } where
 // `exact` means the folder name equals the Job ID precisely (vs. a "<Job ID> 123
 // Main St" variant). The rename step only acts on an exact match, so we never

@@ -19,6 +19,9 @@ const routes = {
   '/api/jobs/rename': () => import('./api/jobs/rename.js'),
   '/api/jobs/proposal-docs': () => import('./api/jobs/proposal-docs.js'),
   '/api/jobs/checkset-files': () => import('./api/jobs/checkset-files.js'),
+  // Drive → app sync: jobs/leads foldered in Drive before they reach the app.
+  '/api/drive/new-folders': () => import('./api/drive/new-folders.js'),
+  '/api/drive/import': () => import('./api/drive/import.js'),
   // Drawing QA (checkset review engine, ported from the standalone Checksets app).
   '/api/checksets/sets': () => import('./api/checksets/sets.js'),
   '/api/checksets/results': () => import('./api/checksets/results.js'),
