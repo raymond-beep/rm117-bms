@@ -3,14 +3,23 @@
 Working tree clean, `main` in sync, **258 tests green**, prod verified. Angelena is cleaning up QuickBooks;
 Ray is refining the app alongside her.
 
-## ▶ START HERE: 23 LEADS still sit in the Drive queue
-The Drive → app sync shipped 2026-07-14 with its start line at **1 Jan 2026**. **The 5 numbered jobs have
-been IMPORTED** (`26_046_FE_Belleville`, `26_044_Seesman`, `26_043_Goddard_104 Winslow Pl`,
-`26_013_FF_Peter Goldberg`, `26_006_Melrose_XXX` — all landed in **Survey/Zoning**, all flagged
-`import_needs_review`: **client unlinked, contract total 0**. Ray/Ang need to fill those in).
+## ▶ START HERE: 28 imported jobs need a client + a contract total
+The Drive → app sync shipped 2026-07-14 (start line **1 Jan 2026**) and **the whole queue has been
+imported — all 28. The Drive queue is now EMPTY**, and the app went 134 → **162 jobs**.
 
-**The 23 LEADS have NOT been imported** — the Job Leads tab shows 2 while Drive holds 23. **Ask Ray**
-whether he wants them in; it would 10x that tab, which is why he took the jobs first.
+| | |
+|---|---|
+| **5 numbered jobs** → **Survey/Zoning** | `26_046_FE_Belleville` · `26_044_Seesman` · `26_043_Goddard_104 Winslow Pl` · `26_013_FF_Peter Goldberg` · `26_006_Melrose_XXX` |
+| **23 leads** → **Lead** (Job Leads tab: 2 → **25**) | 11 of them Forefront; all carry the `26_xxx_` placeholder until their proposal is signed |
+
+⚠️ **ALL 28 are flagged `import_needs_review`: `client_id` is NULL and `job_total` is 0.** A folder name
+can't supply either. **This is the open work — Ray and Ang have to link the client and set the contract
+total on each.** Query them with `select job_id, phase from jobs where import_needs_review`. The phases
+are a starting guess too (Survey/Zoning for every numbered job) — they may need dragging.
+
+Each imported row remembers its Drive folder in `jobs.drive_folder_id`, so when a lead's proposal is
+signed the app assigns the number **and renames the existing Drive folder** — the rename Ang does by hand
+today. That path is built but **has not yet run on a real lead**; worth watching the first time it does.
 
 **Do NOT auto-import them.** Each one lands with the client UNLINKED and no contract total, on purpose:
 "Deuel" names five different projects and a wrong client link is worse than none. Adding is a person's job.
