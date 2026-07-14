@@ -23,7 +23,13 @@ flagging. That is the literal reading of her diagram — confirm it is what she 
   On a $21K contract that is ~$210 vs ~$600, against $281K of A/R. `BillingStrip` has a clean seam for the button.
 - **Staff must sign out and back in** and accept the new **Gmail permission** before they can send client updates.
   Ray has done this; he is having the rest of the firm do it. The scope is already configured in Google Cloud + Clerk.
-- **`UX2-17`** (top-bar global search is inert) — the one remaining app fix from the UX audit.
+- ~~**`UX2-17`** (top-bar global search is inert)~~ — **DONE 2026-07-14.** The bar's three controls were all dead
+  (inert search · dev-only "Supabase live" chip · a "New job" button whose whole onClick was `navigate('/bms')`).
+  Search is now real and global (`src/lib/search.js` + `TopBar.jsx`); the chip + decoy button are gone.
+- **`bill_flag` — WATCH, do not remove (Ray, 2026-07-14).** 0 of 134 jobs have ever had it set, so the "Ready to
+  bill" tile reads a permanent `0 flagged` and the board's "Bill only" filter always returns nothing. **Deliberately
+  kept** — Angelena is in the app daily now and may find a use for it. Revisit only if she doesn't; don't re-raise
+  it as dead code before then.
 - **`QBO_CLIENT_SECRET` missing from Vercel _Preview_** · **Dunn `24_008` pair** (Ray's parked data decision).
 - **`26_033_Guido`'s proposal cannot be read** — a safety classifier false-positives (`category: "bio"`) on an
   ordinary house renovation and even the Opus retry declines. That job's design-phase count is typed by hand.
