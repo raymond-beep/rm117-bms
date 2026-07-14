@@ -1,7 +1,34 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-14 — **Drive → app sync is LIVE**, and the top bar is a real global search.
-Working tree clean, `main` in sync, **258 tests green**, prod verified. Angelena is cleaning up QuickBooks;
-Ray is refining the app alongside her.
+**Last updated:** 2026-07-14 (end of a long session) — **Drive → app sync is LIVE**, the top bar is a real
+global search, **Fire Escape (`FE_`) is now its own work type**, the proposal viewer + AI reader work on
+leads, and **you can now create a client profile from the job editor**. Working tree clean, `main` in sync,
+**259 tests green**, prod verified. Angelena is cleaning up QuickBooks; Ray is refining the app alongside her.
+
+## What shipped 2026-07-14 (10 commits, all live)
+1. **Global search** in the top bar (`⌘K`) — replaced three dead controls (inert search, dev-only status
+   chip, a "New job" button that only did `navigate('/bms')`). `src/lib/search.js` + `TopBar.jsx`.
+2. **Drive → app sync** — the "New in Drive" board strip; `api/_lib/drive-sync.js` + `api/drive/*`. Whole
+   queue imported (28). See the invariants in CLAUDE.md; watermark = 1 Jan 2026, deliberately keeps history out.
+3. **Fire Escape** — `FE_` is a distinct work type (`jobs.is_fire_escape`, migration `0016`), NOT Forefront.
+   Badge + board filter. Backfilled over 5 jobs.
+4. **Proposal viewer + AI reader work for leads** — they looked up the PDF by a folder named after the Job
+   ID, which a lead (`26_xxx_…`, no number) can never match. Now resolve via `jobs.drive_folder_id`
+   (`api/_lib/job-folder.js`), and the "✨ Read proposal" button shows whenever a proposal PDF exists, not
+   only in the design phase. Fixed a StrictMode `mounted`-ref bug in ProposalDocs while there.
+5. **16 leads moved Lead → Proposal Sent** (those with a real, non-draft proposal PDF), `phase_since`
+   backdated to the proposal's own date.
+6. **Self-analysis fixes:** promotion now completes a lead folder's subfolder tree (`ensureJobSubfolders`);
+   a **"Needs review N"** board filter + REVIEW badge (reaches across tabs); the stalled count is now
+   **scoped to the current tab** (was global, so moving proposals made every tab read "16 stalled").
+7. **Create a client profile from the job editor** — the app never had this (every client came from the
+   Sheet migration); a Drive-imported lead had no way to get one. "+ Create a client profile" on the
+   Details tab, seeded from the job's name. App-wide fix, not lead-only.
+
+**Verified in the browser:** global search both paths, Drive import, FE badge, Corrigan's proposal rendering +
+AI reading 2 phases, the review filter across tabs, and client create→link→persist.
+
+---
+Older context below.
 
 ## ▶ START HERE: 28 imported jobs need a client + a contract total
 The Drive → app sync shipped 2026-07-14 (start line **1 Jan 2026**) and **the whole queue has been
