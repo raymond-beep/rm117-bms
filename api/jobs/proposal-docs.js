@@ -6,14 +6,17 @@
 //                         in-app viewer. fileId is validated to belong to the job's
 //                         proposal folder, so this is never an open Drive file proxy.
 // Staff-gated (read-only; the service account is Drive Viewer + drive.file).
+import { getDb, hasDb } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
 import {
   hasDrive,
   resolveProposalFolderId,
+  resolveProposalFolderUnder,
   listFolderFiles,
   getFileMeta,
   streamFileTo,
 } from '../_lib/google-drive.js';
+import { projectFolderIdFor } from '../_lib/job-folder.js';
 import { rankProposals } from '../_lib/drive-docs.js';
 
 // A job's proposal-folder id essentially never changes, but resolving it costs 2–3
@@ -22,10 +25,21 @@ import { rankProposals } from '../_lib/drive-docs.js';
 const FOLDER_TTL_MS = 10 * 60_000;
 const _folderCache = new Map(); // jobId -> { at:number, folderId:string }
 
+// Resolve via the folder the job REMEMBERS (jobs.drive_folder_id) when we can, and only
+// fall back to searching Drive by name. The by-name search matches on the YY_NNN number,
+// so it can never find a LEAD's folder (`26_xxx_FF_Corrigan` has no number) — which meant
+// the viewer reported "no proposal on file" for leads whose proposal was sitting in Drive.
 async function proposalFolderId(jobId) {
   const hit = _folderCache.get(jobId);
   if (hit && Date.now() - hit.at < FOLDER_TTL_MS) return hit.folderId;
-  const folderId = await resolveProposalFolderId(jobId);
+
+  let folderId = null;
+  if (hasDb()) {
+    const projectId = await projectFolderIdFor(getDb(), jobId);
+    if (projectId) folderId = await resolveProposalFolderUnder(projectId);
+  }
+  if (!folderId) folderId = await resolveProposalFolderId(jobId);
+
   if (folderId) _folderCache.set(jobId, { at: Date.now(), folderId });
   return folderId;
 }

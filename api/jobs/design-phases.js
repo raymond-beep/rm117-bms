@@ -7,8 +7,12 @@
 //
 // The proposal is the same signed PDF the Payments tab already shows (Drive "Proposal"
 // folder, PDFs only, signed contract ranked first — the UX2-01 helper).
+import { getDb, hasDb } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
-import { hasDrive, resolveProposalFolderId, listFolderFiles, downloadFileBytes } from '../_lib/google-drive.js';
+import {
+  hasDrive, resolveProposalFolderId, resolveProposalFolderUnder, listFolderFiles, downloadFileBytes,
+} from '../_lib/google-drive.js';
+import { projectFolderIdFor } from '../_lib/job-folder.js';
 import { rankProposals } from '../_lib/drive-docs.js';
 import { extractDesignPhases } from '../_lib/proposal-extract.js';
 
@@ -25,7 +29,16 @@ export default async function handler(req, res) {
   if (!hasDrive()) return res.status(503).json({ error: 'Google Drive is not configured.' });
 
   try {
-    const folderId = await resolveProposalFolderId(jobId);
+    // Prefer the folder the job remembers (jobs.drive_folder_id) — the by-name search
+    // below matches on YY_NNN and so can never find a LEAD's folder, even though a lead
+    // that has been sent a proposal is exactly when you want to read one.
+    let folderId = null;
+    if (hasDb()) {
+      const projectId = await projectFolderIdFor(getDb(), jobId);
+      if (projectId) folderId = await resolveProposalFolderUnder(projectId);
+    }
+    if (!folderId) folderId = await resolveProposalFolderId(jobId);
+
     if (!folderId) {
       return res.status(404).json({ error: 'This job has no Proposal folder in Drive.' });
     }

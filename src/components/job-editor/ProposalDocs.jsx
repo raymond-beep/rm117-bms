@@ -34,8 +34,16 @@ export default function ProposalDocs({ job }) {
   // cleanup is the single revoke path (view() only ever sets the state).
   useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
 
+  // ⚠️ Set to TRUE on mount, not just false on unmount. StrictMode deliberately mounts →
+  // unmounts → remounts in dev; a ref that only ever flips to false stays false after that
+  // remount, so every view() below bailed at its `if (!mounted.current)` guard and the panel
+  // sat on "Loading proposal…" forever. (Dev-only — prod doesn't double-invoke — which is
+  // exactly why it went unnoticed.)
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   async function view(file) {
     if (openId === file.id) { // toggle closed

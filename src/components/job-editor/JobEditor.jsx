@@ -63,6 +63,20 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
   // through silently. (Accurate on 5 of 6 real proposals tested; the 6th couldn't be read.)
   const [dp, setDp] = useState({ loading: false, result: null, error: null });
 
+  // Does this job have a proposal PDF in Drive? The design-phase reader used to be shown
+  // only for jobs already IN the design phase — which hid it exactly when it is most useful:
+  // a LEAD that has been sent a proposal (17 of the leads imported from Drive have one on
+  // file). Show the reader whenever there is something to read.
+  const [hasProposal, setHasProposal] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    apiFetch(`/api/jobs/proposal-docs?jobId=${encodeURIComponent(job.job_id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive && d) setHasProposal((d.files || []).length > 0); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [job.job_id]);
+
   async function readProposal() {
     setDp({ loading: true, result: null, error: null });
     try {
@@ -268,8 +282,13 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
                 {/* How many design phases the signed proposal bought — caps this job's
                     DPI/II/III ladder. The app can read it out of the signed proposal, but it
                     only ever SUGGESTS: staff confirm, because a wrong count silently
-                    truncates the client's ladder and nobody would notice. */}
-                {form.phase === 'design_phase' && (
+                    truncates the client's ladder and nobody would notice.
+
+                    Shown for a job in the design phase, OR for ANY job with a proposal PDF on
+                    file. The old design-phase-only gate hid the reader exactly where it earns
+                    its keep: a LEAD that has been sent a proposal. You want the count recorded
+                    when the proposal lands, not weeks later when the job reaches design. */}
+                {(form.phase === 'design_phase' || hasProposal) && (
                   <div className="field">
                     <label>
                       Design phases in the proposal

@@ -1128,6 +1128,18 @@ input, select, textarea { font: inherit; }
 .tl-step.current .tl-phase { color: var(--brass-ink); }
 .tl-step.upcoming .tl-phase { color: var(--muted); font-weight: 500; }
 .pay-form-title { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 18px 0 10px; }
+/* Why a LEAD has no "Send to QuickBooks" panel — the server refuses a placeholder Job ID
+   (409), so we explain instead of offering a button that can only fail. */
+.pay-qbo-blocked {
+  margin-top: 18px; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--inset); border: 1px solid var(--border);
+  font-size: 12px; color: var(--ink3); line-height: 1.55;
+}
+.pay-sec-cap {
+  font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--muted); margin-bottom: 6px;
+}
+
 /* The manual log-a-payment form, boxed off from the QuickBooks panel above it so
    the sticky "Log payment" footer button reads as belonging to it (UX2-04). */
 .pay-manual {

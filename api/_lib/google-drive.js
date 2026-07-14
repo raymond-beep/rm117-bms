@@ -228,6 +228,21 @@ export function resolveProposalFolderId(jobId) {
   );
 }
 
+// Same, but from a project folder we ALREADY know the id of (jobs.drive_folder_id) rather
+// than searching Drive for one named after the Job ID. This is what makes the proposal
+// viewer and the AI reader work for a LEAD: a lead's id is `26_xxx_FF_Corrigan`, which has
+// no YY_NNN for the name search to match, so the by-name path finds nothing and the app
+// silently reports "no proposal on file" for a job whose proposal is sitting right there.
+export async function resolveProposalFolderUnder(projectFolderId) {
+  if (!hasDrive() || !projectFolderId) return null;
+  const subs = await listChildFolders(projectFolderId);
+  const hit = subs.find((s) => {
+    const name = s.name.trim().toLowerCase();
+    return name === PROPOSAL_SUBFOLDER || name === `${PROPOSAL_SUBFOLDER}s` || name.includes('proposal');
+  });
+  return hit?.id || null;
+}
+
 // The job's internal "Checksets" folder — the drawing sets uploaded for QA/QC
 // review (the Drawing QA tab reads from here, and reviewed sets are saved back
 // here). Part of the standard new-job folder tree (JOB_SUBFOLDERS below).

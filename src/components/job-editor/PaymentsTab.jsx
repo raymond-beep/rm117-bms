@@ -5,6 +5,7 @@ import { apiFetch } from '../../lib/api.js';
 import { money, shortDate } from '../../lib/format.js';
 import QboInvoicePanel from './QboInvoicePanel.jsx';
 import ProposalDocs from './ProposalDocs.jsx';
+import { isPlaceholderJobId } from '../../lib/job-id.js';
 
 // 'qb' is reserved for the Zapier→Supabase sync; QuickBooks payments arrive
 // automatically, so the manual form only offers payments received outside QBO.
@@ -103,7 +104,18 @@ export default function PaymentsTab({ job, onLogged }) {
 
         <ProposalDocs job={job} />
 
-        {qboConfigured && <QboInvoicePanel job={job} onInvoiced={loadPayments} />}
+        {/* A LEAD can't be invoiced: the QBO customer is named after the Job ID, and a lead's
+            is a placeholder (`26_xxx_FF_Corrigan`). The server already refuses with a 409 —
+            this just stops the UI offering a button that can only fail, and says why. */}
+        {qboConfigured && (isPlaceholderJobId(job.job_id) ? (
+          <div className="pay-qbo-blocked">
+            <div className="pay-sec-cap">Send to QuickBooks</div>
+            Not until this job has a number. QuickBooks matches on the Job ID, and a lead only earns
+            its number when the proposal is signed — move it past <em>Proposal Sent</em> and it can be invoiced.
+          </div>
+        ) : (
+          <QboInvoicePanel job={job} onInvoiced={loadPayments} />
+        ))}
 
         {/* Boxed so it reads as its own form — the sticky footer button below belongs
             to THIS section, not to the QuickBooks panel above it (UX2-04). */}
