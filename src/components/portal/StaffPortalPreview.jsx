@@ -2,6 +2,7 @@
 // Reuses the ClientPortal component in `preview` mode; staff token authorizes
 // the /api/portal/preview + /files endpoints (staff may view any job).
 import React, { Suspense, lazy, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
 
@@ -10,8 +11,10 @@ const ClientPortal = lazy(() => import('../../rm117-portal-v1.jsx'));
 
 export default function StaffPortalPreview() {
   const { getToken } = useAuth();
+  const [searchParams] = useSearchParams();
   const [clients, setClients] = useState([]);
-  const [sel, setSel] = useState('');
+  // Arriving from the top-bar global search (`/portal?client=<id>`) preselects them.
+  const [sel, setSel] = useState(searchParams.get('client') || '');
   const [data, setData] = useState(null);
   const [status, setStatus] = useState('idle');
 
@@ -53,8 +56,9 @@ export default function StaffPortalPreview() {
         </div>
       </div>
       <div className="cp-preview-banner">
-        <strong>Preview only.</strong> The client portal isn’t live to clients yet — nobody outside the
-        firm can sign in. This shows what a client <em>would</em> see once it is.
+        <strong>This is a preview — nothing here is sent.</strong> The portal <em>is</em> live: a client
+        gets in through the magic link in a “✉ Notify client” email, sent from the job’s Progress tab.
+        Pick a client below to see exactly what they see.
       </div>
       <div className="card" style={{ padding: 16, marginBottom: 18 }}>
         <div className="cp-pick-row">

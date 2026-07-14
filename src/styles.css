@@ -224,6 +224,7 @@ input, select, textarea { font: inherit; }
   padding: 0 24px; background: var(--panel); border-bottom: 1px solid var(--border);
 }
 .topbar-search {
+  position: relative; /* anchors .topbar-results */
   flex: 1; max-width: 460px; display: flex; align-items: center; gap: 8px;
   padding: 8px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--inset); color: var(--ink3);
@@ -234,22 +235,40 @@ input, select, textarea { font: inherit; }
   color: var(--ink); font-size: 13px;
 }
 .topbar-search input::placeholder { color: var(--ink3); }
+.topbar-search:focus-within { border-color: var(--accent); }
 .topbar-spacer { flex: 1; }
-.status-chip {
-  display: inline-flex; align-items: center; gap: 7px; font-family: var(--mono);
-  font-size: 10px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase;
-  padding: 6px 11px; border-radius: 99px; background: var(--success-soft); color: var(--success);
+
+/* The ⌘K hint sits inside the box; it hides once you're typing so it never
+   competes with the query text. */
+.topbar-kbd {
+  flex: none; font-family: var(--mono); font-size: 10px; font-weight: 600;
+  color: var(--ink3); border: 1px solid var(--border); border-radius: 4px;
+  padding: 2px 5px; background: var(--panel);
 }
-.status-chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.status-chip.mock { background: var(--warn-soft); color: var(--warn); }
-.topbar-btn {
-  display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--panel); color: var(--ink2); font-size: 13px; font-weight: 500;
+.topbar-search:focus-within .topbar-kbd { display: none; }
+
+/* ---------- Global search results ---------- */
+.topbar-results {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 70;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 12px 32px -12px rgba(0,0,0,0.3);
+  padding: 6px; max-height: 380px; overflow-y: auto;
 }
-.topbar-btn:hover { border-color: var(--ink3); color: var(--ink); }
-.topbar-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.topbar-btn.primary:hover { filter: brightness(0.93); color: #fff; }
+.tr-empty { padding: 12px 10px; font-size: 13px; color: var(--ink3); }
+.tr-hit {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 8px 10px; border: none; border-radius: var(--radius-sm);
+  background: none; color: var(--ink); font-size: 13px; cursor: pointer;
+}
+.tr-hit.active { background: var(--inset); }
+.tr-kind {
+  flex: none; font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.8px; padding: 3px 6px; border-radius: 4px;
+  background: var(--accent-soft, var(--inset)); color: var(--accent);
+}
+.tr-kind.client { background: var(--inset); color: var(--ink3); }
+.tr-main { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-meta { flex: none; font-size: 11px; color: var(--ink3); }
 
 /* ---------- Theme picker (header menu + Settings) ---------- */
 .theme-menu-wrap { position: relative; }

@@ -6,6 +6,7 @@
 // The board cards, drag helpers, and the JobEditor family live in ./components/
 // — this file owns BmsDashboard's state, data loading, and layout.
 import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiFetch } from './lib/api.js';
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, useSensor, useSensors,
@@ -23,6 +24,7 @@ import JobEditor from './components/job-editor/JobEditor.jsx';
 import NewJobDrawer from './components/job-editor/NewJobDrawer.jsx';
 
 export default function BmsDashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [jobs, setJobs] = useState([]);
   const [source, setSource] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -142,6 +144,24 @@ export default function BmsDashboard() {
   }
 
   useEffect(() => { loadJobs(); }, []);
+
+  // Arriving from the top-bar global search (`/bms?job=26_001_Deuel`): open that
+  // job's editor and switch to the tab that actually holds it, so closing the
+  // drawer leaves you looking at the card rather than an unrelated board. The
+  // param is consumed (replace, not push) so a refresh or Back doesn't reopen it.
+  useEffect(() => {
+    const wanted = searchParams.get('job');
+    if (!wanted || !jobs.length) return;
+    const job = jobs.find((j) => j.job_id === wanted);
+    if (job) {
+      const tab = BOARD_TABS.find((t) => t.phases.includes(job.phase));
+      if (tab) setBoardTab(tab.key);
+      setDrawer({ mode: 'edit', job });
+    } else {
+      setNotice(`Couldn't find ${wanted} — it may have been renamed.`);
+    }
+    setSearchParams({}, { replace: true });
+  }, [jobs, searchParams, setSearchParams]);
 
   // Phases belonging to the active tab — the board never shows anything outside it.
   const tabPhases = useMemo(
