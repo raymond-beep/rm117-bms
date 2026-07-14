@@ -696,6 +696,10 @@ input, select, textarea { font: inherit; }
 .badge-job_dropped  { background: #e9e7ec; color: #4a4550; }
 .badge-canceled     { background: #efe4e2; color: #6b3535; }
 .badge-ff           { background: var(--ff-bg); color: var(--ff); }
+/* Fire Escape — a THIRD work type, not Forefront and not a developer (Ray). Deliberately
+   NOT a shade of FF's gold: the two markers sit side by side in the Job ID (_FF_ / _FE_)
+   and are one letter apart, so the badges must not be confusable at a glance. */
+.badge-fe           { background: var(--warn-soft); color: var(--warn); }
 .badge-bill         { background: var(--bill-bg); color: var(--bill); }
 
 /* ---------- Phase grouped view ---------- */

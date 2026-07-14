@@ -35,6 +35,8 @@ export default async function handler(req, res) {
     amount_billed: 0,
     bill_flag: false,
     is_forefront: body.is_forefront ?? job_id.includes('_FF_'),
+    // FE_ = Fire Escape — its own work type, NOT Forefront and not a developer (Ray).
+    is_fire_escape: body.is_fire_escape ?? job_id.includes('_FE_'),
     ff_commission: body.ff_commission || null,
     notes: body.notes || null,
   };

@@ -3,11 +3,14 @@
 Working tree clean, `main` in sync, **258 tests green**, prod verified. Angelena is cleaning up QuickBooks;
 Ray is refining the app alongside her.
 
-## ▶ START HERE: the Drive queue has 28 folders waiting
-The Drive → app sync shipped today with its start line at **1 Jan 2026**, so the board now shows a
-**"New in Drive — 5 jobs · 23 leads"** strip. Nobody has worked through it yet. **Ask Ray whether he and Ang
-have added them** — `26_044_Seesman` was on that week's planner and still isn't in the app, and the Job Leads
-tab shows **2** while Drive holds **23** live leads.
+## ▶ START HERE: 23 LEADS still sit in the Drive queue
+The Drive → app sync shipped 2026-07-14 with its start line at **1 Jan 2026**. **The 5 numbered jobs have
+been IMPORTED** (`26_046_FE_Belleville`, `26_044_Seesman`, `26_043_Goddard_104 Winslow Pl`,
+`26_013_FF_Peter Goldberg`, `26_006_Melrose_XXX` — all landed in **Survey/Zoning**, all flagged
+`import_needs_review`: **client unlinked, contract total 0**. Ray/Ang need to fill those in).
+
+**The 23 LEADS have NOT been imported** — the Job Leads tab shows 2 while Drive holds 23. **Ask Ray**
+whether he wants them in; it would 10x that tab, which is why he took the jobs first.
 
 **Do NOT auto-import them.** Each one lands with the client UNLINKED and no contract total, on purpose:
 "Deuel" names five different projects and a wrong client link is worse than none. Adding is a person's job.

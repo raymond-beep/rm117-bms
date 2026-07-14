@@ -18,10 +18,12 @@ const JOB_FOLDER = /^(\d{2})_(\d{3})_(.+)$/;
 // the firm arrived at it independently, which is the whole reason this sync is cheap.
 const LEAD_FOLDER = /^(\d{2})_x{3}_(.*)$/i;
 
-// FF_ = Forefront (the app models it as jobs.is_forefront). FE_ appears in Drive too but
-// means something else the app has never modelled — so it is left VERBATIM in the name
-// rather than guessed at. Getting this wrong would silently mis-file a commission.
+// Two markers, two DIFFERENT work types — never collapse them (Ray, 2026-07-14):
+//   FF_ = Forefront   → jobs.is_forefront   (carries a commission)
+//   FE_ = FIRE ESCAPE → jobs.is_fire_escape (its own thing: not Forefront, not a developer)
+// Both stay VERBATIM in the Job ID either way — the id is the QuickBooks key.
 const FF_PREFIX = /^FF_/i;
+const FE_PREFIX = /^FE_/i;
 
 /**
  * Read one Drive folder name. Returns null when it isn't a job or lead folder at all
@@ -47,6 +49,7 @@ export function parseFolderName(rawName) {
       jobId: `${lead[1]}_${PLACEHOLDER_NUM}_${rest}`,
       clientName: clientNameFrom(rest),
       isForefront: FF_PREFIX.test(rest),
+      isFireEscape: FE_PREFIX.test(rest),
       suggestedPhase: 'lead',
     };
   }
@@ -60,6 +63,7 @@ export function parseFolderName(rawName) {
       jobId: name, // verbatim — this is the QBO/Drive key
       clientName: clientNameFrom(rest),
       isForefront: FF_PREFIX.test(rest),
+      isFireEscape: FE_PREFIX.test(rest),
       // A number means the proposal was signed, so the job is past Lead/Proposal Sent.
       // Survey/Zoning is the first phase after signing — a starting guess the staffer
       // confirms or changes on import; it is never written behind their back.

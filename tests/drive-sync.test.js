@@ -21,12 +21,21 @@ describe('parseFolderName', () => {
     expect(parseFolderName('26_043_Goddard_104 Winslow Pl').jobId).toBe('26_043_Goddard_104 Winslow Pl');
   });
 
-  it('treats FF_ as Forefront but leaves FE_ alone', () => {
-    expect(parseFolderName('26_045_FF_Needham').isForefront).toBe(true);
-    // FE_ is a real prefix in the Drive that the app has never modelled — guessing it
-    // was Forefront would mis-file a commission.
-    expect(parseFolderName('26_046_FE_Belleville').isForefront).toBe(false);
+  it('keeps Forefront and Fire Escape strictly apart — they are different work types', () => {
+    // The markers are ONE LETTER apart in the Job ID and mean unrelated things (Ray):
+    // FF_ = Forefront (carries a commission) · FE_ = Fire Escape (its own thing).
+    // Collapsing them would mis-file a commission onto a fire-escape job.
+    expect(parseFolderName('26_045_FF_Needham')).toMatchObject({ isForefront: true, isFireEscape: false });
+    expect(parseFolderName('26_046_FE_Belleville')).toMatchObject({ isForefront: false, isFireEscape: true });
     expect(parseFolderName('26_046_FE_Belleville').jobId).toBe('26_046_FE_Belleville');
+    // A plain job is neither.
+    expect(parseFolderName('26_044_Seesman')).toMatchObject({ isForefront: false, isFireEscape: false });
+  });
+
+  it('carries Fire Escape through a lead too', () => {
+    expect(parseFolderName('26_XXX_FE_Newark')).toMatchObject({
+      kind: 'lead', isFireEscape: true, isForefront: false, clientName: 'Newark',
+    });
   });
 
   it('reads a lead folder and lowercases it to the app’s placeholder form', () => {

@@ -79,6 +79,7 @@ export default function DriveInbox({ onImported }) {
                   <span className={`di-kind ${hit.kind}`}>{hit.kind === 'lead' ? 'LEAD' : 'JOB'}</span>
                   {hit.folderName}
                   {hit.isForefront && <span className="badge badge-ff">FF</span>}
+                  {hit.isFireEscape && <span className="badge badge-fe" title="Fire Escape job">FE</span>}
                 </div>
                 <div className="di-meta">
                   {hit.clientName && <>Client looks like <strong>{hit.clientName}</strong> · </>}

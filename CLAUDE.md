@@ -284,6 +284,14 @@ and a mis-typed escape hatch.
 
 ## Invariants (do not break)
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.
+- **`FF_` and `FE_` are DIFFERENT work types — one letter apart, never interchangeable.**
+  `FF_` = **Forefront** (`jobs.is_forefront`; carries a commission — `ff_commission` /
+  `ff_commission_paid`). `FE_` = **FIRE ESCAPE** (`jobs.is_fire_escape`, migration `0016`): its own
+  kind of work, **not Forefront and not a developer** (Ray, 2026-07-14). The Job ID always encoded
+  both, but the app modelled only FF and read FE as an ordinary part of the name. Never collapse
+  them and never infer one from the other — a commission landing on a fire-escape job is the failure
+  mode. The badges are deliberately different colours (FF gold, FE orange) because the two markers
+  look so alike. Board has a **Fire Escape** filter beside **Forefront**.
 - **The Drive → app sync NEVER creates a job on its own, and its watermark is not a bug.**
   A folder name carries no phase, no client record and no contract value — and the Job ID is what
   QuickBooks matches on, so a folder auto-promoted to a job is a QBO matching problem later. Every

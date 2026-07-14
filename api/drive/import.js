@@ -82,6 +82,8 @@ export default async function handler(req, res) {
       amount_billed: 0,
       bill_flag: false,
       is_forefront: parsed.isForefront,
+      // Fire Escape is its OWN work type — not Forefront, not a developer (Ray).
+      is_fire_escape: parsed.isFireEscape,
       // The folder already exists — remember WHERE. Promotion renames this folder rather
       // than provisioning a second one beside it (api/_lib/job-number.js).
       drive_folder_id: folderId,

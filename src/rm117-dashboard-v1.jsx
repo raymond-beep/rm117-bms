@@ -39,6 +39,8 @@ export default function BmsDashboard() {
   const [boardTab, setBoardTab] = useState('pipeline');
   const [phaseFilter, setPhaseFilter] = useState('all'); // 'all' = every phase in the tab
   const [ffOnly, setFfOnly] = useState(false);
+  // Fire Escape is its own work type — not Forefront, not a developer (Ray, 2026-07-14).
+  const [feOnly, setFeOnly] = useState(false);
   const [billOnly, setBillOnly] = useState(false);
 
   // Drawer state: { mode: 'edit', job } | { mode: 'create' } | null
@@ -176,6 +178,7 @@ export default function BmsDashboard() {
       if (!tabPhases.includes(j.phase)) return false;
       if (phaseFilter !== 'all' && j.phase !== phaseFilter) return false;
       if (ffOnly && !j.is_forefront) return false;
+      if (feOnly && !j.is_fire_escape) return false;
       if (billOnly && !j.bill_flag) return false;
       if (q) {
         const hay = `${j.job_id} ${j.client_name || ''} ${j.address || ''} ${j.notes || ''}`.toLowerCase();
@@ -183,7 +186,7 @@ export default function BmsDashboard() {
       }
       return true;
     });
-  }, [jobs, search, tabPhases, phaseFilter, ffOnly, billOnly]);
+  }, [jobs, search, tabPhases, phaseFilter, ffOnly, feOnly, billOnly]);
 
   // Per-tab job counts for the tab strip, and how many jobs have overstayed their phase.
   const tabCounts = useMemo(() => {
@@ -364,6 +367,9 @@ export default function BmsDashboard() {
           <input type="checkbox" checked={ffOnly} onChange={(e) => setFfOnly(e.target.checked)} /> Forefront
         </label>
         <label className="toggle">
+          <input type="checkbox" checked={feOnly} onChange={(e) => setFeOnly(e.target.checked)} /> Fire Escape
+        </label>
+        <label className="toggle">
           <input type="checkbox" checked={billOnly} onChange={(e) => setBillOnly(e.target.checked)} /> Bill flag
         </label>
       </div>
@@ -437,6 +443,7 @@ export default function BmsDashboard() {
                   <td>
                     {job.bill_flag && <span className="badge badge-bill">BILL</span>}{' '}
                     {job.is_forefront && <span className="badge badge-ff">FF</span>}{' '}
+                    {job.is_fire_escape && <span className="badge badge-fe" title="Fire Escape job">FE</span>}{' '}
                     {job.import_needs_review && <span className="review-flag" title={job.import_notes || ''}>⚠ review</span>}
                   </td>
                   <td className="muted">
