@@ -701,6 +701,13 @@ input, select, textarea { font: inherit; }
    and are one letter apart, so the badges must not be confusable at a glance. */
 .badge-fe           { background: var(--warn-soft); color: var(--warn); }
 .badge-bill         { background: var(--bill-bg); color: var(--bill); }
+/* Imported from Drive, still missing a client + contract total. */
+.badge-review       { background: var(--bill-bg); color: var(--bill); }
+.toggle-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 17px; padding: 0 5px; margin-left: 2px; border-radius: 99px;
+  background: var(--bill); color: #fff; font-family: var(--mono); font-size: 10px; font-weight: 700;
+}
 
 /* ---------- Phase grouped view ---------- */
 .phase-groups { display: flex; flex-direction: column; gap: 16px; }

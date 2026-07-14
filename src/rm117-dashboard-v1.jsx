@@ -42,6 +42,8 @@ export default function BmsDashboard() {
   // Fire Escape is its own work type — not Forefront, not a developer (Ray, 2026-07-14).
   const [feOnly, setFeOnly] = useState(false);
   const [billOnly, setBillOnly] = useState(false);
+  // Jobs imported from Drive still needing a client + contract total (import_needs_review).
+  const [reviewOnly, setReviewOnly] = useState(false);
 
   // Drawer state: { mode: 'edit', job } | { mode: 'create' } | null
   const [drawer, setDrawer] = useState(null);
@@ -175,7 +177,15 @@ export default function BmsDashboard() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return jobs.filter((j) => {
-      if (!tabPhases.includes(j.phase)) return false;
+      // "Needs review" is the one filter that reaches ACROSS tabs. The 28 Drive imports are
+      // split between Job Leads and Pipeline, and a review list that silently showed you only
+      // the ones in the tab you happened to be on would be worse than no list at all — you'd
+      // work it to empty and believe you were done.
+      if (reviewOnly) {
+        if (!j.import_needs_review) return false;
+      } else if (!tabPhases.includes(j.phase)) {
+        return false;
+      }
       if (phaseFilter !== 'all' && j.phase !== phaseFilter) return false;
       if (ffOnly && !j.is_forefront) return false;
       if (feOnly && !j.is_fire_escape) return false;
@@ -186,7 +196,7 @@ export default function BmsDashboard() {
       }
       return true;
     });
-  }, [jobs, search, tabPhases, phaseFilter, ffOnly, feOnly, billOnly]);
+  }, [jobs, search, tabPhases, phaseFilter, ffOnly, feOnly, billOnly, reviewOnly]);
 
   // Per-tab job counts for the tab strip, and how many jobs have overstayed their phase.
   const tabCounts = useMemo(() => {
@@ -195,7 +205,18 @@ export default function BmsDashboard() {
     return counts;
   }, [jobs]);
 
-  const stalled = useMemo(() => jobs.filter((j) => isStalled(j)), [jobs]);
+  // Stalled jobs IN THE CURRENT TAB. Global would be misleading: the board only shows one
+  // tab, and moving the 16 sent proposals into Proposal Sent (a Job Leads phase, aging limit
+  // 14 days) made them all stall at once — so a global count would read "16 stalled" on the
+  // Pipeline tab while every stalled card actually sits under Job Leads.
+  const stalled = useMemo(
+    () => jobs.filter((j) => tabPhases.includes(j.phase) && isStalled(j)),
+    [jobs, tabPhases],
+  );
+
+  // Jobs imported from Drive still missing a client + contract total. Counted across the
+  // WHOLE book, not just the active tab — the review filter should surface all of them.
+  const needsReview = useMemo(() => jobs.filter((j) => j.import_needs_review).length, [jobs]);
 
   const stats = useMemo(() => {
     const pipeline = jobs.filter((j) => PIPELINE_PHASES.includes(j.phase));
@@ -372,6 +393,14 @@ export default function BmsDashboard() {
         <label className="toggle">
           <input type="checkbox" checked={billOnly} onChange={(e) => setBillOnly(e.target.checked)} /> Bill flag
         </label>
+        {/* The 28 jobs imported from Drive land with no client and no contract total. Without
+            a way to FIND them the flag was only visible once you'd already opened the job. */}
+        {needsReview > 0 && (
+          <label className="toggle">
+            <input type="checkbox" checked={reviewOnly} onChange={(e) => setReviewOnly(e.target.checked)} />
+            {' '}Needs review <span className="toggle-count">{needsReview}</span>
+          </label>
+        )}
       </div>
 
       {notice && (

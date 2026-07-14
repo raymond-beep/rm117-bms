@@ -58,7 +58,7 @@ export async function listFolderFiles(folderId) {
   do {
     const { data } = await drive().files.list({
       q: `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`,
-      fields: 'nextPageToken, files(id, name, mimeType, size, modifiedTime)',
+      fields: 'nextPageToken, files(id, name, mimeType, size, modifiedTime, createdTime)',
       orderBy: 'modifiedTime desc',
       pageSize: 100,
       supportsAllDrives: true,
@@ -337,6 +337,43 @@ export async function createFolder(name, parentId) {
 // nested inside "Field Measure" rather than at the top level.
 const JOB_SUBFOLDERS = ['Files Sent', 'Files Received', 'Proposal', 'Checksets', 'Field Measure', 'Archive'];
 const NESTED_SUBFOLDERS = { 'Field Measure': ['Photos'] };
+
+// Fill in whatever the standard tree is MISSING from a folder that already exists, leaving
+// everything in it untouched. Returns { filesSentId, created: [names] }.
+//
+// This is what a lead's folder needs when its proposal is signed. A folder a person made by
+// hand has whatever subfolders that person happened to make: of the leads imported from Drive,
+// one has only "Proposal", one has none at all, and one has a misspelt "Files Recevied". Once
+// that lead becomes a real job, the app expects "Files Sent" (the client portal's file vault)
+// and "Checksets" (Drawing QA) to exist — and they simply wouldn't, silently.
+//
+// Matching is case-insensitive on the trimmed name, so we don't create a second "files sent"
+// next to an existing "Files Sent".
+export async function ensureJobSubfolders(folderId) {
+  if (!hasDrive() || !folderId) return { filesSentId: null, created: [] };
+
+  const existing = await listChildFolders(folderId);
+  const byName = new Map(existing.map((f) => [f.name.trim().toLowerCase(), f]));
+  const created = [];
+
+  for (const name of JOB_SUBFOLDERS) {
+    let sub = byName.get(name.toLowerCase());
+    if (!sub) {
+      sub = await createFolder(name, folderId);
+      created.push(name);
+    }
+    for (const childName of NESTED_SUBFOLDERS[name] || []) {
+      const kids = await listChildFolders(sub.id);
+      if (!kids.some((k) => k.name.trim().toLowerCase() === childName.toLowerCase())) {
+        await createFolder(childName, sub.id);
+        created.push(`${name}/${childName}`);
+      }
+    }
+    if (name === 'Files Sent') byName.set('files sent', sub);
+  }
+
+  return { filesSentId: byName.get('files sent')?.id || null, created };
+}
 
 // Provision a brand-new job's Drive folder tree at the Shared Drive root:
 //   <Job ID>/  Files Sent · Files Received · Proposal · Checksets · Field Measure/Photos · Archive

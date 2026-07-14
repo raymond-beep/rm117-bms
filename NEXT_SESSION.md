@@ -14,8 +14,15 @@ imported — all 28. The Drive queue is now EMPTY**, and the app went 134 → **
 
 ⚠️ **ALL 28 are flagged `import_needs_review`: `client_id` is NULL and `job_total` is 0.** A folder name
 can't supply either. **This is the open work — Ray and Ang have to link the client and set the contract
-total on each.** Query them with `select job_id, phase from jobs where import_needs_review`. The phases
-are a starting guess too (Survey/Zoning for every numbered job) — they may need dragging.
+total on each.** The board now has a **"Needs review 28"** filter (reaches ACROSS tabs) + a **REVIEW**
+badge on each card, so this is a real worklist, not a query. The phases are a starting guess too
+(Survey/Zoning for every numbered job) — they may need dragging.
+
+**16 of the leads were moved Lead → Proposal Sent (2026-07-14)** — every lead whose Drive Proposal folder
+held a real (non-draft) proposal PDF. `phase_since` was backdated to the proposal's own date (from the
+`YYMMDD_` filename), so they correctly show as stalled (proposal aging limit = 14 days; several are
+100–190 days out — real "chase these" signal). Still Lead: 7 with no proposal on file; `26_xxx_Jacobs`
+held back because its only PDF is `..._proposal_draft.pdf`.
 
 Each imported row remembers its Drive folder in `jobs.drive_folder_id`, so when a lead's proposal is
 signed the app assigns the number **and renames the existing Drive folder** — the rename Ang does by hand

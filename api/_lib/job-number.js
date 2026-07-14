@@ -22,7 +22,9 @@
 // The QBO customer is NOT created here: it's created lazily on the first invoice, and
 // that already keys off the (now real) Job ID.
 import { isPlaceholderJobId, PLACEHOLDER_NUM } from './db.js';
-import { hasDrive, provisionJobFolders, listJobNumbersForYear, renameFolder } from './google-drive.js';
+import {
+  hasDrive, provisionJobFolders, listJobNumbersForYear, renameFolder, ensureJobSubfolders,
+} from './google-drive.js';
 
 // Split `26_xxx_FF_Smith` → { yy: '26', num: 'xxx', ff: 'FF_', name: 'Smith' }.
 // Returns null when the id isn't a placeholder.
@@ -103,7 +105,19 @@ export async function assignOfficialJobId(db, jobId) {
         // Imported from Drive: the folder is already there, full of the client's files.
         // Rename it onto the real Job ID — never provision a second one beside it.
         const renamedFolder = await renameFolder(existingFolderId, newId);
-        drive = { renamed: true, folderId: existingFolderId, name: renamedFolder?.name || newId };
+
+        // …and fill in the standard tree, which a hand-made lead folder almost never has.
+        // One imported lead's folder holds only "Proposal", another has nothing at all. Once
+        // it's a real job the app expects "Files Sent" (the portal's file vault) and
+        // "Checksets" (Drawing QA) to exist; without this they silently wouldn't.
+        const { filesSentId, created } = await ensureJobSubfolders(existingFolderId);
+        if (filesSentId) {
+          await db.from('jobs').update({ drive_files_sent_folder_id: filesSentId }).eq('job_id', newId);
+        }
+        drive = {
+          renamed: true, folderId: existingFolderId,
+          name: renamedFolder?.name || newId, subfoldersCreated: created,
+        };
       } else {
         const prov = await provisionJobFolders(newId);
         if (prov?.folderId) {

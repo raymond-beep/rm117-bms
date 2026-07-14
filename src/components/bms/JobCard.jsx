@@ -18,6 +18,11 @@ export function JobCardBody({ job, todayStr }) {
           {job.is_forefront && <span className="badge badge-ff">FF</span>}
           {job.is_fire_escape && <span className="badge badge-fe" title="Fire Escape job">FE</span>}
           {job.bill_flag && <span className="badge badge-bill">BILL</span>}
+          {job.import_needs_review && (
+            <span className="badge badge-review" title="Imported from Drive — still needs a client and a contract total">
+              REVIEW
+            </span>
+          )}
         </div>
         <div className="job-card-client">{job.client_name || <span className="muted">—</span>}</div>
         {job.address && <div className="job-card-sub">{addressLine(job.address)}</div>}
