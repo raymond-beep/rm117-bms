@@ -1,10 +1,41 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-14 (end of a long session) — **Drive → app sync is LIVE**, the top bar is a real
-global search, **Fire Escape (`FE_`) is now its own work type**, the proposal viewer + AI reader work on
-leads, and **you can now create a client profile from the job editor**. Working tree clean, `main` in sync,
-**259 tests green**, prod verified. Angelena is cleaning up QuickBooks; Ray is refining the app alongside her.
+**Last updated:** 2026-07-18 — **QuickBooks ↔ Drive Job-ID reconciliation** (renumbers, merges, Boyko,
+cross-reference) + a QBO apostrophe-query fix shipped. Working tree clean, `main` in sync, **263 tests green**,
+prod deployed & verified (READY). Angelena is cleaning up QuickBooks; Ray is refining the app alongside her.
 
-## What shipped 2026-07-14 (10 commits, all live)
+## What happened 2026-07-18 — QBO ↔ Drive Job-ID reconciliation
+Almost all of this is **data work in Supabase** (no code) — the one code change is the apostrophe fix.
+- **QBO payment sync (live full sweep):** Vanderbeck **+$5,200** (new) + 8 legacy rows adopted. Recorded
+  **$2,800** on `26_046_FE_Belleville`; created **`24_005_Dunn_Nosker`** + attached **$2,750**.
+- **Number collisions** — the app had **9 numbers each used by two jobs**; Drive is the source of truth.
+  Applied via a port of the Correct-Job-ID flow (app + QBO customer; Drive folders were already right):
+  - **5 renumbers:** Warmington `25_002→25_004`, Markovitz `25_013→24_040`, Kaden `25_038→26_038`,
+    DaSilva `25_053→24_073`, McCalla `25_054→25_055` (all kept their payments).
+  - **2 merges:** Goldberg consolidated into **`26_013_FF_Peter Goldberg`** ($3,300 + history + client);
+    empty `24_008_Dunn Fritchey` stray deleted.
+- **Boyko created** at **`25_013_Boyko`** (Drive folder linked) + **$300** attached.
+- **Full app-vs-Drive cross-reference** → fixed **O'Bagel `25_085→24_081`** and two name typos
+  (**Odulami→Odunlami**, **Anutnes→Antunes**). App is otherwise well-aligned with Drive.
+- **QBO apostrophe bug FIXED + DEPLOYED** (commit `c51692c`): `findCustomerByDisplayName` built an
+  unescaped query → 400 on any `O'…` name (broke Correct Job ID too). Now `escapeQboQueryValue` uses
+  backslash escaping; unit-tested (`tests/qbo-escape.test.js`); 263 tests green; prod READY.
+
+⭐ **STILL NEEDS ANGELENA** (genuine Drive-level collisions / ambiguous — not auto-fixable):
+- **Bucket C collisions:** `25_003` (Odunlami Lot 1 vs Samsel Raritan $4,500), `25_023` (Rodrigues 24 Timber
+  vs Samsel Chalimar), `24_064` (Leffler vs Dirt Diva). Pick a keeper; the other gets a new number.
+- **Ambiguous cross-refs:** `23_047_FF_Jones` (Drive has `24_047_FF_Jones`), `26_019_Madden`
+  (Drive `24_071`/`24_074`), `23_029_Leidy_Roselle`, `26_023_Deuel_Kamal`.
+- **QBO customer renames** so future payments auto-flow: `26_046_Belleville`→`_FE_`,
+  `Nosker_Interiors`→`24_005_Dunn_Nosker`, plus the 3 bucket-C customers once she decides.
+- **Shared worksheet for Ang** (A/B shown done, C = her decisions):
+  https://claude.ai/code/artifact/db86106e-3f5f-4c79-a9ae-a6c4eb93bcc1
+
+Housekeeping: the GitHub classic PAT "rm117" was rotated (regenerated + re-stored in the macOS Keychain) —
+local only, no repo/Vercel change.
+
+---
+
+## Earlier context — what shipped 2026-07-14 (10 commits, all live)
 1. **Global search** in the top bar (`⌘K`) — replaced three dead controls (inert search, dev-only status
    chip, a "New job" button that only did `navigate('/bms')`). `src/lib/search.js` + `TopBar.jsx`.
 2. **Drive → app sync** — the "New in Drive" board strip; `api/_lib/drive-sync.js` + `api/drive/*`. Whole
