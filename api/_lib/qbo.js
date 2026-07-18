@@ -181,8 +181,14 @@ async function qboRequest(method, path, body, { retry = true } = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-// QBO query language escapes a single quote by doubling it.
-const esc = (s) => String(s).replace(/'/g, "''");
+// Intuit's query language escapes a single quote (and backslash) with a BACKSLASH,
+// not by ANSI-SQL doubling — `O'Bagel` → `O\'Bagel`. Doubling makes the parser read
+// the value as two adjacent string literals and 400s ("Error parsing query"), which
+// broke any customer/item lookup for an apostrophe name (e.g. 24_081_O'Bagel_Montclair).
+export function escapeQboQueryValue(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+const esc = escapeQboQueryValue;
 
 // ── Customers ─────────────────────────────────────────────────────────────────
 export async function findCustomerByDisplayName(displayName) {
