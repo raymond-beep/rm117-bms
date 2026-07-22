@@ -37,6 +37,38 @@ We **deliberately do not check** series / model / grille / color / operation —
 developer's choice, not ours. Narrow scope = low liability, and it holds for every item:
 check only what we actually specified.
 
+## What the documents taught us (Phase 2, verified 2026-07-21)
+
+Run against real files, not assumptions. Four things changed the design:
+
+1. **A brochure has no per-unit U-factor.** The Andersen 400 catalog's size tables carry
+   model numbers and dimensions only; U-factors live in separate NFRC tables organised by
+   **product type × glazing package** (pp. 201-206). "The U-factor of a TW2842" is not a
+   question the document answers — "the U-factor of a tilt-wash double-hung with this
+   glazing" is.
+2. **A catalog has hundreds of sizes**, and asking for all of them returns a
+   "representative sample". A sample is worse than useless: a size missing from a partial
+   list reads as *not offered* and flags a window that is fine. So `lookupBrochure` is a
+   **targeted lookup** — it takes the tags OUR schedule uses and asks about only those.
+3. **REScheck states two different U-factors** and conflating them loses the finding that
+   matters: the **proposed** value the run was built on (DaSilva: `0.250`) and the **code
+   maximum** (`0.300`). A window at 0.28 passes code but invalidates the REScheck we
+   submitted. Both are extracted.
+4. **Catalog sizes are quoted as both window dimension and rough opening**, and our
+   schedules mix them. This is the main source of false mismatches; the prompt makes the
+   model say which it matched on.
+
+**A real result, DaSilva vs Andersen 400** (the pilot, end-to-end): all 4 tags checked are
+offered, but the line's **worst-case U-factor is 0.31** (tilt-wash double-hung) against a
+REScheck built on **0.25** — so the 400 Series only complies on the upgraded glazing
+packages, not plain Low-E4. That is exactly the catch the feature is for, and it is a
+*pre-purchase* answer.
+
+⚠️ **Cost/latency is real:** the 31MB brochure takes **~2.5 min** and must go through the
+**Files API** (inline base64 blows the 32MB request limit). Phase 3 should cache the
+uploaded `file_id` and the extracted result per Drive file — the library brochure is the
+same file on every job, so this should be paid once, not once per run.
+
 ## Two capability tracks (the roadmap)
 
 - **Compliance** — verify a bought product vs our documents. Cheap, low liability.
@@ -114,9 +146,11 @@ call number (e.g. Andersen `TW2842` encodes width×height). Nail this mechanic i
   Role suggestions in `api/_lib/set-check/doc-roles.js` (pure, 14 tests) — verified
   against 5 real jobs. **The run is found-or-created only while it is still open**; a
   `confirmed` run is a record of what was checked, so reopening starts a fresh one.
-- **Phase 2 — Extract.** `api/_lib/set-check/anthropic.js`: vision-read the window
-  schedule (tag → size), the REScheck (U-factor), and a vendor brochure (submitted size
-  + U-factor). Return structured JSON.
+- **Phase 2 — Extract ✅ (2026-07-21).** `api/_lib/set-check/extract.js` —
+  `extractWindowSchedule` (tag → size, + manufacturer/series when the set states them),
+  `extractRescheck` (**both** U-factors, see below), `lookupBrochure`. Opus by default
+  (`SET_CHECK_MODEL`), adaptive thinking, structured outputs, refusal retry, always
+  streamed. **Verified on real documents** — see "What the documents taught us".
 - **Phase 3 — Compare + confirm.** Match brochure units to schedule tags; produce a
   pass/flag per size and per U-factor; persist findings; render a report where a staffer
   confirms/overrides each (mirror Drawing QA verdicts/overrides). **Verify end-to-end on
