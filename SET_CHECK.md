@@ -64,10 +64,35 @@ REScheck built on **0.25** — so the 400 Series only complies on the upgraded g
 packages, not plain Low-E4. That is exactly the catch the feature is for, and it is a
 *pre-purchase* answer.
 
-⚠️ **Cost/latency is real:** the 31MB brochure takes **~2.5 min** and must go through the
-**Files API** (inline base64 blows the 32MB request limit). Phase 3 should cache the
+## What it costs (measured 2026-07-21)
+
+Measured with the token-counting endpoint at Opus pricing ($5/M input). Documents run at
+a consistent **~1,700 tokens per page**, so cost tracks page count, not file size.
+
+| Document | Size | Tokens | Per read |
+|---|---|---|---|
+| REScheck | 0.22 MB | 7,061 | **$0.035** |
+| Permit set (window schedule) | 5.5 MB | 48,274 | **$0.24** |
+| Andersen 400 brochure | 31 MB, ~250-300 pp | ~450,000 *(estimated — too large for the counting endpoint)* | **~$2.40** |
+
+**The catalog is the whole cost.** A day of building this ran ~$13, and ~$8 of that was
+putting the full 400 Series brochure through three times while developing. That is a
+one-time development cost, not the run rate.
+
+**Adding brochures does NOT scale per-job cost.** A job checks against exactly ONE window
+line, so a job on the 100 Series never reads the 400 Series file. Each new brochure is a
+**one-time ingest of ~$2.50, paid once ever** — ten brochures is ~$25 total, forever.
+
+**After Phase 3a** (trim ~280 pages to ~40, cache the performance table per brochure):
+schedule $0.24 + REScheck $0.04 + trimmed brochure lookup ~$0.35 + output ~$0.30 ≈
+**~$0.90 per job**, against a ~$2,000 compliance fee — about 0.05% of revenue. Even
+untrimmed at ~$3/job it is worth running; page-trimming is a **cost** decision as much as
+a speed one, which is why it leads Phase 3.
+
+⚠️ **Latency is real too:** the untrimmed 31MB brochure takes **~2.5 min** per run and must
+go through the **Files API** (inline base64 blows the 32MB request limit). Cache the
 uploaded `file_id` and the extracted result per Drive file — the library brochure is the
-same file on every job, so this should be paid once, not once per run.
+same file on every job, so it should be paid for once, not once per run.
 
 ## Two capability tracks (the roadmap)
 
