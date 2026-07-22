@@ -1,0 +1,554 @@
+<style>
+  :root {
+    --paper:#FAFAFB;
+    --panel:#FFFFFF;
+    --ink:#171B21;
+    --muted:#5B626C;
+    --faint:#8A909A;
+    --line:#E4E6EA;
+    --line-strong:#D2D5DB;
+    --accent:#2B4C6F;
+    --accent-ink:#22405E;
+    --accent-soft:#EAF0F6;
+    --ok:#3E7C5A;
+    --ok-soft:#E7F1EB;
+    --warn:#9C6410;
+    --warn-soft:#F6EEDC;
+    --crit:#B4472E;
+    --crit-soft:#F5E6E1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#13161A;
+      --panel:#1B1F26;
+      --ink:#E9ECEF;
+      --muted:#A3AAB5;
+      --faint:#727A86;
+      --line:#2A2F37;
+      --line-strong:#39414B;
+      --accent:#7AA6CC;
+      --accent-ink:#9DC0DE;
+      --accent-soft:#1E2E3D;
+      --ok:#6FB58C;
+      --ok-soft:#1A2A21;
+      --warn:#D6A144;
+      --warn-soft:#2C2515;
+      --crit:#D2765C;
+      --crit-soft:#2C1D18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#13161A;
+    --panel:#1B1F26;
+    --ink:#E9ECEF;
+    --muted:#A3AAB5;
+    --faint:#727A86;
+    --line:#2A2F37;
+    --line-strong:#39414B;
+    --accent:#7AA6CC;
+    --accent-ink:#9DC0DE;
+    --accent-soft:#1E2E3D;
+    --ok:#6FB58C;
+    --ok-soft:#1A2A21;
+    --warn:#D6A144;
+    --warn-soft:#2C2515;
+    --crit:#D2765C;
+    --crit-soft:#2C1D18;
+  }
+  :root[data-theme="light"] {
+    --paper:#FAFAFB;
+    --panel:#FFFFFF;
+    --ink:#171B21;
+    --muted:#5B626C;
+    --faint:#8A909A;
+    --line:#E4E6EA;
+    --line-strong:#D2D5DB;
+    --accent:#2B4C6F;
+    --accent-ink:#22405E;
+    --accent-soft:#EAF0F6;
+    --ok:#3E7C5A;
+    --ok-soft:#E7F1EB;
+    --warn:#9C6410;
+    --warn-soft:#F6EEDC;
+    --crit:#B4472E;
+    --crit-soft:#F5E6E1;
+  }
+
+  * { box-sizing:border-box; }
+
+  body {
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    font-size:17px;
+    line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .serif { font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; }
+  .mono  { font-family:ui-monospace,"SF Mono",Menlo,"Roboto Mono",monospace; }
+
+  .sheet {
+    max-width:52rem;
+    margin:0 auto;
+    padding:clamp(1.5rem,4vw,3.75rem) clamp(1.15rem,4vw,3.25rem) 3.5rem;
+  }
+
+  /* ---- masthead ---- */
+  .masthead { border-bottom:2px solid var(--ink); padding-bottom:1.6rem; }
+  .eyebrow {
+    font-size:.7rem; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--accent); font-weight:600;
+  }
+  .wordmark {
+    float:right; font-size:.7rem; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--faint); font-weight:600; text-align:right; line-height:1.5;
+  }
+  h1.title {
+    font-size:clamp(2.1rem,5.5vw,3.15rem);
+    line-height:1.05; margin:.7rem 0 .55rem; font-weight:600;
+    letter-spacing:-.015em; text-wrap:balance;
+  }
+  .lede {
+    font-size:1.08rem; color:var(--muted); max-width:40ch; margin:0;
+    text-wrap:pretty;
+  }
+  .metabar {
+    display:flex; flex-wrap:wrap; gap:.4rem 1.6rem; margin-top:1.5rem;
+    font-size:.74rem; letter-spacing:.04em; color:var(--faint);
+  }
+  .metabar b { color:var(--ink); font-weight:600; }
+
+  /* ---- section rhythm ---- */
+  section { margin-top:2.9rem; }
+  .kicker {
+    display:flex; align-items:baseline; gap:.7rem; margin-bottom:1rem;
+  }
+  .kicker .num {
+    font-size:.72rem; font-weight:700; color:var(--accent);
+    letter-spacing:.08em; padding-top:.15rem;
+  }
+  h2 {
+    font-size:1.34rem; font-weight:600; margin:0; letter-spacing:-.01em;
+    text-wrap:balance;
+  }
+  p { margin:0 0 .9rem; max-width:64ch; }
+  p:last-child { margin-bottom:0; }
+  .em { color:var(--ink); font-weight:600; }
+  strong { font-weight:600; }
+
+  /* ---- two checks ---- */
+  .checks { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+  .check {
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:1.25rem 1.3rem;
+    border-top:3px solid var(--accent);
+  }
+  .check .tag {
+    font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--faint); font-weight:600;
+  }
+  .check h3 { margin:.35rem 0 .5rem; font-size:1.18rem; font-weight:600; }
+  .check p { font-size:.95rem; color:var(--muted); margin-bottom:.85rem; }
+  .src {
+    display:inline-flex; align-items:center; gap:.45rem;
+    font-size:.74rem; color:var(--accent-ink); font-weight:600;
+    background:var(--accent-soft); padding:.28rem .6rem; border-radius:999px;
+  }
+  .src .dot { width:.42rem; height:.42rem; border-radius:50%; background:var(--accent); }
+
+  .notchecked {
+    margin-top:1rem; background:var(--panel); border:1px dashed var(--line-strong);
+    border-radius:12px; padding:1rem 1.2rem;
+    font-size:.92rem; color:var(--muted);
+  }
+  .notchecked .lbl {
+    font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--faint); font-weight:600; display:block; margin-bottom:.35rem;
+  }
+  .strike { text-decoration:line-through; text-decoration-color:var(--line-strong); color:var(--faint); }
+
+  /* ---- flow diagram ---- */
+  .flow {
+    display:grid; gap:.7rem; margin-top:.4rem;
+  }
+  .flow-inputs { display:grid; grid-template-columns:repeat(3,1fr); gap:.7rem; }
+  .node {
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:.85rem .9rem; font-size:.86rem; line-height:1.4;
+  }
+  .node .nlbl {
+    font-size:.63rem; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--faint); font-weight:600; display:block; margin-bottom:.25rem;
+  }
+  .node.input { border-left:3px solid var(--accent); }
+  .node.engine {
+    background:var(--accent); color:#fff; border-color:var(--accent);
+    text-align:center; font-weight:600;
+  }
+  .node.engine .nlbl { color:rgba(255,255,255,.72); }
+  .node.output { border-left:3px solid var(--ok); }
+  .node.human { border-left:3px solid var(--warn); }
+  .arrow {
+    text-align:center; color:var(--faint); font-size:1rem; line-height:1;
+    margin:-.15rem 0;
+  }
+  .flow-bottom { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; }
+  .home-note {
+    margin-top:.9rem; font-size:.82rem; color:var(--faint);
+    display:flex; align-items:center; gap:.5rem;
+  }
+
+  /* ---- liability list ---- */
+  ul.clean { list-style:none; margin:0; padding:0; display:grid; gap:.6rem; }
+  ul.clean li {
+    position:relative; padding-left:1.5rem; font-size:.98rem; color:var(--muted);
+    max-width:64ch;
+  }
+  ul.clean li::before {
+    content:""; position:absolute; left:0; top:.62em;
+    width:.5rem; height:.5rem; border:1.5px solid var(--accent); border-radius:50%;
+  }
+  ul.clean li .em { color:var(--ink); }
+
+  /* ---- cost callout ---- */
+  .cost {
+    background:var(--ok-soft); border:1px solid color-mix(in srgb,var(--ok) 32%,transparent);
+    border-radius:12px; padding:1.15rem 1.3rem; display:flex; gap:1rem; align-items:baseline;
+    flex-wrap:wrap;
+  }
+  .cost .big { font-size:1.5rem; font-weight:700; color:var(--ok); letter-spacing:-.01em; }
+  .cost p { margin:0; font-size:.95rem; color:var(--muted); flex:1; min-width:16rem; }
+  .aside {
+    margin-top:.85rem; font-size:.82rem; color:var(--faint); padding-left:.9rem;
+    border-left:2px solid var(--line-strong);
+  }
+
+  /* ---- revenue table ---- */
+  .tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; }
+  table { width:100%; border-collapse:collapse; font-size:.95rem; min-width:24rem; }
+  thead th {
+    text-align:left; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--faint); font-weight:600; padding:.85rem 1.15rem; background:var(--panel);
+    border-bottom:1px solid var(--line);
+  }
+  thead th.r, tbody td.r { text-align:right; font-variant-numeric:tabular-nums; }
+  tbody td { padding:.8rem 1.15rem; border-bottom:1px solid var(--line); }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody tr.full td { font-weight:600; color:var(--ink); background:var(--accent-soft); }
+  tbody td.scn { font-weight:600; color:var(--ink); vertical-align:top; }
+  .rev { color:var(--ok); font-weight:600; }
+  .tier-sub { display:block; font-weight:400; color:var(--muted); font-size:.82rem; line-height:1.42; margin-top:.28rem; max-width:38ch; }
+  .tier-eff { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.57rem; letter-spacing:.07em; text-transform:uppercase; font-weight:700; padding:.14rem .45rem; border-radius:999px; margin-left:.4rem; vertical-align:middle; color:#fff; white-space:nowrap; }
+  .tier-eff.low { background:var(--lia-low); }
+  .tier-eff.med { background:var(--lia-med); }
+  .tier-eff.high { background:var(--lia-high); }
+
+  /* ---- pilot steps ---- */
+  ol.steps { margin:0; padding:0; list-style:none; counter-reset:s; display:grid; gap:.85rem; }
+  ol.steps li {
+    counter-increment:s; position:relative; padding-left:2.4rem;
+    font-size:.98rem; color:var(--muted); max-width:62ch;
+  }
+  ol.steps li::before {
+    content:counter(s); position:absolute; left:0; top:-.05rem;
+    width:1.7rem; height:1.7rem; border-radius:50%;
+    background:var(--accent); color:#fff; font-size:.82rem; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  ol.steps li .em { color:var(--ink); }
+  .success {
+    margin-top:1.1rem; background:var(--warn-soft);
+    border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);
+    border-radius:12px; padding:1rem 1.25rem; font-size:.95rem; color:var(--muted);
+  }
+  .success .lbl {
+    font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--warn); font-weight:700; display:block; margin-bottom:.4rem;
+  }
+
+  /* ---- decision ---- */
+  .decision {
+    margin-top:2.9rem; background:var(--ink); color:var(--paper);
+    border-radius:14px; padding:1.6rem 1.7rem;
+  }
+  .decision .lbl {
+    font-size:.68rem; letter-spacing:.14em; text-transform:uppercase;
+    color:color-mix(in srgb,var(--accent) 70%,#fff); font-weight:700;
+  }
+  .decision p {
+    margin:.55rem 0 0; font-size:1.12rem; line-height:1.5; max-width:56ch;
+    color:var(--paper);
+  }
+  .decision .ask { font-weight:600; }
+
+  footer {
+    margin-top:2.6rem; padding-top:1.2rem; border-top:1px solid var(--line);
+    font-size:.72rem; letter-spacing:.05em; color:var(--faint);
+    display:flex; justify-content:space-between; flex-wrap:wrap; gap:.5rem;
+  }
+
+  /* ---- roadmap quadrant ---- */
+  :root { --lia-low:#3E7C5A; --lia-med:#B07714; --lia-high:#B4472E; }
+  .matrix-wrap { overflow-x:auto; padding-bottom:.3rem; }
+  .matrix { position:relative; min-width:560px; height:400px; margin:.5rem 0 0; }
+  .plot {
+    position:absolute; inset:24px 16px 40px 46px;
+    border-left:1.5px solid var(--line-strong);
+    border-bottom:1.5px solid var(--line-strong);
+  }
+  .divide-v, .divide-h { position:absolute; background:var(--line); }
+  .divide-v { left:50%; top:0; bottom:0; width:1px; }
+  .divide-h { top:50%; left:0; right:0; height:1px; }
+  .qlabel {
+    position:absolute; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase;
+    font-weight:700; color:var(--faint);
+  }
+  .q-tl { top:7px; left:9px; color:var(--lia-low); }
+  .q-tr { top:7px; right:9px; }
+  .q-bl { bottom:7px; left:9px; }
+  .q-br { bottom:7px; right:9px; color:var(--lia-high); }
+  .axis-x {
+    position:absolute; bottom:4px; left:46px; right:16px; text-align:center;
+    font-size:.62rem; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--muted); font-weight:600;
+  }
+  .axis-y {
+    position:absolute; left:6px; top:24px; bottom:40px;
+    writing-mode:vertical-rl; transform:rotate(180deg);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.62rem; letter-spacing:.09em; text-transform:uppercase;
+    color:var(--muted); font-weight:600;
+  }
+  .dot {
+    position:absolute; width:27px; height:27px; border-radius:50%;
+    transform:translate(-50%,-50%);
+    display:flex; align-items:center; justify-content:center;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.78rem;
+    font-weight:700; color:#fff; border:2px solid var(--panel);
+    box-shadow:0 1px 3px rgba(0,0,0,.22);
+  }
+  .dot.low { background:var(--lia-low); }
+  .dot.med { background:var(--lia-med); }
+  .dot.high { background:var(--lia-high); }
+
+  .lia-legend {
+    display:flex; flex-wrap:wrap; gap:.4rem 1.3rem; margin:.5rem 0 1.3rem;
+    font-size:.76rem; color:var(--muted);
+  }
+  .lia-legend span { display:inline-flex; align-items:center; gap:.45rem; }
+  .sw { width:.7rem; height:.7rem; border-radius:50%; }
+  .sw.low { background:var(--lia-low); }
+  .sw.med { background:var(--lia-med); }
+  .sw.high { background:var(--lia-high); }
+
+  ol.rmkey { list-style:none; margin:0; padding:0; display:grid; gap:.65rem; }
+  ol.rmkey li { display:flex; gap:.75rem; font-size:.94rem; color:var(--muted); max-width:64ch; }
+  ol.rmkey li > div { flex:1; }
+  .kn {
+    flex:none; width:1.5rem; height:1.5rem; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.76rem;
+    font-weight:700; color:#fff;
+  }
+  .kn.low { background:var(--lia-low); }
+  .kn.med { background:var(--lia-med); }
+  .kn.high { background:var(--lia-high); }
+  ol.rmkey b { color:var(--ink); font-weight:600; }
+  .verdict { color:var(--accent-ink); font-weight:600; }
+  .takeaway {
+    margin-top:1.2rem; font-size:.95rem; color:var(--muted);
+    padding-left:.9rem; border-left:2px solid var(--accent);
+  }
+
+  @media (max-width:33rem) {
+    .checks, .flow-inputs, .flow-bottom { grid-template-columns:1fr; }
+    .wordmark { float:none; text-align:left; margin-bottom:.4rem; }
+  }
+</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <div class="wordmark">Room 117<br>Architecture &amp; Design</div>
+    <div class="eyebrow">Internal Proposal · For Angelena</div>
+    <h1 class="title serif">Set Check</h1>
+    <p class="lede">An in-house engine that reads our drawing set and checks what contractors buy, submit, and count against what we specified — <span class="em">before it's ordered or built.</span> Windows shown as the worked example.</p>
+    <div class="metabar mono">
+      <span><b>Prepared by</b> Ray</span>
+      <span><b>Date</b> July 21, 2026</span>
+      <span><b>Decision</b> Build as a BMS tab · start with windows</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="kicker"><span class="num mono">01</span><h2>We're upstream — our set is everyone's source of truth</h2></div>
+    <p>Our drawings are the document every project buys and builds from, and everyone downstream re-reads them by hand: a contractor re-counts our set to bid it, a developer buys products off our schedules, a supplier ships against our notes. Every time what gets <span class="em">bought or counted</span> drifts from what we <span class="em">drew</span>, it surfaces late — a failed inspection, the wrong product, a re-order — on a set carrying our stamp.</p>
+    <p>The same document that caused the drift can catch it. <span class="em">Set Check reads our drawings and checks what comes back against what we specified</span> — two kinds of check: does the <span class="em">product</span> match our spec, and does the <span class="em">quantity</span> match our set. Windows are the clearest first case, so we'll walk the whole mechanism through them.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">02</span><h2>How it works — windows as the worked example</h2></div>
+    <p>We spec window <span class="em">sizes</span> in the schedule; the required <span class="em">U-factor</span> comes out of our REScheck once we model the envelope. So on windows, the two things worth checking are:</p>
+    <div class="checks">
+      <div class="check">
+        <span class="tag mono">Check 1</span>
+        <h3>Size</h3>
+        <p>Does the purchased unit match the opening size we drew in the window schedule?</p>
+        <span class="src mono"><span class="dot"></span>Source: our window schedule</span>
+      </div>
+      <div class="check">
+        <span class="tag mono">Check 2</span>
+        <h3>U-factor</h3>
+        <p>Does the purchased unit meet the U-factor our REScheck is based on — the code non-negotiable?</p>
+        <span class="src mono"><span class="dot"></span>Source: our REScheck</span>
+      </div>
+    </div>
+    <div class="notchecked">
+      <span class="lbl">The rule that keeps liability low</span>
+      The engine only ever checks <span class="em">what we actually specified.</span> On windows that means we skip <span class="strike">series · model · grille · color · operation</span> — the developer's choice, not ours. The same discipline holds on any item: check our spec, ignore their preferences.
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">03</span><h2>The same flow runs on any item</h2></div>
+    <p>On windows the three inputs are our schedule, our REScheck, and the contractor's brochure. Swap them — a door schedule, a fixture spec, a count off the plans — and the identical flow runs:</p>
+    <div class="flow">
+      <div class="flow-inputs">
+        <div class="node input"><span class="nlbl">Ours</span>Window schedule <span style="color:var(--faint)">→ size</span></div>
+        <div class="node input"><span class="nlbl">Ours</span>REScheck <span style="color:var(--faint)">→ U-factor</span></div>
+        <div class="node input"><span class="nlbl">Theirs</span>Contractor's vendor brochure</div>
+      </div>
+      <div class="arrow">↓</div>
+      <div class="node engine"><span class="nlbl">In the BMS</span>AI reads all three &amp; compares</div>
+      <div class="arrow">↓</div>
+      <div class="flow-bottom">
+        <div class="node output"><span class="nlbl">Result</span>Discrepancy report — pass / flag per window</div>
+        <div class="node human"><span class="nlbl">Always</span>A staffer confirms every flag</div>
+      </div>
+    </div>
+    <div class="home-note mono">Lives as a tab in the BMS · staff-only · nothing automatic gets signed</div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">04</span><h2>Why our liability stays low</h2></div>
+    <ul class="clean">
+      <li>It checks against <span class="em">our own documents</span> — it never independently rules on New Jersey code.</li>
+      <li>Every result is <span class="em">flagged for a person to confirm</span>; nothing is signed automatically.</li>
+      <li>Purchase and installation responsibility <span class="em">stays with the contractor</span> who orders and installs.</li>
+      <li>It speeds up review we're <span class="em">already responsible for</span> as architect — it doesn't add a new duty.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">05</span><h2>What it costs to run</h2></div>
+    <div class="cost">
+      <span class="big mono">$0<span style="font-size:.9rem;font-weight:600">/mo new</span></span>
+      <p>A new tab in the existing BMS, new tables in the database we already pay for, and our existing AI key. The only variable cost is a few cents of AI processing per check — which the fee covers many times over.</p>
+    </div>
+    <p class="aside">A separate standalone app would have added ~$35/mo in new subscriptions and a second product to maintain. We ruled that out — this rides on what we already run.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">06</span><h2>What it earns — it scales with what we build</h2></div>
+    <p>Price tracks scope. Build only the easy compliance checks and it's a modest add-on; build up to real takeoffs — telling a developer how much trim and siding to buy — and each project is worth several times more. Every tier is pure-margin revenue on jobs we already have; each one just raises the ceiling.</p>
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>What we build</th><th class="r">Per project</th><th class="r">Annual · 10–30 jobs</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="scn">Compliance checks<span class="tier-eff low">Easy</span><span class="tier-sub">Confirm the windows, doors &amp; fixtures they bought match our drawings and pass code.</span></td>
+            <td class="r">~$2,000</td>
+            <td class="r rev">$20k–60k</td>
+          </tr>
+          <tr>
+            <td class="scn">+ Quantity counts<span class="tier-eff med">Medium</span><span class="tier-sub">…plus how many of each to order — windows, doors, scheduled fixtures.</span></td>
+            <td class="r">~$3,000</td>
+            <td class="r rev">$30k–90k</td>
+          </tr>
+          <tr class="full">
+            <td class="scn">+ Area &amp; linear takeoffs<span class="tier-eff high">Big bet</span><span class="tier-sub">…plus how much to buy — trim, siding, drywall, flooring.</span></td>
+            <td class="r">~$5,000</td>
+            <td class="r">$50k–150k</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="aside">Prices are starting points to set against your ~$2,000 windows figure — the more we build, the more each job is worth. Actual revenue is the tier price times however many of the ~30 jobs take it up; even a handful at the base tier clears the near-zero cost of running it. And it stacks — a developer on the top tier pays for compliance <em>and</em> takeoff on the same job.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">07</span><h2>The full range — what it can check and count</h2></div>
+    <p>Windows, above, is one instance. Across the set the engine runs on two tracks: <span class="em">compliance checks</span> (verify what they bought against what we drew — cheap and low-liability) and <span class="em">quantity takeoffs</span> (count what's on our set — higher value, harder to build, more exposure). Here's the whole field, plotted by what it's worth against what it takes to build, and colored by how much liability it carries.</p>
+
+    <div class="matrix-wrap">
+      <div class="matrix">
+        <div class="axis-y">Value →</div>
+        <div class="axis-x">Harder to build →</div>
+        <div class="plot">
+          <div class="divide-v"></div>
+          <div class="divide-h"></div>
+          <span class="qlabel q-tl">Do next</span>
+          <span class="qlabel q-tr">Worth planning</span>
+          <span class="qlabel q-bl">Low priority</span>
+          <span class="qlabel q-br">Leave out</span>
+          <div class="dot low"  style="left:14%; top:15%">1</div>
+          <div class="dot low"  style="left:24%; top:22%">2</div>
+          <div class="dot low"  style="left:20%; top:34%">3</div>
+          <div class="dot low"  style="left:37%; top:46%">4</div>
+          <div class="dot low"  style="left:47%; top:68%">5</div>
+          <div class="dot med"  style="left:82%; top:56%">6</div>
+          <div class="dot high" style="left:88%; top:16%">7</div>
+          <div class="dot high" style="left:76%; top:36%">8</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lia-legend">
+      <span><i class="sw low"></i>Low liability — checks their product vs. our document</span>
+      <span><i class="sw med"></i>Medium — new detection work</span>
+      <span><i class="sw high"></i>Higher — we issue quantities</span>
+    </div>
+
+    <ol class="rmkey">
+      <li><span class="kn low">1</span><div><b>Windows</b> — <span class="verdict">The wedge.</span> Size + U-factor. Already the pilot.</div></li>
+      <li><span class="kn low">2</span><div><b>Fire-rated doors</b> — <span class="verdict">Do next.</span> Verify the rating on the cut sheet — a life-safety catch, same machine.</div></li>
+      <li><span class="kn low">3</span><div><b>Exterior doors</b> — <span class="verdict">Do next.</span> U-factor vs. REScheck — identical to windows.</div></li>
+      <li><span class="kn low">4</span><div><b>Scheduled fixtures</b> — <span class="verdict">Do next.</span> Match plumbing / lighting models against the schedule.</div></li>
+      <li><span class="kn low">5</span><div><b>Interior door counts</b> — <span class="verdict">Low priority.</span> Sized on plans, not scheduled — real payoff is small.</div></li>
+      <li><span class="kn med">6</span><div><b>Loose-symbol counts</b> — <span class="verdict">Leave out for now.</span> Outlets &amp; un-scheduled fixtures need symbol detection — a real build for modest value.</div></li>
+      <li><span class="kn high">7</span><div><b>Area takeoff</b> — <span class="verdict">Big bet.</span> Flooring, drywall, roof, siding — the takeoff prize, but it needs the geometry engine and issuing quantities raises liability.</div></li>
+      <li><span class="kn high">8</span><div><b>Linear takeoff</b> — <span class="verdict">Big bet.</span> Trim, framing, foundation — same engine, same exposure.</div></li>
+    </ol>
+
+    <p class="takeaway">The green cluster, top-left, is where to start: high value, low effort, low liability, and it grows windows into a real product line. The red big bets up top are the original takeoff prize — worth planning toward, but only once the safe wins are banked and we've decided how to hold the added liability.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">08</span><h2>The pilot — zero live-job risk</h2></div>
+    <ol class="steps">
+      <li>Pick a <span class="em">completed</span> DaSilva, Rodriguez, or Costello job — one where we already know how the windows turned out.</li>
+      <li>Feed it the real window schedule, the real REScheck, and the vendor brochure that was actually used.</li>
+      <li>Run the two checks and compare the output against what we know happened on that job.</li>
+    </ol>
+    <div class="success">
+      <span class="lbl">Success looks like</span>
+      It confirms a compliant unit, and it flags a deliberately mismatched one — a wrong size, and a U-factor above the REScheck basis. Real firm data, nothing live on the line.
+    </div>
+  </section>
+
+  <div class="decision">
+    <span class="lbl">The decision we're asking for</span>
+    <p><span class="ask">Approve building Set Check as a BMS tab, starting with the windows pilot on one completed job.</span> No new spend — the only investment is Ray's build and maintenance time.</p>
+  </div>
+
+  <footer class="mono">
+    <span>Room 117 Architecture &amp; Design</span>
+    <span>Internal · July 2026</span>
+  </footer>
+
+</div>

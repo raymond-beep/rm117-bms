@@ -6,8 +6,15 @@
 > written (NOT applied), and this doc. No API, no AI, no real logic. Everything below
 > "Build phases" is the plan to continue from — pick up at Phase 1.
 >
-> Business framing + the proposal Angelena approved live in Claude memory
-> (`takeoff-app-project`) and the proposal artifact. This file is the engineering plan.
+> This file is the engineering plan. The **business** side of the feature lives in
+> `set-check-docs/` (copied into the repo 2026-07-21):
+> - `set-check-proposal.html` — the scope + pilot + tiered-pricing + roadmap page
+>   Angelena approved. Live: https://claude.ai/code/artifact/baec6eee-9cc0-4c04-99c2-d59211d707b4
+> - `set-check-developer-survey.html` — the ~3-minute developer survey (mostly
+>   checkboxes, build-difficulty badges) to gather what clients want built first.
+>   Live: https://claude.ai/code/artifact/e3b3e12a-8856-4784-b7c2-d7091cdb9089
+>
+> Open either HTML file in a browser to view; both are self-contained.
 
 ## What it is
 

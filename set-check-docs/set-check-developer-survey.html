@@ -1,0 +1,208 @@
+<style>
+  :root {
+    --paper:#FAFAFB; --panel:#FFFFFF; --ink:#171B21; --muted:#5B626C; --faint:#8A909A;
+    --line:#E4E6EA; --line-strong:#D2D5DB;
+    --accent:#2B4C6F; --accent-ink:#22405E; --accent-soft:#EAF0F6;
+    --easy:#3E7C5A; --mod:#B07714; --hard:#B4472E;
+  }
+  @media (prefers-color-scheme:dark) {
+    :root {
+      --paper:#13161A; --panel:#1B1F26; --ink:#E9ECEF; --muted:#A3AAB5; --faint:#727A86;
+      --line:#2A2F37; --line-strong:#39414B;
+      --accent:#7AA6CC; --accent-ink:#9DC0DE; --accent-soft:#1E2E3D;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#13161A; --panel:#1B1F26; --ink:#E9ECEF; --muted:#A3AAB5; --faint:#727A86;
+    --line:#2A2F37; --line-strong:#39414B;
+    --accent:#7AA6CC; --accent-ink:#9DC0DE; --accent-soft:#1E2E3D;
+  }
+  :root[data-theme="light"] {
+    --paper:#FAFAFB; --panel:#FFFFFF; --ink:#171B21; --muted:#5B626C; --faint:#8A909A;
+    --line:#E4E6EA; --line-strong:#D2D5DB;
+    --accent:#2B4C6F; --accent-ink:#22405E; --accent-soft:#EAF0F6;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    font-size:16.5px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .serif { font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; }
+  .mono { font-family:ui-monospace,"SF Mono",Menlo,"Roboto Mono",monospace; }
+
+  .sheet { max-width:44rem; margin:0 auto; padding:clamp(1.4rem,4vw,3rem) clamp(1.1rem,4vw,2.4rem) 3rem; }
+
+  header.top { border-bottom:2px solid var(--ink); padding-bottom:1.4rem; }
+  .wordmark { font-size:.68rem; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:600; }
+  h1 { font-size:clamp(1.8rem,4.6vw,2.5rem); line-height:1.08; margin:.55rem 0 .6rem; font-weight:600; letter-spacing:-.015em; text-wrap:balance; }
+  .intro { font-size:1.02rem; color:var(--muted); margin:0; max-width:56ch; }
+  .meta { margin-top:1rem; display:flex; flex-wrap:wrap; gap:.5rem .9rem; font-size:.76rem; color:var(--faint); align-items:center; }
+  .pill { display:inline-flex; align-items:center; gap:.4rem; background:var(--accent-soft); color:var(--accent-ink); font-weight:600; padding:.25rem .6rem; border-radius:999px; font-size:.72rem; }
+
+  .badges-key { margin-top:1rem; font-size:.82rem; color:var(--muted); display:flex; flex-wrap:wrap; gap:.5rem .9rem; align-items:center; }
+
+  .q { margin-top:2.2rem; }
+  .qnum { font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.72rem; font-weight:700; color:var(--accent); letter-spacing:.06em; }
+  .qtext { font-size:1.14rem; font-weight:600; margin:.25rem 0 .3rem; letter-spacing:-.01em; text-wrap:balance; }
+  .qhint { font-size:.85rem; color:var(--faint); margin:0 0 .85rem; }
+
+  .opts { display:grid; gap:.5rem; }
+  .opt {
+    display:flex; align-items:center; gap:.7rem; padding:.72rem .9rem;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    cursor:pointer; transition:border-color .12s, background .12s;
+  }
+  .opt:hover { border-color:var(--accent); }
+  .opt:focus-within { outline:2px solid var(--accent); outline-offset:1px; }
+  .opt input { width:1.15rem; height:1.15rem; accent-color:var(--accent); flex:none; cursor:pointer; margin:0; }
+  .opt span.txt { flex:1; font-size:.96rem; }
+  .badge {
+    font-family:ui-monospace,"SF Mono",Menlo,monospace; font-size:.6rem; font-weight:700;
+    letter-spacing:.06em; text-transform:uppercase; color:#fff; padding:.16rem .5rem;
+    border-radius:999px; flex:none; white-space:nowrap;
+  }
+  .badge.easy { background:var(--easy); }
+  .badge.mod  { background:var(--mod); }
+  .badge.hard { background:var(--hard); }
+  .badge.dot::before { content:"●"; margin-right:.3rem; }
+
+  .group-label { font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700; margin:.9rem 0 .45rem; }
+  .group-label:first-of-type { margin-top:0; }
+
+  textarea {
+    width:100%; min-height:5rem; resize:vertical; padding:.75rem .9rem;
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    color:var(--ink); font-family:inherit; font-size:.95rem; line-height:1.5;
+  }
+  textarea:focus { outline:2px solid var(--accent); outline-offset:1px; border-color:var(--accent); }
+
+  .closer {
+    margin-top:2.4rem; background:var(--accent-soft); border-radius:12px; padding:1.2rem 1.35rem;
+    font-size:.98rem; color:var(--accent-ink);
+  }
+  .closer b { font-weight:700; }
+  footer { margin-top:1.6rem; font-size:.72rem; color:var(--faint); letter-spacing:.04em; text-align:center; }
+</style>
+
+<div class="sheet">
+
+  <header class="top">
+    <div class="wordmark">Room 117 Architecture &amp; Design</div>
+    <h1 class="serif">Help us build the right tool for you</h1>
+    <p class="intro">We're building something that reads our drawings and checks what you buy and build against them — so a window doesn't miss energy code, a door doesn't arrive the wrong size, and you're not guessing how much trim to order. Before we build it, we want to point it at what actually helps <em>you</em>.</p>
+    <div class="meta">
+      <span class="pill">⏱ About 3 minutes</span>
+      <span>Almost all checkboxes — no essays.</span>
+    </div>
+    <div class="badges-key">
+      <span>The badges show how big a lift each feature is for us to build:</span>
+      <span class="badge easy">Quick</span>
+      <span class="badge mod">Moderate</span>
+      <span class="badge hard">Heavy lift</span>
+    </div>
+  </header>
+
+  <div class="q">
+    <div class="qnum">Q1</div>
+    <div class="qtext">Which of these has actually cost you time or money?</div>
+    <p class="qhint">Check all that apply.</p>
+    <div class="opts">
+      <label class="opt"><input type="checkbox" name="q1"><span class="txt">A window or door that missed energy code and had to be swapped</span></label>
+      <label class="opt"><input type="checkbox" name="q1"><span class="txt">A unit that showed up the wrong size for the opening</span></label>
+      <label class="opt"><input type="checkbox" name="q1"><span class="txt">Running short — or way over — on materials like trim, siding, or drywall</span></label>
+      <label class="opt"><input type="checkbox" name="q1"><span class="txt">Bids coming back at wildly different numbers with no way to compare them</span></label>
+      <label class="opt"><input type="checkbox" name="q1"><span class="txt">Time spent counting things off the drawings yourself</span></label>
+      <label class="opt"><input type="checkbox" name="q1"><span class="txt">The wrong product delivered versus what was specified</span></label>
+      <label class="opt"><input type="checkbox" name="q1"><span class="txt">Honestly, procurement runs pretty smoothly for us</span></label>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="qnum">Q2</div>
+    <div class="qtext">What would you want us to hand you along with the drawings?</div>
+    <p class="qhint">Check everything you'd find valuable. The badges show the build effort — pick what's worth it to you, not what's easy for us.</p>
+
+    <div class="group-label">Verify what you buy is right</div>
+    <div class="opts">
+      <label class="opt"><input type="checkbox" name="q2"><span class="txt">Confirm the windows you buy match our spec &amp; pass energy code</span><span class="badge easy">Quick</span></label>
+      <label class="opt"><input type="checkbox" name="q2"><span class="txt">Confirm exterior doors meet energy code</span><span class="badge easy">Quick</span></label>
+      <label class="opt"><input type="checkbox" name="q2"><span class="txt">Confirm fire-rated doors carry the right rating</span><span class="badge easy">Quick</span></label>
+      <label class="opt"><input type="checkbox" name="q2"><span class="txt">Confirm plumbing &amp; lighting fixtures match spec</span><span class="badge easy">Quick</span></label>
+    </div>
+
+    <div class="group-label">Count what you need</div>
+    <div class="opts">
+      <label class="opt"><input type="checkbox" name="q2"><span class="txt">Count the windows, doors &amp; fixtures for you</span><span class="badge mod">Moderate</span></label>
+      <label class="opt"><input type="checkbox" name="q2"><span class="txt">Count outlets, switches &amp; light fixtures</span><span class="badge hard">Heavy lift</span></label>
+    </div>
+
+    <div class="group-label">Tell you how much material to buy</div>
+    <div class="opts">
+      <label class="opt"><input type="checkbox" name="q2"><span class="txt">How much trim &amp; molding to buy</span><span class="badge hard">Heavy lift</span></label>
+      <label class="opt"><input type="checkbox" name="q2"><span class="txt">How much siding, drywall &amp; flooring to buy</span><span class="badge hard">Heavy lift</span></label>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="qnum">Q3</div>
+    <div class="qtext">If we could only build one of those first, which would you want most?</div>
+    <p class="qhint">Pick one.</p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="q3"><span class="txt">Verifying the products I buy are right (windows, doors, fixtures)</span></label>
+      <label class="opt"><input type="radio" name="q3"><span class="txt">Counting how many of each I need</span></label>
+      <label class="opt"><input type="radio" name="q3"><span class="txt">Telling me material quantities (trim, siding, drywall, flooring)</span></label>
+      <label class="opt"><input type="radio" name="q3"><span class="txt">Something else (I'll note it at the end)</span></label>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="qnum">Q4</div>
+    <div class="qtext">Verifying everything you buy is correct — before you order — would be worth, per project:</div>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="q4"><span class="txt">Not something I'd pay extra for</span></label>
+      <label class="opt"><input type="radio" name="q4"><span class="txt">Up to $1,000</span></label>
+      <label class="opt"><input type="radio" name="q4"><span class="txt">$1,000 – $2,500</span></label>
+      <label class="opt"><input type="radio" name="q4"><span class="txt">$2,500 – $5,000</span></label>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="qnum">Q5</div>
+    <div class="qtext">Telling you how much material to buy (trim, siding, drywall) would be worth, per project:</div>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="q5"><span class="txt">Not something I'd pay extra for</span></label>
+      <label class="opt"><input type="radio" name="q5"><span class="txt">Up to $2,000</span></label>
+      <label class="opt"><input type="radio" name="q5"><span class="txt">$2,000 – $5,000</span></label>
+      <label class="opt"><input type="radio" name="q5"><span class="txt">$5,000+ if it's accurate</span></label>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="qnum">Q6</div>
+    <div class="qtext">Who handles material takeoffs and counts for you today?</div>
+    <p class="qhint">Check all that apply.</p>
+    <div class="opts">
+      <label class="opt"><input type="checkbox" name="q6"><span class="txt">I do them myself</span></label>
+      <label class="opt"><input type="checkbox" name="q6"><span class="txt">My GC or superintendent</span></label>
+      <label class="opt"><input type="checkbox" name="q6"><span class="txt">Each subcontractor counts their own scope</span></label>
+      <label class="opt"><input type="checkbox" name="q6"><span class="txt">We rough-estimate — no formal takeoff</span></label>
+      <label class="opt"><input type="checkbox" name="q6"><span class="txt">Not sure</span></label>
+    </div>
+  </div>
+
+  <div class="q">
+    <div class="qnum">Q7</div>
+    <div class="qtext">Anything you wish your architect handed you along with the drawings?</div>
+    <p class="qhint">Optional — one line is plenty.</p>
+    <textarea placeholder="Type here…"></textarea>
+  </div>
+
+  <div class="closer">
+    <b>Thank you.</b> This goes straight into what we build first — the features you tell us matter are the ones we'll aim for, in the order you'd actually use them.
+  </div>
+
+  <footer class="mono">Room 117 Architecture &amp; Design · Set Check</footer>
+
+</div>
