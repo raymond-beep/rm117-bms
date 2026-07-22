@@ -27,6 +27,9 @@ const routes = {
   '/api/checksets/results': () => import('./api/checksets/results.js'),
   '/api/checksets/overview': () => import('./api/checksets/overview.js'),
   '/api/checksets/analyze': () => import('./api/checksets/analyze.js'),
+  // Set Check (verify what contractors buy/submit against our set — see SET_CHECK.md).
+  '/api/set-check/runs': () => import('./api/set-check/runs.js'),
+  '/api/set-check/files': () => import('./api/set-check/files.js'),
   '/api/payments': () => import('./api/payments.js'),
   '/api/clients': () => import('./api/clients.js'),
   '/api/phase-events': () => import('./api/phase-events.js'),

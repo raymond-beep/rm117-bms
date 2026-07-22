@@ -251,6 +251,34 @@ export function resolveChecksetsFolderId(jobId) {
   return resolveSubfolderId(jobId, (name) => name === CHECKSET_SUBFOLDER);
 }
 
+// The job's whole project tree, one level deep: the project folder itself plus its
+// immediate subfolders. Set Check needs this because — unlike Drawing QA, which reads
+// exactly one named folder ("Checksets") — its three inputs are filed in DIFFERENT
+// places by their nature: the window schedule and the REScheck are documents WE
+// produced and sent (Files Sent / Checksets), while the contractor's brochure arrives
+// in Files Received. Resolving one named folder would always miss two of the three.
+//
+// One level is deliberate: it covers the standard tree (JOB_SUBFOLDERS) at ~7 listings,
+// and the nested "Field Measure/Photos" holds photos, not the documents we check.
+// Returns { projectFolderId, folders: [{ id, name }] } — project folder first, or null
+// when the job has no Drive folder.
+export async function listJobFolderTree(jobId) {
+  if (!hasDrive() || !jobId) return null;
+  const driveId = await resolveSharedDriveId();
+  if (!driveId) return null;
+  const project = await findProjectFolder(driveId, jobId);
+  if (!project) return null;
+
+  const subs = await listChildFolders(project.id);
+  return {
+    projectFolderId: project.id,
+    folders: [
+      { id: project.id, name: project.name },
+      ...subs.map((s) => ({ id: s.id, name: s.name })),
+    ],
+  };
+}
+
 // ── Folder rename (for the "Correct Job ID" flow) ─────────────────────────────
 // Every folder in the Shared Drive that could be a job or a lead, for the Drive → app
 // sync (api/_lib/drive-sync.js decides which ones actually are). Drive-wide, because a

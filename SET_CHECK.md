@@ -1,10 +1,11 @@
 # Set Check tab — plan & handoff
 
-> **STATUS 2026-07-21 — Approved by Angelena. Scaffold only, no build yet.**
-> This is the canonical plan (same role as `DRAWING_QA.md`). What exists tonight:
-> the tab is registered and routes to a placeholder page, a **draft** migration is
-> written (NOT applied), and this doc. No API, no AI, no real logic. Everything below
-> "Build phases" is the plan to continue from — pick up at Phase 1.
+> **STATUS 2026-07-21 — Approved by Angelena. Phase 1 built; not deployed.**
+> This is the canonical plan (same role as `DRAWING_QA.md`). What exists: migration
+> `0017` is **applied** (both tables live), the tab picks a job and the three
+> documents to compare (saved on a `set_check_runs` row), and the picker suggests a
+> document per role. No AI and no comparison yet — pick up at **Phase 2**.
+> Branch `set-check`, still unmerged: **do not deploy until Phase 3 is verified.**
 >
 > This file is the engineering plan. The **business** side of the feature lives in
 > `set-check-docs/` (copied into the repo 2026-07-21):
@@ -55,9 +56,9 @@ check only what we actually specified.
 |---|---|---|
 | Frontend | `src/components/drawing-qa/` | `src/components/set-check/` (`SetCheck.jsx` entry, lazy) |
 | Nav + route | `/drawing-qa` | `/set-check`, label "Set Check" (`src/rm117-app-shell-v1.jsx`) |
-| API | `api/checksets/` | `api/set-check/` — **TODO** |
-| Lib | `api/_lib/checksets/` | `api/_lib/set-check/` — **TODO** |
-| DB | `drawing_sets` + results | `set_check_runs` + `set_check_findings` (`migrations/0017_set_check.sql`, **draft**) |
+| API | `api/checksets/` | `api/set-check/` — `runs.js` (find-or-create + the 3 picks), `files.js` (list/stream the job's Drive PDFs) |
+| Lib | `api/_lib/checksets/` | `api/_lib/set-check/` — `doc-roles.js` (which PDF is which; pure + tested) |
+| DB | `drawing_sets` + results | `set_check_runs` + `set_check_findings` (`migrations/0017_set_check.sql`, **applied 2026-07-21**) |
 | Auth | `requireStaff` | `requireStaff` (staff-only, @rm117.com) |
 | AI | `ANTHROPIC_API_KEY` (Anthropic vision) | same key, already on Vercel |
 
@@ -66,6 +67,31 @@ check only what we actually specified.
 - **Window schedule** — a table on the drawings (Drive PDF) → size per tag.
 - **REScheck** — separate doc → the required (max) U-factor.
 - **Vendor brochure / cut sheet** — contractor-supplied → submitted size + U-factor.
+
+**⭐ The three live in DIFFERENT subfolders, which is why the picker spans the job's
+whole Drive tree** instead of resolving one named folder the way Drawing QA resolves
+"Checksets" (`listJobFolderTree` in `api/_lib/google-drive.js`). Probed against real
+jobs 2026-07-21:
+
+- REScheck → **Files Sent**. Spelling is inconsistent in the wild (`ResCheck`,
+  `Rescheck`, `REScheck`, `260105_Rescheck.pdf`), so match on `/res\s?check/`, never
+  an exact name. Some jobs have **two** — take the most recent.
+- Window schedule → the issued drawing set, in **Files Sent** or **Checksets**. The
+  Checksets folder also holds `TD MARKUPS` and `Prelim` copies; those are working
+  copies, and checking windows against a superseded set is the failure mode, so the
+  scorer prefers `conformed` / `permit set` and penalises `markup` / `prelim`.
+- Brochure → filed under **Reference** at least as often as Files Received
+  (`24_010_FF_Kelly-Edleman/Reference/Andersen Windows 400 Series Brochure.pdf`).
+
+**Files Received is a general inbound pile, not a submittals folder** — it holds
+`survey.pdf`, `Client Comments_06_20_25.pdf`, `422579-Zoning_Denial.pdf`. An early
+rule qualified a submittal on that folder alone and suggested each of those as the
+window brochure. Direction is now only a **boost**; a submittal must look like one by
+name (manufacturer, or brochure/cut sheet/submittal). Empty is better than wrong here.
+
+⚠️ **Of the pilot jobs probed, none had a contractor window submittal in Drive at all.**
+The compliance check has no input until one is filed — worth confirming with Ang how
+brochures reach the office (email attachment?) before Phase 3's end-to-end test.
 
 Mapping a brochure unit to a schedule tag: by frame dimension / the manufacturer's
 call number (e.g. Andersen `TW2842` encodes width×height). Nail this mechanic in Phase 3.
@@ -80,10 +106,14 @@ call number (e.g. Andersen `TW2842` encodes width×height). Nail this mechanic i
 ## Build phases (continue here)
 
 - **Phase 0 — Scaffold ✅ (2026-07-21).** Tab registered → placeholder page; draft
-  `0017` migration; this doc. Feature branch `set-check`, uncommitted.
-- **Phase 1 — DB + read.** Apply `0017`. Build `api/set-check/runs.js` (find-or-create a
-  run for a job, mirror `api/checksets/sets.js`). Reuse Drawing QA's `JobPicker`; add a
-  Drive document picker for the schedule / REScheck / brochure.
+  `0017` migration; this doc.
+- **Phase 1 — DB + read ✅ (2026-07-21).** `0017` applied. `api/set-check/runs.js`
+  (find-or-create the job's open run; PATCH the three picks) + `api/set-check/files.js`
+  (the job's Drive PDFs across its whole tree; streams one, validated to that tree).
+  `JobPicker` extracted from Drawing QA → `src/components/ui/JobPicker.jsx` and reused.
+  Role suggestions in `api/_lib/set-check/doc-roles.js` (pure, 14 tests) — verified
+  against 5 real jobs. **The run is found-or-created only while it is still open**; a
+  `confirmed` run is a record of what was checked, so reopening starts a fresh one.
 - **Phase 2 — Extract.** `api/_lib/set-check/anthropic.js`: vision-read the window
   schedule (tag → size), the REScheck (U-factor), and a vendor brochure (submitted size
   + U-factor). Return structured JSON.
