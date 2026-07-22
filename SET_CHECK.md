@@ -151,7 +151,27 @@ call number (e.g. Andersen `TW2842` encodes width×height). Nail this mechanic i
   `extractRescheck` (**both** U-factors, see below), `lookupBrochure`. Opus by default
   (`SET_CHECK_MODEL`), adaptive thinking, structured outputs, refusal retry, always
   streamed. **Verified on real documents** — see "What the documents taught us".
-- **Phase 3 — Compare + confirm.** Match brochure units to schedule tags; produce a
+- **Phase 3a — Brochure ingest (DO THIS FIRST; decided with Ray 2026-07-21).** Point the
+  AI at the right pages of each brochure instead of the whole catalog. Per brochure, run
+  ONCE and cache: scan the text layer page by page (`pdfjs-dist` — in the repo, client-side
+  today but it runs in Node), score pages on the vocabulary that marks what we need
+  (`NFRC`, `U-Factor`, `SHGC`, `Rough Opening`, `Unit Dimension`, size-table headers),
+  build a trimmed excerpt with `pdf-lib`, and store it with its page list. **Deliberately
+  over-include** — an extra page costs a little money, a missing page produces a wrong
+  answer. Then **show staff the chosen pages for a one-click confirm before that brochure
+  goes into service**, same rule as everything else here: a person confirms, the AI never
+  decides. Also cache the extracted **performance table per brochure** — it is
+  job-independent, so it should be paid for once, not once per job.
+  - *Why not the two manual options Ray raised:* a **page-range guide** is a fragile
+    artifact pointing into a versioned binary — Andersen reissues the guide, p.203 becomes
+    p.211, nothing errors, and we read marketing spreads as spec tables. A **hand-trimmed
+    PDF** at least stays internally consistent, but every brochure revision needs redoing
+    and a stale trim fails silently. Auto-index + confirm has neither problem, and adding a
+    brochure stays "drop a PDF in `Window Specs`".
+  - *Known gap:* a scanned brochure with no text layer defeats the keyword scan. Fall back
+    to the full document via the Files API (slow but correct), or hand-trim that one — and
+    say so rather than guessing.
+- **Phase 3b — Compare + confirm.** Match brochure units to schedule tags; produce a
   pass/flag per size and per U-factor; persist findings; render a report where a staffer
   confirms/overrides each (mirror Drawing QA verdicts/overrides). **Verify end-to-end on
   a completed DaSilva / Rodriguez / Costello job — the approved pilot.**
