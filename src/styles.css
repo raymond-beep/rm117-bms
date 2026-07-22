@@ -2181,7 +2181,10 @@ input, select, textarea { font: inherit; }
 .sc-slot-title { font-weight: 600; font-size: 0.94rem; }
 .sc-slot-hint { color: var(--muted, #6b7280); font-size: 0.82rem; line-height: 1.45; }
 .sc-slot-file { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px dashed var(--border, #d1d5db); }
-.sc-slot-list { margin-top: 0.6rem; max-height: 17rem; overflow-y: auto; }
+.sc-slot-list { margin-top: 0.6rem; max-height: 19rem; overflow-y: auto; }
+.sc-group-label { font-size: 0.74rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted, #6b7280); margin: 0.55rem 0 0.2rem; }
+.sc-group-label:first-child { margin-top: 0; }
+.sc-group-empty { font-size: 0.84rem; padding: 0.4rem 0; }
 .sc-suggested { flex: none; font-size: 0.72rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: rgba(62, 124, 90, 0.14); color: #3e7c5a; }
 .sc-run-foot { margin-top: 0.9rem; padding-top: 0.7rem; border-top: 1px solid var(--border, #d1d5db); font-size: 0.85rem; }
 .sc-ready { color: #3e7c5a; font-weight: 600; }

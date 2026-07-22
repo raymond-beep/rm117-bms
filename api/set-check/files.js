@@ -1,15 +1,23 @@
 // GET /api/set-check/files — the PDFs in a job's Drive project tree, for the Set
 // Check document pickers.
-//   ?jobId=          -> list every PDF in the project folder + its subfolders,
-//                       tagged with the folder it came from, plus a suggested
-//                       document for each role (schedule / rescheck / submittal)
+//   ?jobId=          -> every PDF in the project folder + its subfolders, tagged with
+//                       the folder it came from; the shared window-brochure library;
+//                       and a suggested document per role (schedule / rescheck /
+//                       submittal)
 //   ?jobId=&fileId=  -> stream that file's bytes (application/pdf). fileId is
-//                       validated to live in one of THIS job's folders, so this is
-//                       never an open Drive file proxy.
+//                       validated to live in THIS job's folders or in the brochure
+//                       library, so this is never an open Drive file proxy.
 // Staff-gated, read-only. Mirrors api/jobs/checkset-files.js, but spans the whole
 // job tree instead of one named folder — see listJobFolderTree for why.
 import { requireStaff } from '../_lib/require-staff.js';
-import { hasDrive, listJobFolderTree, listFolderFiles, getFileMeta, streamFileTo } from '../_lib/google-drive.js';
+import {
+  hasDrive,
+  listJobFolderTree,
+  listFolderFiles,
+  getFileMeta,
+  streamFileTo,
+  resolveBrochureFolderId,
+} from '../_lib/google-drive.js';
 import { pdfsOnly } from '../_lib/drive-docs.js';
 import { suggestRoles } from '../_lib/set-check/doc-roles.js';
 
@@ -38,18 +46,22 @@ export default async function handler(req, res) {
   if (!hasDrive()) return res.status(200).json({ configured: false, files: [] });
 
   let tree;
+  let brochureFolderId;
   try {
-    tree = await jobTree(jobId);
+    [tree, brochureFolderId] = await Promise.all([jobTree(jobId), resolveBrochureFolderId()]);
   } catch (err) {
-    console.error('[set-check/files] resolve tree', err);
+    console.error('[set-check/files] resolve folders', err);
     return res.status(502).json({ error: 'Could not reach Google Drive' });
   }
   if (!tree) {
     // No Drive folder for this job yet — not an error, just nothing to pick from.
-    return res.status(200).json({ configured: true, folder: null, files: [] });
+    return res.status(200).json({ configured: true, folder: null, files: [], library: [] });
   }
 
   const folderIds = new Set(tree.folders.map((f) => f.id));
+  // The brochure library is shared, not per-job, so it is a legitimate source for
+  // this job's submittal and must be streamable alongside the job's own files.
+  if (brochureFolderId) folderIds.add(brochureFolderId);
 
   // Stream one file, validated to live somewhere in this job's tree (same parents
   // check as checkset-files, one metadata call instead of listing every folder).
@@ -77,11 +89,15 @@ export default async function handler(req, res) {
   }
 
   // List every folder in parallel — a job tree is ~7 folders, and doing them
-  // serially is what would make this picker feel slow.
+  // serially is what would make this picker feel slow. The shared brochure library
+  // rides along in the same batch.
+  const sources = [...tree.folders];
+  if (brochureFolderId) sources.push({ id: brochureFolderId, name: 'Window Specs', library: true });
+
   let listings;
   try {
     listings = await Promise.all(
-      tree.folders.map(async (folder) => {
+      sources.map(async (folder) => {
         const files = await listFolderFiles(folder.id);
         return pdfsOnly(files).map((f) => ({
           id: f.id,
@@ -91,6 +107,7 @@ export default async function handler(req, res) {
           modifiedTime: f.modifiedTime || null,
           folderId: folder.id,
           folderName: folder.name,
+          library: Boolean(folder.library),
         }));
       }),
     );
@@ -99,7 +116,9 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Could not list this job’s Drive folders' });
   }
 
-  const files = listings.flat();
+  const all = listings.flat();
+  const files = all.filter((f) => !f.library);
+  const library = all.filter((f) => f.library);
 
   res.setHeader('Cache-Control', 'private, max-age=60');
   return res.status(200).json({
@@ -107,6 +126,10 @@ export default async function handler(req, res) {
     folder: tree.projectFolderId,
     folders: tree.folders,
     files,
+    // The shared window-brochure catalog. Empty when the folder is missing, which
+    // just means the submittal slot offers the job's own files only.
+    library,
+    libraryFolder: brochureFolderId || null,
     // Only ever a hint for the pickers — the staffer still chooses. See doc-roles.js.
     suggested: suggestRoles(files),
   });

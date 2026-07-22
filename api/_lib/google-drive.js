@@ -251,6 +251,29 @@ export function resolveChecksetsFolderId(jobId) {
   return resolveSubfolderId(jobId, (name) => name === CHECKSET_SUBFOLDER);
 }
 
+// ── The window-brochure library (Set Check) ───────────────────────────────────
+// A manufacturer's brochure is NOT a per-job document — it's a product catalog the
+// firm uses across every job (Ray, 2026-07-21: "that Andersen 400 series brochure is
+// the one we use for all jobs"). So Set Check reads them from ONE shared folder at
+// the Shared Drive root rather than hunting for a copy inside each job, and adding a
+// new series is a matter of dropping a PDF in that folder — no code change.
+//
+// The folder already existed before the feature did (`Window Specs`, holding a Velux
+// brochure and an Andersen 200 Series guide), so we adopt it rather than inventing a
+// new one and splitting the firm's filing in two.
+const WINDOW_SPECS_FOLDER = (process.env.WINDOW_SPECS_FOLDER || 'Window Specs').trim().toLowerCase();
+
+let _brochureFolderId; // undefined = unresolved, null = looked and not there
+export async function resolveBrochureFolderId() {
+  if (_brochureFolderId !== undefined) return _brochureFolderId;
+  if (!hasDrive()) return null;
+  const driveId = await resolveSharedDriveId();
+  if (!driveId) return null;
+  const roots = await listChildFolders(driveId);
+  const hit = roots.find((f) => f.name.trim().toLowerCase() === WINDOW_SPECS_FOLDER);
+  return (_brochureFolderId = hit?.id || null);
+}
+
 // The job's whole project tree, one level deep: the project folder itself plus its
 // immediate subfolders. Set Check needs this because — unlike Drawing QA, which reads
 // exactly one named folder ("Checksets") — its three inputs are filed in DIFFERENT

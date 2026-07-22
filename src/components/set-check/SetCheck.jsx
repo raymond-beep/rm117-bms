@@ -32,8 +32,13 @@ const SLOTS = [
     role: 'submittal',
     field: 'submittalFileId',
     column: 'submittal_file_id',
-    title: 'Contractor’s submittal',
-    hint: 'The vendor brochure or cut sheet they sent for approval. Usually in Files Received.',
+    title: 'Window brochure',
+    // A brochure is a product CATALOG, not a per-job document — the firm uses the
+    // same Andersen brochure across every job, and developers pick different series
+    // (100, 200, 400). So this slot reads the shared "Window Specs" library first,
+    // and falls back to the job's own files for a one-off cut sheet a contractor sent.
+    hint: 'Which window line to check against — from the shared Window Specs library, or a one-off cut sheet filed on this job.',
+    library: true,
   },
 ];
 
@@ -160,7 +165,8 @@ function RunDocuments({ jobId }) {
   }
 
   const files = drive.files || [];
-  const byId = new Map(files.map((f) => [f.id, f]));
+  const library = drive.library || [];
+  const byId = new Map([...files, ...library].map((f) => [f.id, f]));
   const ready = SLOTS.every((s) => run[s.column]);
 
   return (
@@ -178,6 +184,7 @@ function RunDocuments({ jobId }) {
               chosen={byId.get(run[slot.column]) || null}
               chosenId={run[slot.column]}
               files={files}
+              library={slot.library ? library : []}
               suggestedId={drive.suggested?.[slot.role] || null}
               open={picking === slot.role}
               saving={saving === slot.role}
@@ -199,7 +206,7 @@ function RunDocuments({ jobId }) {
   );
 }
 
-function Slot({ slot, chosen, chosenId, files, suggestedId, open, saving, onToggle, onPick }) {
+function Slot({ slot, chosen, chosenId, files, library = [], suggestedId, open, saving, onToggle, onPick }) {
   // The suggested file floats to the top; everything else keeps the Drive order
   // (newest first). The folder name shown on each row is the real hint — "Files
   // Received" is what tells a staffer a PDF came from the contractor.
@@ -245,26 +252,54 @@ function Slot({ slot, chosen, chosenId, files, suggestedId, open, saving, onTogg
       ) : null}
 
       {open && (
-        <ul className="pdoc-list sc-slot-list">
-          {ordered.map((f) => (
-            <li key={f.id} className="pdoc-row">
-              <span className="pdoc-icon">▧</span>
-              <div className="pdoc-main">
-                <span className="pdoc-name">{f.name}</span>
-                <span className="pdoc-meta">
-                  {[f.folderName, f.modifiedTime && shortDate(f.modifiedTime), fileSize(f.size)]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </span>
-              </div>
-              {f.id === suggestedId && <span className="sc-suggested">Suggested</span>}
-              <button type="button" className="chip" onClick={() => onPick(f.id)} disabled={saving}>
-                Use
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="sc-slot-list">
+          {slot.library && (
+            // The library comes first because it is the normal answer: the firm keeps
+            // one brochure per window line and reuses it on every job.
+            <>
+              <div className="sc-group-label">Window Specs library</div>
+              {library.length === 0 ? (
+                <div className="empty sc-group-empty">
+                  No brochures in the shared “Window Specs” folder yet. Add a
+                  manufacturer’s PDF there and it appears here for every job.
+                </div>
+              ) : (
+                <FileRows files={library} onPick={onPick} saving={saving} />
+              )}
+              <div className="sc-group-label">Filed on this job</div>
+            </>
+          )}
+          {ordered.length === 0 ? (
+            <div className="empty sc-group-empty">No other PDFs on this job.</div>
+          ) : (
+            <FileRows files={ordered} onPick={onPick} saving={saving} suggestedId={suggestedId} />
+          )}
+        </div>
       )}
     </li>
+  );
+}
+
+function FileRows({ files, onPick, saving, suggestedId = null }) {
+  return (
+    <ul className="pdoc-list">
+      {files.map((f) => (
+        <li key={f.id} className="pdoc-row">
+          <span className="pdoc-icon">▧</span>
+          <div className="pdoc-main">
+            <span className="pdoc-name">{f.name}</span>
+            <span className="pdoc-meta">
+              {[f.folderName, f.modifiedTime && shortDate(f.modifiedTime), fileSize(f.size)]
+                .filter(Boolean)
+                .join(' · ')}
+            </span>
+          </div>
+          {f.id === suggestedId && <span className="sc-suggested">Suggested</span>}
+          <button type="button" className="chip" onClick={() => onPick(f.id)} disabled={saving}>
+            Use
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
