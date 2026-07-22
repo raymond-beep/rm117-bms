@@ -26,6 +26,7 @@ const TemplatesHome = lazy(() => import('./components/templates/TemplatesHome.js
 const LetterGenerator = lazy(() => import('./components/templates/LetterGenerator.jsx'));
 const ProposalGenerator = lazy(() => import('./components/templates/ProposalGenerator.jsx'));
 const DrawingQA = lazy(() => import('./components/drawing-qa/DrawingQA.jsx'));
+const SetCheck = lazy(() => import('./components/set-check/SetCheck.jsx'));
 const Delegation = lazy(() => import('./components/delegation/Delegation.jsx'));
 
 const RouteFallback = () => <div className="page"><div className="card"><div className="empty">Loading…</div></div></div>;
@@ -50,6 +51,7 @@ const NAV_GROUPS = [
       { to: '/bms', label: 'Project Management' },
       { to: '/financial', label: 'Financial' },
       { to: '/drawing-qa', label: 'Checksets' },
+      { to: '/set-check', label: 'Set Check' },
       { to: '/delegation', label: 'Weekly Planner' },
       { to: '/portal', label: 'Client Portal' },
       { to: '/templates', label: 'Templates' },
@@ -150,6 +152,7 @@ export default function AppShell() {
                     <Route path="/templates/letter" element={<LetterGenerator />} />
                     <Route path="/templates/proposal" element={<ProposalGenerator />} />
                     <Route path="/drawing-qa" element={<DrawingQA />} />
+                    <Route path="/set-check" element={<SetCheck />} />
                     <Route path="/delegation" element={<Delegation />} />
                     <Route path="/portal" element={<StaffPortalPreview />} />
                     <Route path="/settings" element={<Settings />} />

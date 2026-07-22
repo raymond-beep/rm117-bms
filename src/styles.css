@@ -2170,3 +2170,12 @@ input, select, textarea { font: inherit; }
 .deleg-notecell.edit::placeholder { color: #b7b3a8; }
 .deleg-notes.typing .deleg-notecell.edit { cursor: text; }
 .deleg-notes.typing .deleg-notecell.edit:focus { background: rgba(27, 99, 224, 0.06); box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 4px; }
+
+/* Set Check — placeholder scaffold (Phase 0; see SET_CHECK.md). Remove/expand when built. */
+.sc-intro { margin: 0 0 1rem; color: var(--muted, #6b7280); max-width: 62ch; line-height: 1.55; }
+.sc-intro code { font-size: 0.85em; padding: 1px 5px; border-radius: 4px; background: var(--surface-2, rgba(120,120,120,0.12)); }
+.sc-phases { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.sc-phase { display: flex; align-items: flex-start; gap: 0.7rem; font-size: 0.92rem; }
+.sc-phase-n { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; border: 1px solid var(--border, #d1d5db); color: var(--muted, #6b7280); }
+.sc-phase.done { color: var(--muted, #6b7280); }
+.sc-phase.done .sc-phase-n { background: #3e7c5a; border-color: #3e7c5a; color: #fff; }
