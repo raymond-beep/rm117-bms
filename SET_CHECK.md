@@ -1,11 +1,15 @@
 # Set Check tab — plan & handoff
 
-> **STATUS 2026-07-21 — Approved by Angelena. Phase 1 built; not deployed.**
+> **STATUS 2026-07-23 — Approved by Angelena. Phases 1–2 built + Phase 3a page scorer done; not deployed.**
 > This is the canonical plan (same role as `DRAWING_QA.md`). What exists: migration
-> `0017` is **applied** (both tables live), the tab picks a job and the three
-> documents to compare (saved on a `set_check_runs` row), and the picker suggests a
-> document per role. No AI and no comparison yet — pick up at **Phase 2**.
-> Branch `set-check`, still unmerged: **do not deploy until Phase 3 is verified.**
+> `0017` is **applied** (both tables live); the tab picks a job and the three documents
+> to compare (`set_check_runs`); the picker suggests a document per role (14 tests);
+> **Phase 2 extraction is built + verified on real docs** (window schedule, *both*
+> REScheck U-factors, targeted brochure lookup); and the **Phase 3a brochure page
+> scorer** is built (`api/_lib/set-check/brochure-pages.js`, 14 tests).
+> **Next:** wire the pdfjs text extraction + pdf-lib trim + cache around the scorer, add
+> the staff-confirm screen, then **Phase 3b** — compare + confirm end-to-end on the pilot.
+> Branch `set-check` (pushed to origin), still unmerged: **do not deploy until Phase 3 is verified.**
 >
 > This file is the engineering plan. The **business** side of the feature lives in
 > `set-check-docs/` (copied into the repo 2026-07-21):
@@ -14,8 +18,14 @@
 > - `set-check-developer-survey.html` — the ~3-minute developer survey (mostly
 >   checkboxes, build-difficulty badges) to gather what clients want built first.
 >   Live: https://claude.ai/code/artifact/e3b3e12a-8856-4784-b7c2-d7091cdb9089
+> - `takeoffs-model-deck.html` — **developer/investor early-look deck** (added 2026-07-22,
+>   presented 2026-07-23). Interactive walkthrough of the takeoff demo (windows→Andersen
+>   catalog, doors, + trim / drywall / flooring / siding as the full vision) → a single
+>   build-difficulty **capability map** → a "would you use it / pay for it" close.
+>   Presented from the **local file** (carries `<meta charset>`); no Artifact URL yet.
+>   ⚠️ Demo job is being swapped from DaSilva to a bigger project (in progress 2026-07-23).
 >
-> Open either HTML file in a browser to view; both are self-contained.
+> Open any of these HTML files in a browser to view; all are self-contained.
 
 ## What it is
 
@@ -153,7 +163,7 @@ brochures reach the office (email attachment?) before Phase 3's end-to-end test.
 Mapping a brochure unit to a schedule tag: by frame dimension / the manufacturer's
 call number (e.g. Andersen `TW2842` encodes width×height). Nail this mechanic in Phase 3.
 
-## Data model (draft — see `migrations/0017_set_check.sql`, not yet applied)
+## Data model (see `migrations/0017_set_check.sql`, **applied 2026-07-21**)
 
 - **`set_check_runs`** — one per (job, item type, submitted document). Holds the three
   Drive file ids (bytes streamed on demand, never stored), status, creator.
