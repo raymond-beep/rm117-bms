@@ -22,7 +22,8 @@
 >   presented 2026-07-23). Interactive walkthrough of the takeoff demo (windows→Andersen
 >   catalog, doors, + trim / drywall / flooring / siding as the full vision) → a single
 >   build-difficulty **capability map** → a "would you use it / pay for it" close.
->   Presented from the **local file** (carries `<meta charset>`); no Artifact URL yet.
+>   Carries `<meta charset>` for local viewing; **published Artifact (private until shared):**
+>   https://claude.ai/code/artifact/d2e89455-c8c2-44d3-8d41-8f5c72350d78
 >   Demo job is now **25_049 DaSilva / 235 Munsee Way** (2026-07-23) — the real Andersen
 >   400 window schedule (TW34410, TW3462, CW145, CXW15, P6045…) was pulled from
 >   `260212_Permit Set.pdf` p.2 via the app's Drive broker + pdfjs; window units + sizes
@@ -30,6 +31,8 @@
 > - `takeoffs-order-sheet.html` — print-styled **exported order-sheet mockup** for 235
 >   Munsee (RM117 letterhead, six material tables, sign-off). The deck's "Export order
 >   sheet" button links to it. Open + Print→Save as PDF to show the delivered artifact.
+>   **Published Artifact (private until shared):**
+>   https://claude.ai/code/artifact/1ad1ed02-dba3-49a7-898c-ccda59b9508d
 >
 > Open any of these HTML files in a browser to view; all are self-contained.
 
