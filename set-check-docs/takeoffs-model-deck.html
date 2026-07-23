@@ -288,7 +288,7 @@
 
   <section>
     <div class="kicker"><span class="num mono">02</span><h2>See as much of it as we can show you</h2></div>
-    <p>This is how the tool would work, on a sample project — <b>windows cross-referenced to the Andersen 100 &amp; 400 Series</b>, doors counted generically. Click through the whole flow.</p>
+    <p>This is how the tool would work, on a sample project — <b>windows matched to the Andersen 100 &amp; 400 Series</b>, doors counted by size, and the material quantities — <b>trim, drywall, flooring, siding</b> — measured off the plans. Click through the whole flow.</p>
 
     <div class="demo" id="demo">
       <div class="demo-chrome">
@@ -323,13 +323,13 @@
         <!-- step 2 -->
         <div class="panel" data-panel="1">
           <div class="stage-head">What it reads</div>
-          <p class="docnote">Our set carries the <b>window &amp; door schedules</b>; the brochures are the catalog it matches windows against. It would find these across the job's Drive automatically.</p>
+          <p class="docnote">Our set carries the <b>window &amp; door schedules</b> and the <b>floor plans</b> it measures trim and areas from; the brochures are the catalog it matches windows against. It would find these across the job's Drive automatically.</p>
           <div class="doc">
             <span class="ic"></span>
             <span>
               <span class="role">Our drawing set</span>
               <span class="fn">24_073_DaSilva — Permit Set.pdf</span>
-              <span class="why">Window &amp; door schedules — sizes and locations.</span>
+              <span class="why">Schedules and floor plans — sizes, counts, lengths &amp; areas.</span>
               <span class="folder">📁 Files Sent</span>
             </span>
             <span class="state">✓ Found</span>
@@ -366,9 +366,10 @@
           <div class="runwrap">
             <button class="runbtn" id="runbtn">▸ Generate takeoff</button>
             <div class="runlines" id="runlines" hidden>
-              <div class="rl" data-rl="0"><span class="rlmark"></span>Reading the window &amp; door schedules</div>
+              <div class="rl" data-rl="0"><span class="rlmark"></span>Reading the schedules &amp; floor plans</div>
               <div class="rl" data-rl="1"><span class="rlmark"></span>Cross-referencing windows to Andersen 100 &amp; 400 Series</div>
-              <div class="rl" data-rl="2"><span class="rlmark"></span>Counting units by size</div>
+              <div class="rl" data-rl="2"><span class="rlmark"></span>Measuring trim, drywall, flooring &amp; siding off the drawings</div>
+              <div class="rl" data-rl="3"><span class="rlmark"></span>Totaling every quantity by type</div>
             </div>
             <div class="runcost" id="runcost" hidden>A generated buy list — <b>counted once, not three times</b>.</div>
           </div>
@@ -378,8 +379,8 @@
         <div class="panel" data-panel="3">
           <div class="stage-head">The order chart</div>
           <div class="ordersum">
-            <span class="big">15 windows · 19 doors</span>
-            <span class="sub">ready to order — off the DaSilva set</span>
+            <span class="big">Full material takeoff</span>
+            <span class="sub">windows · doors · trim · drywall · flooring · siding — off the DaSilva set</span>
             <button class="exp" data-confirm>⭳ Export order sheet</button>
           </div>
 
@@ -415,6 +416,66 @@
               </table>
             </div>
           </div>
+
+          <div class="chartblock">
+            <h4>📐 Trim &amp; millwork <span class="src">measured by linear foot</span><span class="ct">4 line items · 2,118 LF</span></h4>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Item</th><th>Where</th><th class="r">Linear ft</th></tr></thead>
+                <tbody>
+                  <tr><td>Baseboard</td><td class="size">Throughout</td><td class="r qty">780</td></tr>
+                  <tr><td>Door &amp; window casing</td><td class="size">Throughout</td><td class="r qty">1,040</td></tr>
+                  <tr><td>Crown molding</td><td class="size">Main level</td><td class="r qty">260</td></tr>
+                  <tr><td>Stair rail &amp; balustrade</td><td class="size">Main stair</td><td class="r qty">38</td></tr>
+                </tbody>
+                <tfoot><tr><td colspan="2">Total linear feet</td><td class="r">2,118</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div class="chartblock">
+            <h4>▦ Drywall <span class="src">measured by area</span><span class="ct">≈ 258 sheets · 8,250 SF</span></h4>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Surface</th><th>Location</th><th class="r">Square ft</th></tr></thead>
+                <tbody>
+                  <tr><td>Walls</td><td class="size">Throughout</td><td class="r qty">5,900</td></tr>
+                  <tr><td>Ceilings</td><td class="size">Throughout</td><td class="r qty">2,350</td></tr>
+                </tbody>
+                <tfoot><tr><td colspan="2">Total (≈ 258 sheets, 4×8)</td><td class="r">8,250</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div class="chartblock">
+            <h4>🪵 Flooring <span class="src">by area &amp; material</span><span class="ct">3 line items · 2,140 SF</span></h4>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Material</th><th>Location</th><th class="r">Square ft</th></tr></thead>
+                <tbody>
+                  <tr><td>Hardwood</td><td class="size">Main level</td><td class="r qty">1,180</td></tr>
+                  <tr><td>Tile</td><td class="size">Baths &amp; entry</td><td class="r qty">320</td></tr>
+                  <tr><td>Carpet</td><td class="size">Bedrooms</td><td class="r qty">640</td></tr>
+                </tbody>
+                <tfoot><tr><td colspan="2">Total flooring</td><td class="r">2,140</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div class="chartblock">
+            <h4>🧱 Siding <span class="src">measured by area</span><span class="ct">2 line items · 3,080 SF</span></h4>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Type</th><th>Location</th><th class="r">Square ft</th></tr></thead>
+                <tbody>
+                  <tr><td>Lap siding</td><td class="size">Walls</td><td class="r qty">2,760</td></tr>
+                  <tr><td>Gable ends</td><td class="size">Upper</td><td class="r qty">320</td></tr>
+                </tbody>
+                <tfoot><tr><td colspan="2">Total siding</td><td class="r">3,080</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+
           <p class="caption" style="text-align:left;">A person reviews the chart before it's used — the model builds it, it never orders on its own.</p>
         </div>
       </div>
@@ -425,7 +486,7 @@
         <button class="nav-btn primary" id="nextBtn" disabled>Next →</button>
       </div>
     </div>
-    <p class="caption">Illustrative — how we picture the Takeoffs Model working. Sample figures, not a real run.</p>
+    <p class="caption">Illustrative — the full vision of the Takeoffs Model, on sample figures. What's ready today vs. a larger build is mapped out just below.</p>
   </section>
 
   <section>
@@ -459,28 +520,6 @@
             <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
           </div>
           <span class="cap-take">The same energy check, pointed at exterior doors.</span>
-        </div>
-      </div>
-      <div class="capitem">
-        <span class="dot2"></span>
-        <div class="cbody">
-          <div class="crow">
-            <span class="cap-name">Scheduled fixtures — count</span>
-            <span class="kind buy">Buy list</span>
-            <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
-          </div>
-          <span class="cap-take">The same read, nothing to match — just count what's on the schedule.</span>
-        </div>
-      </div>
-      <div class="capitem">
-        <span class="dot2"></span>
-        <div class="cbody">
-          <div class="crow">
-            <span class="cap-name">Scheduled fixtures — spec match</span>
-            <span class="kind check">Code check</span>
-            <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
-          </div>
-          <span class="cap-take">Confirm what arrived is what we specified — the same read, used the other way.</span>
         </div>
       </div>
       <div class="capitem">
