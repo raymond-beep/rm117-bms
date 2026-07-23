@@ -1,0 +1,515 @@
+<style>
+  :root {
+    --paper:#FAFAFB; --panel:#FFFFFF; --ink:#171B21; --muted:#5B626C; --faint:#8A909A;
+    --line:#E4E6EA; --line-strong:#D2D5DB; --accent:#2B4C6F; --accent-ink:#22405E;
+    --accent-soft:#EAF0F6; --ok:#3E7C5A; --ok-soft:#E7F1EB; --warn:#9C6410;
+    --warn-soft:#F6EEDC; --crit:#B4472E; --crit-soft:#F5E6E1;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#13161A; --panel:#1B1F26; --ink:#E9ECEF; --muted:#A3AAB5; --faint:#727A86;
+      --line:#2A2F37; --line-strong:#39414B; --accent:#7AA6CC; --accent-ink:#9DC0DE;
+      --accent-soft:#1E2E3D; --ok:#6FB58C; --ok-soft:#1A2A21; --warn:#D6A144;
+      --warn-soft:#2C2515; --crit:#D2765C; --crit-soft:#2C1D18;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:#13161A; --panel:#1B1F26; --ink:#E9ECEF; --muted:#A3AAB5; --faint:#727A86;
+    --line:#2A2F37; --line-strong:#39414B; --accent:#7AA6CC; --accent-ink:#9DC0DE;
+    --accent-soft:#1E2E3D; --ok:#6FB58C; --ok-soft:#1A2A21; --warn:#D6A144;
+    --warn-soft:#2C2515; --crit:#D2765C; --crit-soft:#2C1D18;
+  }
+  :root[data-theme="light"] {
+    --paper:#FAFAFB; --panel:#FFFFFF; --ink:#171B21; --muted:#5B626C; --faint:#8A909A;
+    --line:#E4E6EA; --line-strong:#D2D5DB; --accent:#2B4C6F; --accent-ink:#22405E;
+    --accent-soft:#EAF0F6; --ok:#3E7C5A; --ok-soft:#E7F1EB; --warn:#9C6410;
+    --warn-soft:#F6EEDC; --crit:#B4472E; --crit-soft:#F5E6E1;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased;
+  }
+  .serif { font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; }
+  .mono  { font-family:ui-monospace,"SF Mono",Menlo,"Roboto Mono",monospace; }
+
+  .sheet { max-width:56rem; margin:0 auto; padding:clamp(1.5rem,4vw,3.75rem) clamp(1.15rem,4vw,3.25rem) 4rem; }
+
+  /* masthead */
+  .masthead { border-bottom:2px solid var(--ink); padding-bottom:1.6rem; }
+  .toprow { display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; }
+  .eyebrow { font-size:.7rem; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); font-weight:600; }
+  .wordmark { font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); font-weight:600; text-align:right; line-height:1.5; }
+  h1.title { font-size:clamp(2.2rem,6vw,3.4rem); line-height:1.03; margin:.85rem 0 .6rem; font-weight:600; letter-spacing:-.015em; text-wrap:balance; }
+  .lede { font-size:1.1rem; color:var(--muted); max-width:48ch; margin:0; text-wrap:pretty; }
+  .lede .em { color:var(--ink); font-weight:600; }
+  .metabar { display:flex; flex-wrap:wrap; gap:.4rem 1.6rem; margin-top:1.6rem; font-size:.74rem; letter-spacing:.04em; color:var(--faint); }
+  .metabar b { color:var(--muted); font-weight:600; }
+
+  /* the question lens — the frame for the whole thing */
+  .qstrip { margin-top:1.8rem; border:1px solid var(--accent); background:var(--accent-soft); border-radius:14px; padding:1.25rem 1.4rem; }
+  .qstrip .qlead { font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:700; margin-bottom:.7rem; }
+  .qstrip .qs { display:flex; gap:1rem; flex-wrap:wrap; }
+  .qstrip .q { flex:1 1 12rem; display:flex; align-items:baseline; gap:.55rem; }
+  .qstrip .q .qn { font-family:"Iowan Old Style",Palatino,Georgia,serif; font-size:1.4rem; color:var(--accent); font-weight:600; line-height:1; }
+  .qstrip .q .qt { font-size:1rem; font-weight:600; color:var(--ink); }
+  .qstrip .also { margin:.9rem 0 0; font-size:.9rem; color:var(--muted); }
+  .qstrip .also b { color:var(--ink); }
+
+  section { margin-top:3.4rem; }
+  .kicker { display:flex; align-items:baseline; gap:.75rem; margin-bottom:1rem; }
+  .kicker .num { font-size:.82rem; color:var(--accent); font-weight:600; letter-spacing:.02em; }
+  .kicker h2 { font-size:clamp(1.4rem,3.2vw,1.85rem); margin:0; font-weight:600; letter-spacing:-.01em; line-height:1.15; text-wrap:balance; }
+  p { margin:0 0 1.05rem; max-width:64ch; }
+  .aside { font-size:.92rem; color:var(--muted); max-width:60ch; }
+  em.hl { font-style:normal; color:var(--accent); font-weight:600; }
+
+  /* problem: before/after */
+  .gap { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line); border:1px solid var(--line); border-radius:12px; overflow:hidden; margin:1.2rem 0 .4rem; }
+  .gap > div { background:var(--panel); padding:1.15rem 1.25rem; }
+  .gap .lbl { font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; font-weight:600; margin-bottom:.45rem; }
+  .gap .today .lbl { color:var(--crit); }
+  .gap .withit .lbl { color:var(--ok); }
+  .gap p { font-size:.95rem; margin:0; color:var(--muted); }
+  .gap p b { color:var(--ink); font-weight:600; }
+  @media (max-width:620px){ .gap { grid-template-columns:1fr; } }
+
+  /* ---------- interactive demo ---------- */
+  .demo { border:1px solid var(--line-strong); border-radius:14px; overflow:hidden; background:var(--panel); box-shadow:0 1px 2px rgba(0,0,0,.04),0 12px 32px -18px rgba(0,0,0,.22); margin:.4rem 0 .8rem; }
+  .demo-chrome { display:flex; align-items:center; gap:.6rem; padding:.7rem 1rem; border-bottom:1px solid var(--line); background:var(--accent-soft); }
+  .demo-chrome .dot { width:10px; height:10px; border-radius:50%; background:var(--line-strong); }
+  .demo-chrome .app { font-size:.74rem; letter-spacing:.06em; text-transform:uppercase; color:var(--accent-ink); font-weight:700; margin-left:.15rem; }
+  .demo-chrome .tag { margin-left:auto; font-size:.68rem; color:var(--faint); letter-spacing:.04em; }
+
+  .steps { display:flex; gap:.35rem; padding:.75rem 1rem; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  .steps .st { display:flex; align-items:center; gap:.4rem; font-size:.76rem; color:var(--faint); font-weight:600; padding:.15rem .1rem; }
+  .steps .st .n { width:1.35rem; height:1.35rem; border-radius:50%; display:grid; place-items:center; font-size:.7rem; border:1.5px solid var(--line-strong); color:var(--faint); background:var(--panel); }
+  .steps .st.active { color:var(--accent); }
+  .steps .st.active .n { border-color:var(--accent); color:#fff; background:var(--accent); }
+  .steps .st.done .n { border-color:var(--ok); color:#fff; background:var(--ok); }
+  .steps .st.done { color:var(--muted); }
+  .steps .sep { flex:0 0 auto; align-self:center; width:.8rem; height:1.5px; background:var(--line-strong); border-radius:1px; }
+  @media (max-width:560px){ .steps .st span.t { display:none; } }
+
+  .stage { padding:1.25rem 1.35rem 1.4rem; min-height:20rem; }
+  .stage-head { font-size:.72rem; letter-spacing:.1em; text-transform:uppercase; color:var(--faint); font-weight:700; margin-bottom:.9rem; }
+  .panel { display:none; }
+  .panel.on { display:block; animation:fade .22s ease-out; }
+  @keyframes fade { from { opacity:0; } to { opacity:1; } }
+
+  /* step 1 — job picker */
+  .search { display:flex; align-items:center; gap:.55rem; border:1px solid var(--line-strong); border-radius:9px; padding:.55rem .75rem; color:var(--faint); font-size:.9rem; margin-bottom:.8rem; background:var(--paper); }
+  .search .mag { width:14px; height:14px; border:1.8px solid var(--faint); border-radius:50%; position:relative; flex:0 0 auto; }
+  .search .mag::after { content:""; position:absolute; width:6px; height:1.8px; background:var(--faint); transform:rotate(45deg); bottom:-2px; right:-4px; border-radius:2px; }
+  .joblist { display:flex; flex-direction:column; gap:.4rem; }
+  .job { display:flex; align-items:center; gap:.7rem; text-align:left; width:100%; border:1px solid var(--line); background:var(--panel); border-radius:9px; padding:.65rem .8rem; cursor:pointer; font:inherit; color:var(--ink); transition:border-color .12s, background .12s; }
+  .job:hover { border-color:var(--accent); }
+  .job.sel { border-color:var(--accent); background:var(--accent-soft); box-shadow:inset 0 0 0 1px var(--accent); }
+  .job .jid { font-size:.82rem; font-weight:600; color:var(--accent-ink); }
+  .job .jname { font-size:.9rem; color:var(--ink); }
+  .job .jmeta { margin-left:auto; font-size:.72rem; color:var(--faint); }
+  .job .chk { margin-left:.4rem; color:var(--ok); font-weight:700; opacity:0; }
+  .job.sel .chk { opacity:1; }
+
+  /* step 2 — documents */
+  .docnote { font-size:.86rem; color:var(--muted); margin-bottom:.9rem; }
+  .docnote b { color:var(--ink); }
+  .doc { display:flex; align-items:flex-start; gap:.8rem; border:1px solid var(--line); border-radius:10px; padding:.75rem .85rem; margin-bottom:.55rem; background:var(--ok-soft); border-color:var(--ok); }
+  .doc .ic { flex:0 0 auto; width:2rem; height:2.4rem; border-radius:4px; border:1.5px solid var(--line-strong); background:var(--paper); position:relative; margin-top:.1rem; }
+  .doc .ic::after { content:"PDF"; position:absolute; bottom:3px; left:0; right:0; text-align:center; font-size:.5rem; letter-spacing:.05em; color:var(--faint); font-weight:700; }
+  .doc .role { font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; font-weight:700; color:var(--accent); }
+  .doc .fn { font-size:.9rem; font-weight:600; margin:.1rem 0 .15rem; word-break:break-word; }
+  .doc .why { font-size:.8rem; color:var(--muted); }
+  .doc .folder { display:inline-block; font-size:.66rem; letter-spacing:.03em; color:var(--muted); background:var(--paper); border:1px solid var(--line); border-radius:20px; padding:.05rem .5rem; margin-top:.35rem; }
+  .doc .state { margin-left:auto; flex:0 0 auto; font-size:.72rem; font-weight:700; color:var(--ok); text-align:right; white-space:nowrap; }
+  .doorsnote { display:flex; gap:.6rem; align-items:flex-start; font-size:.84rem; color:var(--muted); background:var(--paper); border:1px dashed var(--line-strong); border-radius:9px; padding:.65rem .8rem; margin-top:.2rem; }
+  .doorsnote b { color:var(--ink); }
+  .doorsnote .di { flex:0 0 auto; }
+
+  /* step 3 — generate */
+  .runwrap { text-align:center; padding:1.5rem 0 .5rem; }
+  .runbtn { font:inherit; font-weight:700; font-size:.95rem; color:#fff; background:var(--accent); border:0; border-radius:10px; padding:.75rem 1.6rem; cursor:pointer; letter-spacing:.01em; }
+  .runbtn:hover { background:var(--accent-ink); }
+  .runlines { max-width:25rem; margin:1.3rem auto 0; text-align:left; display:flex; flex-direction:column; gap:.55rem; }
+  .rl { display:flex; align-items:center; gap:.6rem; font-size:.88rem; color:var(--faint); opacity:.45; transition:opacity .2s, color .2s; }
+  .rl.go { opacity:1; color:var(--muted); }
+  .rl.done { opacity:1; color:var(--ink); }
+  .rl .rlmark { width:1.15rem; height:1.15rem; border-radius:50%; border:1.6px solid var(--line-strong); flex:0 0 auto; display:grid; place-items:center; font-size:.7rem; }
+  .rl.done .rlmark { background:var(--ok); border-color:var(--ok); color:#fff; }
+  .rl.go .rlmark { border-color:var(--accent); }
+  .runcost { text-align:center; font-size:.78rem; color:var(--faint); margin-top:1.1rem; }
+  .runcost b { color:var(--muted); }
+
+  /* step 4 — the order chart */
+  .ordersum { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:.65rem .85rem; border-radius:9px; background:var(--accent-soft); border:1px solid color-mix(in srgb, var(--accent) 35%, transparent); }
+  .ordersum .big { font-weight:700; color:var(--accent-ink); font-size:.95rem; }
+  .ordersum .sub { font-size:.82rem; color:var(--muted); }
+  .ordersum .exp { margin-left:auto; font:inherit; font-size:.76rem; font-weight:700; color:var(--accent); border:1px solid var(--accent); background:transparent; border-radius:7px; padding:.32rem .7rem; cursor:pointer; }
+  .ordersum .exp:hover { background:var(--accent); color:#fff; }
+
+  .chartblock { margin-bottom:1.2rem; }
+  .chartblock h4 { display:flex; align-items:center; gap:.5rem; margin:0 0 .5rem; font-size:.95rem; }
+  .chartblock h4 .ct { margin-left:auto; font-size:.72rem; font-weight:600; color:var(--faint); }
+  .chartblock h4 .src { font-size:.68rem; font-weight:600; color:var(--muted); letter-spacing:.02em; }
+
+  .tablewrap { overflow-x:auto; border:1px solid var(--line); border-radius:12px; }
+  table { border-collapse:collapse; width:100%; font-size:.88rem; min-width:30rem; }
+  thead th { text-align:left; font-size:.66rem; letter-spacing:.07em; text-transform:uppercase; color:var(--faint); font-weight:600; padding:.6rem .8rem; border-bottom:1px solid var(--line); background:var(--paper); }
+  th.r, td.r { text-align:right; font-variant-numeric:tabular-nums; }
+  th.c, td.c { text-align:center; }
+  tbody td { padding:.6rem .8rem; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tbody tr:last-child td { border-bottom:0; }
+  tfoot td { padding:.55rem .8rem; font-weight:700; border-top:1.5px solid var(--line-strong); }
+  .unit { font-weight:600; }
+  .size { color:var(--muted); }
+  .qty { font-weight:700; }
+  .spill { font-size:.66rem; letter-spacing:.05em; text-transform:uppercase; font-weight:700; border-radius:20px; padding:.08rem .5rem; }
+  .spill.s400 { color:var(--accent-ink); background:var(--accent-soft); }
+  .spill.s100 { color:var(--warn); background:var(--warn-soft); }
+
+  /* capability map */
+  .tracks { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin:1rem 0 .3rem; }
+  @media (max-width:640px){ .tracks { grid-template-columns:1fr; } }
+  .track { border:1px solid var(--line); border-radius:12px; padding:1.05rem 1.1rem; background:var(--panel); }
+  .track h3 { margin:0 0 .3rem; font-size:1.02rem; }
+  .track .lead-lbl { color:var(--accent); font-weight:600; } .track .big { color:var(--warn); font-weight:600; }
+  .track .desc { font-size:.85rem; color:var(--muted); margin:0 0 .8rem; }
+  .track ul { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:.5rem; }
+  .track li { display:flex; align-items:flex-start; gap:.55rem; font-size:.89rem; }
+  .track li .dot2 { flex:0 0 auto; width:.5rem; height:.5rem; border-radius:50%; background:var(--line-strong); margin-top:.45rem; }
+  .track li.shown .dot2 { background:var(--ok); }
+  .track li .lt b { font-weight:600; }
+  .track li .lt .ls { display:block; font-size:.78rem; color:var(--muted); }
+  .cap-chip { display:inline-block; margin-left:.4rem; font-size:.58rem; letter-spacing:.06em; text-transform:uppercase; font-weight:700; border-radius:20px; padding:.06rem .45rem; vertical-align:.08em; }
+  .cap-chip.shown { color:var(--ok); background:var(--ok-soft); }
+  .cap-chip.could { color:var(--muted); background:var(--paper); border:1px solid var(--line); }
+
+  /* the ask */
+  .ask { border:1px solid var(--accent); background:var(--accent-soft); border-radius:14px; padding:1.6rem 1.5rem; margin-top:1rem; text-align:center; }
+  .ask h3 { margin:0 0 .5rem; font-size:1.35rem; }
+  .ask .qrow { display:flex; gap:.8rem; flex-wrap:wrap; justify-content:center; margin:1rem 0 1.2rem; }
+  .ask .qcard { flex:1 1 13rem; max-width:16rem; background:var(--panel); border:1px solid var(--line); border-radius:11px; padding:.9rem 1rem; text-align:left; }
+  .ask .qcard .qh { font-weight:700; font-size:.98rem; margin-bottom:.2rem; }
+  .ask .qcard .qd { font-size:.82rem; color:var(--muted); }
+  .ask p { margin:0 auto 1.1rem; color:var(--muted); max-width:46ch; font-size:.95rem; }
+  .ask-btn { display:inline-block; font-weight:700; font-size:.95rem; color:#fff; background:var(--accent); border-radius:10px; padding:.78rem 1.8rem; text-decoration:none; }
+  .ask-btn:hover { background:var(--accent-ink); }
+
+  .foot { margin-top:3rem; padding-top:1.3rem; border-top:1px solid var(--line); font-size:.76rem; color:var(--faint); display:flex; justify-content:space-between; flex-wrap:wrap; gap:.5rem; }
+  .caption { font-size:.82rem; color:var(--faint); margin-top:.5rem; text-align:center; }
+
+  /* demo nav */
+  .demo-nav { display:flex; align-items:center; justify-content:space-between; padding:.85rem 1.1rem; border-top:1px solid var(--line); background:var(--paper); }
+  .nav-btn { font:inherit; font-size:.85rem; font-weight:600; border:1px solid var(--line-strong); background:var(--panel); color:var(--ink); border-radius:8px; padding:.5rem 1.1rem; cursor:pointer; }
+  .nav-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+  .nav-btn.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .nav-btn.primary:hover:not(:disabled) { background:var(--accent-ink); }
+  .nav-btn:disabled { opacity:.4; cursor:default; }
+  .nav-hint { font-size:.76rem; color:var(--faint); }
+
+  @media (prefers-reduced-motion: reduce) { .panel.on { animation:none; } * { transition:none !important; } }
+
+  @media print {
+    body { background:#fff; }
+    .demo { box-shadow:none; }
+    .demo-nav, .caption, .nav-hint { display:none; }
+    .panel { display:block !important; page-break-inside:avoid; border-top:1px solid var(--line); margin-top:.5rem; padding-top:.8rem; }
+    section, .chartblock, .track, .qstrip, .ask { page-break-inside:avoid; }
+  }
+</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <div class="toprow">
+      <div class="eyebrow">An idea we're exploring · your honest read wanted</div>
+      <div class="wordmark">Room 117<br>Architecture &amp; Design</div>
+    </div>
+    <h1 class="title serif">Takeoffs Model</h1>
+    <p class="lede">A tool we're building for our own studio — it reads our drawing set and generates the <span class="em">order sheet</span>: every window and door, by size and quantity, windows matched straight to the manufacturer's catalog. We want to show you <span class="em">as much of it as we can</span> — and hear what you think.</p>
+    <div class="metabar">
+      <span><b>What this is</b> &nbsp;An early look, not a sales pitch</span>
+      <span><b>Status</b> &nbsp;In development · nothing to buy today</span>
+      <span><b>Why you're seeing it</b> &nbsp;We want your input</span>
+    </div>
+
+    <div class="qstrip">
+      <div class="qlead">Keep these in mind the whole way through</div>
+      <div class="qs">
+        <div class="q"><span class="qn serif">1</span><span class="qt">Would you use this?</span></div>
+        <div class="q"><span class="qn serif">2</span><span class="qt">Would you pay for it?</span></div>
+      </div>
+      <p class="also">And the bigger one: <b>what would you want from us?</b> This is one idea — your answers shape it, and shape what else we build for you.</p>
+    </div>
+  </header>
+
+  <section>
+    <div class="kicker"><span class="num mono">01</span><h2>The idea</h2></div>
+    <p>Turning a drawing set into an order is manual and slow. Someone counts every window and door off the sheets, matches each size to what the manufacturer actually sells, and builds the quantity list by hand — the same work redone by the architect, the developer, and the supplier, and a miscount means a re-order or a delay. We think a tool can do that read in one pass. Here's how we picture it.</p>
+    <div class="gap">
+      <div class="today">
+        <div class="lbl">How it's done today</div>
+        <p>Read the schedules by eye. Tally sizes. Flip through the <b>100 and 400 Series</b> catalogs to find the matching unit. Build the count in a spreadsheet — and hope nothing was missed.</p>
+      </div>
+      <div class="withit">
+        <div class="lbl">The idea</div>
+        <p>Point it at our set and the brochures. It returns a <b>ready-to-order chart</b> — window units matched to Andersen catalog numbers with quantities, and doors counted by size — in one pass.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">02</span><h2>See as much of it as we can show you</h2></div>
+    <p>This is how the tool would work, on a sample project — <b>windows cross-referenced to the Andersen 100 &amp; 400 Series</b>, doors counted generically. Click through the whole flow.</p>
+
+    <div class="demo" id="demo">
+      <div class="demo-chrome">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <span class="app">RM117 · Takeoffs</span>
+        <span class="tag">Illustrative — how we picture it</span>
+      </div>
+
+      <div class="steps" id="steps">
+        <div class="st active" data-s="0"><span class="n">1</span><span class="t">Job</span></div>
+        <div class="sep"></div>
+        <div class="st" data-s="1"><span class="n">2</span><span class="t">Documents</span></div>
+        <div class="sep"></div>
+        <div class="st" data-s="2"><span class="n">3</span><span class="t">Generate</span></div>
+        <div class="sep"></div>
+        <div class="st" data-s="3"><span class="n">4</span><span class="t">Order chart</span></div>
+      </div>
+
+      <div class="stage">
+        <!-- step 1 -->
+        <div class="panel on" data-panel="0">
+          <div class="stage-head">Pick the project</div>
+          <div class="search"><span class="mag"></span>Search jobs…</div>
+          <div class="joblist" id="joblist">
+            <button class="job" data-job="0"><span class="jid mono">24_073</span><span class="jname">DaSilva</span><span class="jmeta">15 windows · 19 doors</span><span class="chk">✓</span></button>
+            <button class="job" data-job="1"><span class="jid mono">24_010</span><span class="jname">Kelly-Edleman</span><span class="jmeta">Completed</span><span class="chk">✓</span></button>
+            <button class="job" data-job="2"><span class="jid mono">25_055</span><span class="jname">McCalla</span><span class="jmeta">In construction</span><span class="chk">✓</span></button>
+          </div>
+          <p class="caption" style="text-align:left;margin-top:.9rem;">Pick <b>DaSilva</b> to continue.</p>
+        </div>
+
+        <!-- step 2 -->
+        <div class="panel" data-panel="1">
+          <div class="stage-head">What it reads</div>
+          <p class="docnote">Our set carries the <b>window &amp; door schedules</b>; the brochures are the catalog it matches windows against. It would find these across the job's Drive automatically.</p>
+          <div class="doc">
+            <span class="ic"></span>
+            <span>
+              <span class="role">Our drawing set</span>
+              <span class="fn">24_073_DaSilva — Permit Set.pdf</span>
+              <span class="why">Window &amp; door schedules — sizes and locations.</span>
+              <span class="folder">📁 Files Sent</span>
+            </span>
+            <span class="state">✓ Found</span>
+          </div>
+          <div class="doc">
+            <span class="ic"></span>
+            <span>
+              <span class="role">Window catalog · for cross-reference</span>
+              <span class="fn">Andersen 400 Series Brochure.pdf</span>
+              <span class="why">Matches our sizes to real 400 Series unit numbers.</span>
+              <span class="folder">📁 Window Specs library</span>
+            </span>
+            <span class="state">✓ Found</span>
+          </div>
+          <div class="doc">
+            <span class="ic"></span>
+            <span>
+              <span class="role">Window catalog · for cross-reference</span>
+              <span class="fn">Andersen 100 Series Brochure.pdf</span>
+              <span class="why">The sizes the 400 Series doesn't cover map here.</span>
+              <span class="folder">📁 Window Specs library</span>
+            </span>
+            <span class="state">✓ Found</span>
+          </div>
+          <div class="doorsnote">
+            <span class="di">🚪</span>
+            <span><b>Doors are counted generically</b> — no brochure needed. The model reads the door schedule and reports each size and how many, so it works no matter whose doors you buy.</span>
+          </div>
+        </div>
+
+        <!-- step 3 -->
+        <div class="panel" data-panel="2">
+          <div class="stage-head">Generate the order chart</div>
+          <div class="runwrap">
+            <button class="runbtn" id="runbtn">▸ Generate takeoff</button>
+            <div class="runlines" id="runlines" hidden>
+              <div class="rl" data-rl="0"><span class="rlmark"></span>Reading the window &amp; door schedules</div>
+              <div class="rl" data-rl="1"><span class="rlmark"></span>Cross-referencing windows to Andersen 100 &amp; 400 Series</div>
+              <div class="rl" data-rl="2"><span class="rlmark"></span>Counting units by size</div>
+            </div>
+            <div class="runcost" id="runcost" hidden>A generated buy list — <b>counted once, not three times</b>.</div>
+          </div>
+        </div>
+
+        <!-- step 4 -->
+        <div class="panel" data-panel="3">
+          <div class="stage-head">The order chart</div>
+          <div class="ordersum">
+            <span class="big">15 windows · 19 doors</span>
+            <span class="sub">ready to order — off the DaSilva set</span>
+            <button class="exp" data-confirm>⭳ Export order sheet</button>
+          </div>
+
+          <div class="chartblock">
+            <h4>🪟 Windows <span class="src">matched to Andersen 100 &amp; 400 Series</span><span class="ct">6 line items · 15 units</span></h4>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Location</th><th>Our size</th><th>Andersen unit</th><th class="c">Series</th><th class="r">Qty</th></tr></thead>
+                <tbody>
+                  <tr><td>Bedrooms</td><td class="size">2'-8" × 4'-4"</td><td class="unit mono">TW2842</td><td class="c"><span class="spill s400">400</span></td><td class="r qty">6</td></tr>
+                  <tr><td>Living / dining</td><td class="size">3'-0" × 4'-4"</td><td class="unit mono">TW3042</td><td class="c"><span class="spill s400">400</span></td><td class="r qty">4</td></tr>
+                  <tr><td>Baths (obscure)</td><td class="size">2'-0" × 3'-4"</td><td class="unit mono">TW2032</td><td class="c"><span class="spill s400">400</span></td><td class="r qty">2</td></tr>
+                  <tr><td>Basement glider</td><td class="size">3'-0" × 2'-0"</td><td class="unit mono">G32</td><td class="c"><span class="spill s100">100</span></td><td class="r qty">3</td></tr>
+                </tbody>
+                <tfoot><tr><td colspan="4">Total windows</td><td class="r">15</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div class="chartblock">
+            <h4>🚪 Doors <span class="src">generic — by size &amp; count</span><span class="ct">5 line items · 19 units</span></h4>
+            <div class="tablewrap">
+              <table>
+                <thead><tr><th>Type</th><th>Size</th><th class="r">Qty</th></tr></thead>
+                <tbody>
+                  <tr><td>Exterior entry</td><td class="size">3'-0" × 6'-8"</td><td class="r qty">1</td></tr>
+                  <tr><td>Sliding patio</td><td class="size">6'-0" × 6'-8"</td><td class="r qty">1</td></tr>
+                  <tr><td>Interior passage</td><td class="size">2'-6" × 6'-8"</td><td class="r qty">8</td></tr>
+                  <tr><td>Interior passage</td><td class="size">2'-4" × 6'-8"</td><td class="r qty">4</td></tr>
+                  <tr><td>Bi-fold closet</td><td class="size">2'-0" × 6'-8"</td><td class="r qty">5</td></tr>
+                </tbody>
+                <tfoot><tr><td colspan="2">Total doors</td><td class="r">19</td></tr></tfoot>
+              </table>
+            </div>
+          </div>
+          <p class="caption" style="text-align:left;">A person reviews the chart before it's used — the model builds it, it never orders on its own.</p>
+        </div>
+      </div>
+
+      <div class="demo-nav">
+        <button class="nav-btn" id="backBtn" disabled>← Back</button>
+        <span class="nav-hint" id="navHint">Step 1 of 4</span>
+        <button class="nav-btn primary" id="nextBtn" disabled>Next →</button>
+      </div>
+    </div>
+    <p class="caption">Illustrative — how we picture the Takeoffs Model working. Sample figures, not a real run.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">03</span><h2>How far it could go</h2></div>
+    <p>The window &amp; door order chart is the first piece. The same read of our set could extend to the rest of what a project has to buy — and, on the same pass, check that what you bought actually matches our drawings. <em class="hl">Which of these would matter to you?</em></p>
+    <div class="tracks">
+      <div class="track">
+        <h3>Takeoffs <span class="lead-lbl">· what you'd buy</span></h3>
+        <p class="desc">Counts and quantities straight off our drawings.</p>
+        <ul>
+          <li class="shown"><span class="dot2"></span><span class="lt"><b>Windows &amp; doors</b><span class="cap-chip shown">shown today</span><span class="ls">Sizes, counts, catalog-matched.</span></span></li>
+          <li><span class="dot2"></span><span class="lt"><b>Scheduled fixtures</b><span class="cap-chip could">could build</span><span class="ls">Counts of what's on the schedule.</span></span></li>
+          <li><span class="dot2"></span><span class="lt"><b>Trim &amp; millwork</b><span class="cap-chip could">could build</span><span class="ls">Linear feet from the plans.</span></span></li>
+          <li><span class="dot2"></span><span class="lt"><b>Siding, drywall, flooring</b><span class="cap-chip could">could build</span><span class="ls">Area quantities to order.</span></span></li>
+        </ul>
+      </div>
+      <div class="track">
+        <h3>Compliance <span class="big">· same read, in parallel</span></h3>
+        <p class="desc">Confirm a bought product matches our set and passes code.</p>
+        <ul>
+          <li><span class="dot2"></span><span class="lt"><b>Windows — size</b><span class="cap-chip could">could build</span><span class="ls">Vs. what our schedule specified.</span></span></li>
+          <li><span class="dot2"></span><span class="lt"><b>Windows — U-factor</b><span class="cap-chip could">could build</span><span class="ls">Vs. the energy code the permit was issued on.</span></span></li>
+          <li><span class="dot2"></span><span class="lt"><b>Exterior doors — U-factor</b><span class="cap-chip could">could build</span><span class="ls">Same energy check, doors.</span></span></li>
+          <li><span class="dot2"></span><span class="lt"><b>Fire-rated doors — rating</b><span class="cap-chip could">could build</span><span class="ls">The rating matches the assembly we drew.</span></span></li>
+        </ul>
+      </div>
+    </div>
+    <p class="aside">We've already tried the compliance idea once on a real project and it caught something real — a window line that met the energy model <em>only</em> on upgraded glass. But whether any of this is worth building is your call to help make.</p>
+  </section>
+
+  <section>
+    <div class="kicker"><span class="num mono">04</span><h2>So — over to you</h2></div>
+    <p>That's the whole idea, shown as fully as we can. We're not selling anything today; we're trying to figure out whether it's worth building, and what you'd actually want from us.</p>
+    <div class="ask">
+      <h3 class="serif">Two questions</h3>
+      <div class="qrow">
+        <div class="qcard"><div class="qh">Would you use it?</div><div class="qd">If this existed on your projects, would it save you enough to be worth reaching for?</div></div>
+        <div class="qcard"><div class="qh">Would you pay for it?</div><div class="qd">Is a tool like this something you'd see value in paying us for — and what feels fair?</div></div>
+      </div>
+      <p>The short survey below captures both, plus the bigger one: what else would you want from us? It's what steers whether — and what — we build.</p>
+      <a class="ask-btn" href="https://claude.ai/code/artifact/e3b3e12a-8856-4784-b7c2-d7091cdb9089" target="_blank" rel="noopener">Share your input →</a>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span>Room 117 Architecture &amp; Design LLC</span>
+    <span>Takeoffs Model · an early look</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var demo = document.getElementById('demo');
+  var panels = demo.querySelectorAll('[data-panel]');
+  var stepEls = demo.querySelectorAll('.steps .st');
+  var backBtn = document.getElementById('backBtn');
+  var nextBtn = document.getElementById('nextBtn');
+  var navHint = document.getElementById('navHint');
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var step = 0, jobPicked = false, ran = false;
+
+  function render(){
+    panels.forEach(function(p){ p.classList.toggle('on', +p.dataset.panel === step); });
+    stepEls.forEach(function(s){
+      var i = +s.dataset.s;
+      s.classList.toggle('active', i === step);
+      s.classList.toggle('done', i < step);
+    });
+    backBtn.disabled = step === 0;
+    var can = true;
+    if (step === 0) can = jobPicked;
+    if (step === 2) can = ran;
+    nextBtn.disabled = step === 3 ? true : !can;
+    nextBtn.textContent = step === 2 ? 'See order chart →' : 'Next →';
+    navHint.textContent = step === 3 ? 'Done — that’s the walkthrough' : 'Step ' + (step+1) + ' of 4';
+  }
+
+  demo.querySelectorAll('.job').forEach(function(b){
+    b.addEventListener('click', function(){
+      demo.querySelectorAll('.job').forEach(function(x){ x.classList.remove('sel'); });
+      b.classList.add('sel'); jobPicked = true; render();
+    });
+  });
+
+  demo.querySelectorAll('[data-confirm]').forEach(function(b){
+    b.addEventListener('click', function(){
+      if (b.classList.contains('done')) return;
+      b.classList.add('done'); b.textContent = '✓ Exported';
+    });
+  });
+
+  var runBtn = document.getElementById('runbtn');
+  var runLines = document.getElementById('runlines');
+  var runCost = document.getElementById('runcost');
+  var rls = demo.querySelectorAll('.rl');
+  runBtn.addEventListener('click', function(){
+    runBtn.disabled = true; runBtn.style.opacity = '.5'; runLines.hidden = false;
+    var i = 0;
+    function tick(){
+      if (i > 0){ rls[i-1].classList.remove('go'); rls[i-1].classList.add('done'); rls[i-1].querySelector('.rlmark').textContent = '✓'; }
+      if (i < rls.length){ rls[i].classList.add('go'); i++; setTimeout(tick, reduce ? 0 : 640); }
+      else { runCost.hidden = false; ran = true; render(); }
+    }
+    tick();
+  });
+
+  backBtn.addEventListener('click', function(){ if (step>0){ step--; render(); } });
+  nextBtn.addEventListener('click', function(){ if (step<3 && !nextBtn.disabled){ step++; render(); } });
+
+  render();
+})();
+</script>
