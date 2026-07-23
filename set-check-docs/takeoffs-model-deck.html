@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <style>
   :root {
     --paper:#FAFAFB; --panel:#FFFFFF; --ink:#171B21; --muted:#5B626C; --faint:#8A909A;
@@ -198,6 +199,19 @@
   .diff.hard .dl { color:var(--crit); }
   .difflegend { display:flex; gap:.4rem 1.4rem; flex-wrap:wrap; margin:.1rem 0 1.1rem; font-size:.76rem; color:var(--muted); }
   .difflegend .li2 { display:inline-flex; align-items:center; gap:.45rem; }
+
+  /* unified capability map — one list, difficulty on each */
+  .capmap { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--panel); margin:1rem 0 .3rem; }
+  .capitem { display:flex; align-items:flex-start; gap:.7rem; padding:.85rem 1.05rem; border-bottom:1px solid var(--line); }
+  .capitem:last-child { border-bottom:0; }
+  .capitem > .dot2 { margin-top:.34rem; }
+  .cbody { flex:1 1 auto; min-width:0; }
+  .crow { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+  .crow .cap-name { flex:0 1 auto; }
+  .kind { flex:0 0 auto; font-size:.58rem; letter-spacing:.05em; text-transform:uppercase; font-weight:700; border-radius:20px; padding:.06rem .5rem; }
+  .kind.buy { color:var(--accent-ink); background:var(--accent-soft); }
+  .kind.check { color:var(--ok); background:var(--ok-soft); }
+  .crow .diff { margin-left:auto; }
 
   /* the ask */
   .ask { border:1px solid var(--accent); background:var(--accent-soft); border-radius:14px; padding:1.6rem 1.5rem; margin-top:1rem; text-align:center; }
@@ -416,7 +430,7 @@
 
   <section>
     <div class="kicker"><span class="num mono">03</span><h2>How far it could go — and what's hard</h2></div>
-    <p>The window &amp; door order chart is the first piece. The same read of our set could reach the rest of what a project buys — and, on the same pass, check that what you bought matches our drawings. Here's the honest range, with how big a build each one is.</p>
+    <p>The window &amp; door order chart is the first piece — but it's <em class="hl">one read</em> of our drawing set, and that single read can do far more. It can total the rest of what a project buys, and on the same pass check that what you bought matches our drawings and passes code. Here's the whole of it in one list — every piece with how big a build it is, ordered from what's essentially ready to the genuinely hard, new work.</p>
 
     <div class="difflegend">
       <span class="li2"><span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span> reuse what we've built</span>
@@ -424,77 +438,97 @@
       <span class="li2"><span class="diff hard"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Big build</span></span> a new measurement engine</span>
     </div>
 
-    <div class="tracks">
-      <div class="track">
-        <h3>Takeoffs <span class="lead-lbl">· what you'd buy</span></h3>
-        <p class="desc">Counts and quantities straight off our drawings.</p>
-        <ul>
-          <li>
-            <div class="cap-head">
-              <span class="dot2 done"></span><span class="cap-name">Windows &amp; doors <span class="tag">started</span></span>
-              <span class="diff med"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Involved</span></span>
-            </div>
-            <span class="cap-take">Reading the schedule is easy; matching every size to the right catalog unit across the 100 &amp; 400 books is the real work.</span>
-          </li>
-          <li>
-            <div class="cap-head">
-              <span class="dot2"></span><span class="cap-name">Scheduled fixtures</span>
-              <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
-            </div>
-            <span class="cap-take">The same read, nothing to match — just count what's on the schedule.</span>
-          </li>
-          <li>
-            <div class="cap-head">
-              <span class="dot2"></span><span class="cap-name">Trim &amp; millwork</span>
-              <span class="diff hard"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Big build</span></span>
-            </div>
-            <span class="cap-take">Linear feet needs true measurement off the drawings, not a table lookup — the hard part.</span>
-          </li>
-          <li>
-            <div class="cap-head">
-              <span class="dot2"></span><span class="cap-name">Siding, drywall, flooring</span>
-              <span class="diff hard"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Big build</span></span>
-            </div>
-            <span class="cap-take">Areas are the same geometry problem at the largest scale — the biggest lift here.</span>
-          </li>
-        </ul>
+    <div class="capmap">
+      <div class="capitem">
+        <span class="dot2 done"></span>
+        <div class="cbody">
+          <div class="crow">
+            <span class="cap-name">Windows — size &amp; U-factor <span class="tag">proven once</span></span>
+            <span class="kind check">Code check</span>
+            <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
+          </div>
+          <span class="cap-take">A direct comparison to our schedule and energy model — already run on a real job, where it caught a window that met code <em>only</em> on upgraded glass.</span>
+        </div>
       </div>
-      <div class="track">
-        <h3>Compliance <span class="big">· same read, in parallel</span></h3>
-        <p class="desc">Confirm a bought product matches our set and passes code.</p>
-        <ul>
-          <li>
-            <div class="cap-head">
-              <span class="dot2 done"></span><span class="cap-name">Windows — size &amp; U-factor <span class="tag">proven once</span></span>
-              <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
-            </div>
-            <span class="cap-take">A direct comparison to our schedule and energy model — we've already run it on a real job.</span>
-          </li>
-          <li>
-            <div class="cap-head">
-              <span class="dot2"></span><span class="cap-name">Exterior doors — U-factor</span>
-              <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
-            </div>
-            <span class="cap-take">The same energy check, pointed at doors.</span>
-          </li>
-          <li>
-            <div class="cap-head">
-              <span class="dot2"></span><span class="cap-name">Fire-rated doors — rating</span>
-              <span class="diff med"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Involved</span></span>
-            </div>
-            <span class="cap-take">Match the product's fire rating to the assembly we drew.</span>
-          </li>
-          <li>
-            <div class="cap-head">
-              <span class="dot2"></span><span class="cap-name">Scheduled fixtures — spec match</span>
-              <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
-            </div>
-            <span class="cap-take">Confirm what arrived is what we specified.</span>
-          </li>
-        </ul>
+      <div class="capitem">
+        <span class="dot2"></span>
+        <div class="cbody">
+          <div class="crow">
+            <span class="cap-name">Exterior doors — U-factor</span>
+            <span class="kind check">Code check</span>
+            <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
+          </div>
+          <span class="cap-take">The same energy check, pointed at exterior doors.</span>
+        </div>
+      </div>
+      <div class="capitem">
+        <span class="dot2"></span>
+        <div class="cbody">
+          <div class="crow">
+            <span class="cap-name">Scheduled fixtures — count</span>
+            <span class="kind buy">Buy list</span>
+            <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
+          </div>
+          <span class="cap-take">The same read, nothing to match — just count what's on the schedule.</span>
+        </div>
+      </div>
+      <div class="capitem">
+        <span class="dot2"></span>
+        <div class="cbody">
+          <div class="crow">
+            <span class="cap-name">Scheduled fixtures — spec match</span>
+            <span class="kind check">Code check</span>
+            <span class="diff easy"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Easy</span></span>
+          </div>
+          <span class="cap-take">Confirm what arrived is what we specified — the same read, used the other way.</span>
+        </div>
+      </div>
+      <div class="capitem">
+        <span class="dot2 done"></span>
+        <div class="cbody">
+          <div class="crow">
+            <span class="cap-name">Windows &amp; doors — order chart <span class="tag">started</span></span>
+            <span class="kind buy">Buy list</span>
+            <span class="diff med"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Involved</span></span>
+          </div>
+          <span class="cap-take">Reading the schedule is easy; matching every size to the right catalog unit across the 100 &amp; 400 books is the real work. This is the piece shown above.</span>
+        </div>
+      </div>
+      <div class="capitem">
+        <span class="dot2"></span>
+        <div class="cbody">
+          <div class="crow">
+            <span class="cap-name">Fire-rated doors — rating</span>
+            <span class="kind check">Code check</span>
+            <span class="diff med"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Involved</span></span>
+          </div>
+          <span class="cap-take">Match the product's fire rating to the assembly we drew.</span>
+        </div>
+      </div>
+      <div class="capitem">
+        <span class="dot2"></span>
+        <div class="cbody">
+          <div class="crow">
+            <span class="cap-name">Trim &amp; millwork</span>
+            <span class="kind buy">Buy list</span>
+            <span class="diff hard"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Big build</span></span>
+          </div>
+          <span class="cap-take">Linear feet needs true measurement off the drawings, not a table lookup — the genuinely hard, new part.</span>
+        </div>
+      </div>
+      <div class="capitem">
+        <span class="dot2"></span>
+        <div class="cbody">
+          <div class="crow">
+            <span class="cap-name">Siding, drywall, flooring</span>
+            <span class="kind buy">Buy list</span>
+            <span class="diff hard"><span class="bars"><span class="bar"></span><span class="bar"></span><span class="bar"></span></span><span class="dl">Big build</span></span>
+          </div>
+          <span class="cap-take">Areas are the same geometry problem at the largest scale — the biggest lift here.</span>
+        </div>
       </div>
     </div>
-    <p class="aside">We've already tried the compliance idea once on a real project and it caught something real — a window line that met our energy model <em>only</em> on upgraded glass. The takeoff counts build on that same reading; the area &amp; linear takeoffs are the genuinely hard, new part.</p>
+    <p class="aside">Two of these we've already run — the order chart above and the window energy check. Everything in the top group builds on that same reading and is close; the area &amp; linear-foot takeoffs at the bottom are the genuinely hard, new part — a real measurement engine, not a table lookup.</p>
   </section>
 
   <section>
