@@ -1,0 +1,213 @@
+<meta charset="utf-8">
+<title>Material Takeoff — 235 Munsee Way</title>
+<style>
+  :root {
+    --ink:#171B21; --muted:#5B626C; --faint:#8A909A; --line:#E4E6EA; --line-strong:#D2D5DB;
+    --accent:#2B4C6F; --accent-ink:#22405E; --accent-soft:#EAF0F6; --paper:#FFFFFF; --wash:#F7F8FA;
+    --warn:#9C6410; --warn-soft:#F6EEDC;
+  }
+  * { box-sizing:border-box; }
+  html, body { margin:0; background:#E9EBEF; }
+  body {
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+    font-size:13px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .serif { font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif; }
+  .mono  { font-family:ui-monospace,"SF Mono",Menlo,"Roboto Mono",monospace; }
+
+  /* the sheet = an 8.5×11 page */
+  .sheet {
+    width:8.5in; min-height:11in; margin:1.4rem auto; background:var(--paper);
+    padding:0.7in 0.7in 0.6in; box-shadow:0 8px 30px -14px rgba(0,0,0,.35);
+  }
+
+  /* letterhead */
+  .lh { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid var(--ink); padding-bottom:.7rem; }
+  .brand { font-size:.72rem; letter-spacing:.14em; font-weight:700; color:var(--ink); line-height:1.5; }
+  .brand small { display:block; font-size:.62rem; letter-spacing:.1em; color:var(--faint); font-weight:600; margin-top:.15rem; }
+  .lh .rt { text-align:right; }
+  .doctitle { font-size:1.35rem; font-weight:600; letter-spacing:-.01em; }
+  .docsub { font-size:.68rem; letter-spacing:.1em; text-transform:uppercase; color:var(--accent); font-weight:700; margin-top:.2rem; }
+
+  /* job bar */
+  .jobbar { display:grid; grid-template-columns:repeat(4,1fr); gap:.1rem 1rem; margin-top:.9rem; padding:.7rem .85rem; background:var(--wash); border:1px solid var(--line); border-radius:8px; }
+  .jobbar .f { font-size:.85rem; }
+  .jobbar .f span { display:block; font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); font-weight:700; margin-bottom:.05rem; }
+  .jobbar .f b { font-weight:600; }
+
+  /* summary band */
+  .summary { display:grid; grid-template-columns:repeat(6,1fr); gap:.6rem; margin:1rem 0 .3rem; }
+  .tile { border:1px solid var(--line); border-radius:8px; padding:.55rem .6rem; text-align:center; }
+  .tile .n { font-size:1.05rem; font-weight:700; color:var(--accent-ink); font-variant-numeric:tabular-nums; }
+  .tile .u { font-size:.55rem; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:700; margin-top:.1rem; }
+
+  /* section tables */
+  section { margin-top:1.15rem; page-break-inside:avoid; }
+  h3.sec { display:flex; align-items:baseline; gap:.5rem; font-size:.95rem; margin:0 0 .35rem; padding-bottom:.2rem; border-bottom:1px solid var(--line-strong); }
+  h3.sec .cnt { margin-left:auto; font-size:.66rem; font-weight:600; color:var(--faint); letter-spacing:.02em; }
+  h3.sec .basis { font-size:.62rem; font-weight:600; color:var(--muted); letter-spacing:.02em; }
+  table { border-collapse:collapse; width:100%; font-size:.8rem; }
+  thead th { text-align:left; font-size:.58rem; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); font-weight:700; padding:.35rem .5rem; border-bottom:1px solid var(--line); }
+  th.r, td.r { text-align:right; font-variant-numeric:tabular-nums; }
+  th.c, td.c { text-align:center; }
+  tbody td { padding:.32rem .5rem; border-bottom:1px solid var(--line); }
+  tbody tr:nth-child(even) td { background:var(--wash); }
+  tfoot td { padding:.34rem .5rem; font-weight:700; border-top:1.5px solid var(--line-strong); }
+  .u2 { font-weight:600; }
+  .sz { color:var(--muted); }
+  .qty { font-weight:700; }
+  .pill { font-size:.58rem; letter-spacing:.04em; font-weight:700; border-radius:20px; padding:.05rem .45rem; }
+  .p400 { color:var(--accent-ink); background:var(--accent-soft); }
+  .p100 { color:var(--warn); background:var(--warn-soft); }
+
+  .note { margin-top:1.1rem; font-size:.72rem; color:var(--muted); background:var(--wash); border:1px dashed var(--line-strong); border-radius:8px; padding:.6rem .75rem; }
+  .note b { color:var(--ink); }
+  .signoff { display:flex; gap:2.2rem; margin-top:1rem; font-size:.75rem; color:var(--muted); }
+  .signoff .ln { flex:1 1 auto; border-top:1px solid var(--line-strong); padding-top:.25rem; }
+  footer { margin-top:1.1rem; padding-top:.55rem; border-top:1px solid var(--line); display:flex; justify-content:space-between; font-size:.62rem; color:var(--faint); letter-spacing:.02em; }
+
+  /* on-screen hint bar (never prints) */
+  .hint { max-width:8.5in; margin:1rem auto -.4rem; font-size:.75rem; color:#5B626C; text-align:center; }
+  .hint b { color:#22405E; }
+
+  @media print {
+    html, body { background:#fff; }
+    .sheet { width:auto; min-height:0; margin:0; padding:0; box-shadow:none; }
+    .hint { display:none; }
+    section { page-break-inside:avoid; }
+  }
+</style>
+
+<p class="hint">Preview of the exported order sheet · <b>Print → Save as PDF</b> to produce the file the tool would deliver.</p>
+
+<div class="sheet">
+  <div class="lh">
+    <div class="brand">ROOM 117<br>ARCHITECTURE + DESIGN<small>Room 117 Architecture &amp; Design LLC</small></div>
+    <div class="rt">
+      <div class="doctitle serif">Material Takeoff</div>
+      <div class="docsub">Order Sheet · Generated by RM117 Takeoffs</div>
+    </div>
+  </div>
+
+  <div class="jobbar">
+    <div class="f"><span>Job</span><b class="mono">25_049 · DaSilva</b></div>
+    <div class="f"><span>Project</span><b>235 Munsee Way</b></div>
+    <div class="f"><span>Source set</span><b>260212 Permit Set</b></div>
+    <div class="f"><span>Prepared</span><b>Jul 23, 2026</b></div>
+  </div>
+
+  <div class="summary">
+    <div class="tile"><div class="n">28</div><div class="u">Windows</div></div>
+    <div class="tile"><div class="n">34</div><div class="u">Doors</div></div>
+    <div class="tile"><div class="n">4,942</div><div class="u">Trim LF</div></div>
+    <div class="tile"><div class="n">21,000</div><div class="u">Drywall SF</div></div>
+    <div class="tile"><div class="n">5,420</div><div class="u">Floor SF</div></div>
+    <div class="tile"><div class="n">6,100</div><div class="u">Siding SF</div></div>
+  </div>
+
+  <section>
+    <h3 class="sec">Windows <span class="basis">Andersen 400 Series</span><span class="cnt">9 line items · 28 units</span></h3>
+    <table>
+      <thead><tr><th>Location</th><th>Size</th><th>Andersen unit</th><th class="c">Series</th><th class="r">Qty</th></tr></thead>
+      <tbody>
+        <tr><td>Bedrooms (double hung)</td><td class="sz">3'-6" × 5'-1"</td><td class="u2 mono">TW34410</td><td class="c"><span class="pill p400">400</span></td><td class="r qty">8</td></tr>
+        <tr><td>Family / living (double hung)</td><td class="sz">3'-6" × 6'-5"</td><td class="u2 mono">TW3462</td><td class="c"><span class="pill p400">400</span></td><td class="r qty">3</td></tr>
+        <tr><td>Foyer / stair (double hung)</td><td class="sz">3'-2" × 6'-5"</td><td class="u2 mono">TW3046</td><td class="c"><span class="pill p400">400</span></td><td class="r qty">2</td></tr>
+        <tr><td>Baths / kitchen (casement)</td><td class="sz">2'-5" × 4'-5"</td><td class="u2 mono">CW145</td><td class="c"><span class="pill p400">400</span></td><td class="r qty">3</td></tr>
+        <tr><td>Powder / bath (casement)</td><td class="sz">2'-5" × 3'-0"</td><td class="u2 mono">CW13</td><td class="c"><span class="pill p400">400</span></td><td class="r qty">2</td></tr>
+        <tr><td>Office / study (casement)</td><td class="sz">3'-0" × 5'-0"</td><td class="u2 mono">CXW15</td><td class="c"><span class="pill p400">400</span></td><td class="r qty">2</td></tr>
+        <tr><td>Awnings (various)</td><td class="sz">3'-5" × 3'-0"</td><td class="u2 mono">AXW351</td><td class="c"><span class="pill p400">400</span></td><td class="r qty">3</td></tr>
+        <tr><td>Feature / picture</td><td class="sz">6'-0" × 4'-5"</td><td class="u2 mono">P6045</td><td class="c"><span class="pill p400">400</span></td><td class="r qty">3</td></tr>
+        <tr><td>Basement egress (hopper)</td><td class="sz">3'-0" × 2'-0"</td><td class="u2 mono">AN100 hopper</td><td class="c"><span class="pill p100">100</span></td><td class="r qty">2</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="4">Total windows</td><td class="r">28</td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h3 class="sec">Doors <span class="basis">generic — by size &amp; count</span><span class="cnt">8 line items · 34 units</span></h3>
+    <table>
+      <thead><tr><th>Location</th><th>Type</th><th>Size</th><th class="r">Qty</th></tr></thead>
+      <tbody>
+        <tr><td>Exterior</td><td>Front entry</td><td class="sz">3'-6" × 8'-0"</td><td class="r qty">1</td></tr>
+        <tr><td>Exterior</td><td>Rear / side entry</td><td class="sz">3'-0" × 6'-8"</td><td class="r qty">2</td></tr>
+        <tr><td>Exterior</td><td>Patio sliding</td><td class="sz">6'-0" × 6'-8"</td><td class="r qty">2</td></tr>
+        <tr><td>Exterior</td><td>Garage to house</td><td class="sz">3'-0" × 6'-8"</td><td class="r qty">1</td></tr>
+        <tr><td>Interior</td><td>Passage</td><td class="sz">2'-6" × 6'-8"</td><td class="r qty">12</td></tr>
+        <tr><td>Interior</td><td>Passage</td><td class="sz">2'-4" × 6'-8"</td><td class="r qty">6</td></tr>
+        <tr><td>Interior</td><td>Bi-fold closet</td><td class="sz">2'-0" × 6'-8"</td><td class="r qty">8</td></tr>
+        <tr><td>Interior</td><td>Pocket</td><td class="sz">2'-6" × 6'-8"</td><td class="r qty">2</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="3">Total doors</td><td class="r">34</td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h3 class="sec">Trim &amp; millwork <span class="basis">by linear foot</span><span class="cnt">4 line items · 4,942 LF</span></h3>
+    <table>
+      <thead><tr><th>Item</th><th>Where</th><th class="r">Linear ft</th></tr></thead>
+      <tbody>
+        <tr><td>Baseboard</td><td class="sz">Throughout</td><td class="r qty">1,850</td></tr>
+        <tr><td>Door &amp; window casing</td><td class="sz">Throughout</td><td class="r qty">2,400</td></tr>
+        <tr><td>Crown molding</td><td class="sz">Main + primary</td><td class="r qty">620</td></tr>
+        <tr><td>Stair rail &amp; balustrade</td><td class="sz">Main + attic stair</td><td class="r qty">72</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="2">Total linear feet</td><td class="r">4,942</td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h3 class="sec">Drywall <span class="basis">by area</span><span class="cnt">≈ 656 sheets · 21,000 SF</span></h3>
+    <table>
+      <thead><tr><th>Surface</th><th>Location</th><th class="r">Square ft</th></tr></thead>
+      <tbody>
+        <tr><td>Walls</td><td class="sz">Throughout</td><td class="r qty">14,800</td></tr>
+        <tr><td>Ceilings</td><td class="sz">Throughout</td><td class="r qty">6,200</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="2">Total (≈ 656 sheets, 4×8)</td><td class="r">21,000</td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h3 class="sec">Flooring <span class="basis">by area &amp; material</span><span class="cnt">3 line items · 5,420 SF</span></h3>
+    <table>
+      <thead><tr><th>Material</th><th>Location</th><th class="r">Square ft</th></tr></thead>
+      <tbody>
+        <tr><td>Hardwood</td><td class="sz">Main + second</td><td class="r qty">3,400</td></tr>
+        <tr><td>Tile</td><td class="sz">Baths &amp; entry</td><td class="r qty">720</td></tr>
+        <tr><td>Carpet</td><td class="sz">Bedrooms &amp; rec</td><td class="r qty">1,300</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="2">Total flooring</td><td class="r">5,420</td></tr></tfoot>
+    </table>
+  </section>
+
+  <section>
+    <h3 class="sec">Siding <span class="basis">by area</span><span class="cnt">2 line items · 6,100 SF</span></h3>
+    <table>
+      <thead><tr><th>Type</th><th>Location</th><th class="r">Square ft</th></tr></thead>
+      <tbody>
+        <tr><td>Lap siding</td><td class="sz">Walls</td><td class="r qty">5,200</td></tr>
+        <tr><td>Gable ends &amp; accents</td><td class="sz">Upper</td><td class="r qty">900</td></tr>
+      </tbody>
+      <tfoot><tr><td colspan="2">Total siding</td><td class="r">6,100</td></tr></tfoot>
+    </table>
+  </section>
+
+  <div class="note">
+    <b>Generated by RM117 Takeoffs from the issued drawing set.</b> Window units and sizes are taken
+    from the project window schedule (Andersen 400 Series); door, trim and area quantities are read off
+    the plans. <b>A person reviews and signs off before anything is ordered — the tool never orders on its
+    own.</b> Verify all dimensions and counts against the current set prior to purchase.
+  </div>
+
+  <div class="signoff">
+    <div class="ln">Reviewed by</div>
+    <div class="ln">Date</div>
+  </div>
+
+  <footer>
+    <span>Room 117 Architecture &amp; Design LLC · Material Takeoff — Order Sheet</span>
+    <span>235 Munsee Way · Job 25_049</span>
+  </footer>
+</div>

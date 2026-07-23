@@ -149,6 +149,8 @@
   .ordersum .sub { font-size:.82rem; color:var(--muted); }
   .ordersum .exp { margin-left:auto; font:inherit; font-size:.76rem; font-weight:700; color:var(--accent); border:1px solid var(--accent); background:transparent; border-radius:7px; padding:.32rem .7rem; cursor:pointer; }
   .ordersum .exp:hover { background:var(--accent); color:#fff; }
+  .ordersum .exp-link { margin-left:.6rem; font-size:.76rem; font-weight:700; color:var(--accent); text-decoration:none; border-bottom:1px solid color-mix(in srgb, var(--accent) 45%, transparent); }
+  .ordersum .exp-link:hover { border-bottom-color:var(--accent); }
 
   .chartblock { margin-bottom:1.2rem; }
   .chartblock h4 { display:flex; align-items:center; gap:.5rem; margin:0 0 .5rem; font-size:.95rem; }
@@ -372,6 +374,7 @@
             <span class="big">Full material takeoff</span>
             <span class="sub">windows · doors · trim · drywall · flooring · siding — off the 235 Munsee set</span>
             <button class="exp" data-confirm>⭳ Export order sheet</button>
+            <a class="exp-link" id="exportLink" href="takeoffs-order-sheet.html" target="_blank" rel="noopener" hidden>↗ Open the exported sheet</a>
           </div>
 
           <div class="chartblock">
@@ -388,7 +391,7 @@
                   <tr><td>Office / study (casement)</td><td class="size">3'-0" × 5'-0"</td><td class="unit mono">CXW15</td><td class="c"><span class="spill s400">400</span></td><td class="r qty">2</td></tr>
                   <tr><td>Awnings (various)</td><td class="size">3'-5" × 3'-0"</td><td class="unit mono">AXW351</td><td class="c"><span class="spill s400">400</span></td><td class="r qty">3</td></tr>
                   <tr><td>Feature / picture</td><td class="size">6'-0" × 4'-5"</td><td class="unit mono">P6045</td><td class="c"><span class="spill s400">400</span></td><td class="r qty">3</td></tr>
-                  <tr><td>Basement egress (hopper)</td><td class="size">3'-0" × 2'-0"</td><td class="unit mono">Vinyl</td><td class="c"><span class="spill s100">VNL</span></td><td class="r qty">2</td></tr>
+                  <tr><td>Basement egress (hopper)</td><td class="size">3'-0" × 2'-0"</td><td class="unit mono">AN100 hopper</td><td class="c"><span class="spill s100">100</span></td><td class="r qty">2</td></tr>
                 </tbody>
                 <tfoot><tr><td colspan="4">Total windows</td><td class="r">28</td></tr></tfoot>
               </table>
@@ -396,18 +399,21 @@
           </div>
 
           <div class="chartblock">
-            <h4>🚪 Doors <span class="src">generic — by size &amp; count</span><span class="ct">5 line items · 34 units</span></h4>
+            <h4>🚪 Doors <span class="src">generic — by size &amp; count</span><span class="ct">8 line items · 34 units</span></h4>
             <div class="tablewrap">
               <table>
-                <thead><tr><th>Type</th><th>Size</th><th class="r">Qty</th></tr></thead>
+                <thead><tr><th>Location</th><th>Type</th><th>Size</th><th class="r">Qty</th></tr></thead>
                 <tbody>
-                  <tr><td>Exterior (entry · patio · garage)</td><td class="size">varies</td><td class="r qty">6</td></tr>
-                  <tr><td>Interior passage</td><td class="size">2'-6" × 6'-8"</td><td class="r qty">12</td></tr>
-                  <tr><td>Interior passage</td><td class="size">2'-4" × 6'-8"</td><td class="r qty">6</td></tr>
-                  <tr><td>Bi-fold closet</td><td class="size">2'-0" × 6'-8"</td><td class="r qty">8</td></tr>
-                  <tr><td>Pocket door</td><td class="size">2'-6" × 6'-8"</td><td class="r qty">2</td></tr>
+                  <tr><td>Exterior</td><td>Front entry</td><td class="size">3'-6" × 8'-0"</td><td class="r qty">1</td></tr>
+                  <tr><td>Exterior</td><td>Rear / side entry</td><td class="size">3'-0" × 6'-8"</td><td class="r qty">2</td></tr>
+                  <tr><td>Exterior</td><td>Patio sliding</td><td class="size">6'-0" × 6'-8"</td><td class="r qty">2</td></tr>
+                  <tr><td>Exterior</td><td>Garage to house</td><td class="size">3'-0" × 6'-8"</td><td class="r qty">1</td></tr>
+                  <tr><td>Interior</td><td>Passage</td><td class="size">2'-6" × 6'-8"</td><td class="r qty">12</td></tr>
+                  <tr><td>Interior</td><td>Passage</td><td class="size">2'-4" × 6'-8"</td><td class="r qty">6</td></tr>
+                  <tr><td>Interior</td><td>Bi-fold closet</td><td class="size">2'-0" × 6'-8"</td><td class="r qty">8</td></tr>
+                  <tr><td>Interior</td><td>Pocket</td><td class="size">2'-6" × 6'-8"</td><td class="r qty">2</td></tr>
                 </tbody>
-                <tfoot><tr><td colspan="2">Total doors</td><td class="r">34</td></tr></tfoot>
+                <tfoot><tr><td colspan="3">Total doors</td><td class="r">34</td></tr></tfoot>
               </table>
             </div>
           </div>
@@ -623,6 +629,7 @@
     b.addEventListener('click', function(){
       if (b.classList.contains('done')) return;
       b.classList.add('done'); b.textContent = '✓ Exported';
+      var lnk = document.getElementById('exportLink'); if (lnk) lnk.hidden = false;
     });
   });
 

@@ -27,6 +27,9 @@
 >   400 window schedule (TW34410, TW3462, CW145, CXW15, P6045…) was pulled from
 >   `260212_Permit Set.pdf` p.2 via the app's Drive broker + pdfjs; window units + sizes
 >   are real (≈28 openings from the REScheck), per-type quantities are representative.
+> - `takeoffs-order-sheet.html` — print-styled **exported order-sheet mockup** for 235
+>   Munsee (RM117 letterhead, six material tables, sign-off). The deck's "Export order
+>   sheet" button links to it. Open + Print→Save as PDF to show the delivered artifact.
 >
 > Open any of these HTML files in a browser to view; all are self-contained.
 
