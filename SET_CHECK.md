@@ -23,7 +23,10 @@
 >   catalog, doors, + trim / drywall / flooring / siding as the full vision) → a single
 >   build-difficulty **capability map** → a "would you use it / pay for it" close.
 >   Presented from the **local file** (carries `<meta charset>`); no Artifact URL yet.
->   ⚠️ Demo job is being swapped from DaSilva to a bigger project (in progress 2026-07-23).
+>   Demo job is now **25_049 DaSilva / 235 Munsee Way** (2026-07-23) — the real Andersen
+>   400 window schedule (TW34410, TW3462, CW145, CXW15, P6045…) was pulled from
+>   `260212_Permit Set.pdf` p.2 via the app's Drive broker + pdfjs; window units + sizes
+>   are real (≈28 openings from the REScheck), per-type quantities are representative.
 >
 > Open any of these HTML files in a browser to view; all are self-contained.
 
@@ -220,6 +223,17 @@ call number (e.g. Andersen `TW2842` encodes width×height). Nail this mechanic i
   scheduled fixtures — same pipeline, new rule sets.
 - **Phase 5 — Takeoffs (later, big bet).** Counts of scheduled items, then geometric
   area/linear takeoffs (revive the `takeoff-app` Python engine).
+  - ⭐ **Window quantity = count each window MARK's block placements across the floor
+    plans** (Ray, 2026-07-23, from the 235 Munsee demo build). RM117 places the same
+    `W#` block (W1, W2…) on every plan that shows that window, so the per-type ORDER
+    quantity is literally how many times that block appears. The window **schedule**
+    lists each type ONCE with its Andersen unit + size but carries **no count column**;
+    the **REScheck** gives a grouped opening total (235 Munsee ≈ 28) but lumps units by
+    energy assembly, not by orderable unit. So neither doc alone yields per-type qty —
+    the block-instance count on the plans is the real signal (a text-layer `W#` scan is
+    too noisy; needs the CV/block-ref engine).
+  - **Doors have no schedule** (owner-selected — the DOOR NOTES say so on 235 Munsee), so
+    doors are counted generically off the plans by size, whoever supplies them.
 
 ## Deploy notes
 
