@@ -181,7 +181,13 @@ call number (e.g. Andersen `TW2842` encodes width×height). Nail this mechanic i
   ONCE and cache: scan the text layer page by page (`pdfjs-dist` — in the repo, client-side
   today but it runs in Node), score pages on the vocabulary that marks what we need
   (`NFRC`, `U-Factor`, `SHGC`, `Rough Opening`, `Unit Dimension`, size-table headers),
-  build a trimmed excerpt with `pdf-lib`, and store it with its page list. **Deliberately
+  build a trimmed excerpt with `pdf-lib`, and store it with its page list.
+  - ✅ **Page scorer built (2026-07-22).** `api/_lib/set-check/brochure-pages.js` — pure,
+    14 tests. `scorePage(text)` → `{ score, reasons }`; `selectPages(pageTexts)` →
+    `{ pages, keep, scanned }`, over-including neighbours of every strong page and
+    returning `keep: []` on a text-less scan so the caller falls back to the full doc.
+    Reasons feed the staff-confirm UI. **Next: wire the pdfjs text extraction + pdf-lib
+    trim + cache around it, then the confirm screen.** **Deliberately
   over-include** — an extra page costs a little money, a missing page produces a wrong
   answer. Then **show staff the chosen pages for a one-click confirm before that brochure
   goes into service**, same rule as everything else here: a person confirms, the AI never
