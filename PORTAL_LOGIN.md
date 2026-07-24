@@ -1,9 +1,13 @@
 # Client Portal Sign-In — canonical doc
 
-**Status: LIVE in production at https://portal.rm117.com (2026-07-23).**
-Everything below is built, deployed and verified. The one remaining task is **Phase C — the
-"Client Login" button on the Wix marketing site**, which cannot be automated and is written up
-step by step at the bottom of this file.
+**Status: FULLY SHIPPED. LIVE in production at https://portal.rm117.com (portal 2026-07-23; Phase C 2026-07-24).**
+Everything below is built, deployed and verified — **including Phase C**: the **"Client Login"** link
+is live in the rm117.com header, sitewide (shared header → every page), pointing at
+`https://portal.rm117.com` in a new tab. Ray placed it by hand in the Wix Editor 2026-07-24 (see the
+Phase C section — it still cannot be automated). **Design decision (Ray, 2026-07-24): visible directly
+in the header on desktop; on mobile it lives in the hamburger/drop menu** because a header button
+didn't look right there. Verified: the link renders on the homepage + interior pages, and a real
+`request-code` POST to the production host matched a contact and mailed a code.
 
 ---
 
@@ -105,9 +109,16 @@ npm run dev  →  localhost:5173/login  →  enter a real client contact's email
 
 ---
 
-# ▶ PHASE C — add the "Client Login" button to rm117.com
+# ✅ PHASE C — the "Client Login" button on rm117.com — SHIPPED 2026-07-24
 
-**This is the only thing left, and it must be done by hand in the Wix Editor.** Wix exposes no REST
+**DONE. Ray placed it by hand in the Wix Editor on 2026-07-24** and it verified live (sitewide via the
+shared header; links to `https://portal.rm117.com`, new tab; production door confirmed sending a real
+code). The steps below are kept as the record of how it was done and how to redo/adjust it. **Design
+choice worth preserving: it shows as a visible header link on desktop but sits in the hamburger/drop
+menu on mobile** — Ray judged a header button looked wrong on mobile. Both are reachable; don't "fix"
+the mobile placement back to a button.
+
+**It had to be done by hand in the Wix Editor.** Wix exposes no REST
 API for adding a button, page, or navigation item to a classic Editor site (searched 2026-07-23 —
 the only hits were Wix Restaurants menus and Headless checkout redirects, neither applicable). DNS is
 writable via API; the site's visual structure is not.
