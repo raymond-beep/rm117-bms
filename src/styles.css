@@ -2170,3 +2170,121 @@ input, select, textarea { font: inherit; }
 .deleg-notecell.edit::placeholder { color: #b7b3a8; }
 .deleg-notes.typing .deleg-notecell.edit { cursor: text; }
 .deleg-notes.typing .deleg-notecell.edit:focus { background: rgba(27, 99, 224, 0.06); box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 4px; }
+
+/* ---- Client portal: splash + sign-in ----
+   `.portal-splash` / `.portal-brand` were referenced by portal-gate.jsx and auth-gate.jsx
+   from the start but never actually defined, so the loading and expired-link screens
+   rendered as unstyled text. They're defined here because the sign-in below is now the
+   PUBLIC front door of the portal — the thing "Client Login" on rm117.com points at — and
+   a homeowner's first impression of the firm can't be a bare browser default. */
+.portal-splash {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 2rem 1.25rem;
+  background: var(--app-bg);
+  color: var(--ink);
+  font-family: var(--ui);
+}
+.portal-brand {
+  font-family: var(--ui);
+  font-weight: 600;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+  text-align: center;
+  line-height: 1.2;
+}
+.portal-brand small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-top: 0.3rem;
+}
+
+.portal-login { width: 100%; max-width: 25rem; display: flex; flex-direction: column; align-items: center; gap: 1.1rem; }
+.portal-login-card {
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1.6rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+.portal-login-card h1 { font-size: 1.12rem; font-weight: 600; margin: 0 0 0.4rem; }
+.portal-login-sub { font-size: 0.88rem; line-height: 1.5; color: var(--ink2); margin: 0 0 1.15rem; }
+.portal-login-label {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-bottom: 0.4rem;
+}
+.portal-login-input {
+  width: 100%;
+  font-family: var(--ui);
+  font-size: 1rem; /* 16px min — anything smaller makes iOS Safari zoom on focus */
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--inset);
+  color: var(--ink);
+}
+.portal-login-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+/* The code is the one thing a client reads back digit by digit off their phone. */
+.portal-login-code { font-family: var(--mono); font-size: 1.5rem; letter-spacing: 0.35em; text-align: center; padding: 0.65rem 0.5rem; }
+.portal-login-btn {
+  margin-top: 1.1rem;
+  padding: 0.72rem 1rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-family: var(--ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.portal-login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.portal-login-link {
+  margin-top: 0.7rem;
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font-family: var(--ui);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.portal-login-note { font-size: 0.8rem; color: var(--ink3); margin: 0.75rem 0 0; text-align: center; }
+.portal-login-error {
+  margin-top: 0.8rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--bill-soft);
+  color: var(--bill);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.portal-login-notice {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 0.85rem;
+  line-height: 1.45;
+  text-align: center;
+}
+.portal-login-help { font-size: 0.82rem; color: var(--ink2); margin: 0; text-align: center; }
+.portal-login-staff { font-size: 0.75rem; color: var(--ink3); text-decoration: none; }
+.portal-login-staff:hover { text-decoration: underline; }
