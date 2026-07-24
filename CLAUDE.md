@@ -23,9 +23,17 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 - **Auth:** **two separate systems, on purpose.**
   - **Staff → Clerk** (Google sign-in, `@rm117.com`). Clerk is a **Development** instance; there is
     no production instance and none is needed.
-  - **Clients → magic link, no Clerk account at all** (2026-07-13). A client clicks a signed,
-    expiring, revocable link in an email; `/api/portal/enter` exchanges the token for an HttpOnly
-    session cookie. See `api/_lib/portal-session.js` (the crypto) and `portal_links` (the table).
+  - **Clients → magic link OR emailed code, no Clerk account at all.** TWO doors, one session:
+    both call `signSession()`, so there is no second authorization path to keep in step.
+    1. **Magic link** (2026-07-13) — a signed, expiring, revocable link in an update email;
+       `/api/portal/enter` exchanges the token for an HttpOnly session cookie. Stays because it
+       is one click and killing "any update?" emails is the portal's whole job.
+    2. **Email + 6-digit code** (2026-07-23) — the self-serve FRONT DOOR, for a client who lost
+       the email or just goes to the website. `/api/portal/request-code` → `/verify-code`.
+       **Deliberately not passwords** (Ray's call): a homeowner won't keep one, a developer
+       won't tolerate one, and every forgotten password becomes a call to the office.
+    See `api/_lib/portal-session.js` + `portal-login-code.js` (the crypto) and `portal_links` +
+    `portal_login_codes` (the tables).
     Rationale: a homeowner won't keep a password and a developer won't tolerate one, but both will
     click a link — and the notification email is the portal's front door anyway. This also keeps a
     Clerk production instance + client-facing DNS off the critical path entirely.
@@ -85,7 +93,10 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `api/client-contacts.js` | **Several people per client** — the firm's biggest clients are DEVELOPERS with teams (Tyler Deuel 5 jobs; Gabe DaSilva was already cramming a shared team inbox into the one email field). Contacts hang off the **CLIENT, not the job**, so a developer's PM added once is on all their projects. GET/POST/DELETE, staff-gated. **Deactivates rather than deletes** (their links + the record of what they were told survive) and **revokes their magic links** on removal. `clients.email` is kept in sync as a mirror of the primary contact — older screens still read it |
 | `api/_lib/gmail-send.js` | **Sends email AS the signed-in staff member, via their own Gmail** (`gmail.send` scope, token from Clerk — the same Google connection the Inbox widget uses). Chosen over Resend because **rm117.com's DNS is on a Wix account the firm doesn't control**, so verifying a sending domain has been blocked for months — and because a client update from "Ray Arocha" gets opened while `noreply@` gets ignored. Replies land in Ray's inbox; the message appears in his Sent folder |
 | `api/_lib/portal-notify.js` | Pure composition of the **client update email** (no network/db, so the wording is unit-tested without sending anything). Deliberately excludes money, sub-phases (Prep/Outgoing, DPI/II/III), Job IDs and phase jargon — a client who reads "your CDs are 90% done" replies "so where's my set?" |
-| `api/_lib/portal-session.js` | **Client magic-link auth** (pure crypto, unit-tested): mint/hash link tokens, sign/verify the session cookie, cookie plumbing. Tokens are stored **hashed** (`portal_links.token_hash`) so the DB never holds a working credential; the session cookie is HMAC-signed and HttpOnly |
+| `api/_lib/portal-session.js` | **Client magic-link auth** (pure crypto, unit-tested): mint/hash link tokens, sign/verify the session cookie, cookie plumbing. Tokens are stored **hashed** (`portal_links.token_hash`) so the DB never holds a working credential; the session cookie is HMAC-signed and HttpOnly. Session TTL **60 days** (raised from 30, 2026-07-23). The cookie's `k` claim records **which contact** signed in — optional, audit only, **never an access decision** (pre-`k` cookies must keep working) |
+| `api/_lib/portal-login-code.js` | **Client email + code sign-in** (pure, unit-tested) — the portal's FRONT DOOR, added 2026-07-23 alongside the magic link. Mint/hash/verify 6-digit codes, expiry, attempt cap, request throttle, and the code email's wording. ⚠️ **The code is stored as an HMAC keyed by the server secret, NOT a plain digest** — `portal_links` can use sha256 because its token is 256 bits, but a 6-digit code has only 1,000,000 possibilities and a bare digest falls to exhaustive search instantly from a DB dump. ⚠️ **Six digits is not what makes this safe — the 5-attempt cap + 10-minute expiry are.** Relaxing the cap means lengthening the code |
+| `api/_lib/resend-send.js` | Transactional sender — **ONLY for portal sign-in codes**. Client *update* emails still go through the staffer's own Gmail (`gmail-send.js`) and must keep doing so. A sign-in code is the one message with no human in the loop, so it can't come from a mailbox. **Dev escape hatch:** with no `RESEND_API_KEY`, outside production, the mail is printed to the server console instead of sent — this is what makes the login testable with no DNS. Hard-gated off in production |
+| `src/components/shell/portal-login.jsx` | The client sign-in screen (email → 6-digit code). ⚠️ **`shouldShowClientLogin` decides which door renders** — staff and clients share one Vercel deployment, so a client at `portal.rm117.com` would otherwise land on the staff Google screen with no way forward. Hostname decides; `?staff=1` is the staff escape hatch and **persists in sessionStorage** because the query string is gone after the first click |
 | `api/_lib/portal-auth.js` | The one place portal authorization lives. **Two identity paths, cookie first:** magic-link session → `clients` row; else Clerk → staff (or a legacy Clerk-linked client). `getClientJob` scopes every job read by `client_id` |
 | `api/portal/[action].js` | All portal routes. Client-facing: `me`/`files`/`download`/`messages`/`send`. **Public:** `enter` (the magic-link landing — it *is* the login; redirects so the token leaves the URL) + `signout`. **Staff-only:** `invite` (mint a link), `links`, `revoke`, **`draft`** (compose the client update email and **send NOTHING** — this is what the confirm dialog shows), **`notify`** (actually sends), **`history`** (what a client was told, verbatim). `buildPortalJobs` builds the payload incl. the per-job billing summary. ⚠️ **`draft` must stay side-effect-free** — the magic link is minted only on `notify`, so opening the dialog and closing it leaves nothing behind (an early version minted on preview and revoked the client's working link) |
 | `src/components/shell/portal-gate.jsx` | Resolves the magic-link cookie **above** the Clerk gates in the shell — without it a client would land on the staff Google sign-in screen. Staff have no portal cookie, so they skip the probe entirely |
@@ -109,6 +120,13 @@ Drive broker). `QBO_REFRESH_TOKEN` is optional locally — the rotating token li
   vision analysis. On Vercel for Production + Preview(`drawing-qa-merge`); in local `.env`.
 - **Use a personal Gmail for Google Cloud** — the rm117.com org's
   `iam.disableServiceAccountKeyCreation` blocks service-account key downloads.
+- **`PORTAL_BASE_URL`** — the origin baked into emailed magic links. Unset, links fall back to
+  the request host, i.e. `rm117-bms.vercel.app`, which reads as phishing to a client. Set this to
+  `https://portal.rm117.com` once the domain is live.
+- **`PORTAL_FROM_EMAIL`** (optional) — sender for portal sign-in codes; defaults to
+  `portal@rm117.com`. **Requires rm117.com verified in Resend**, which was blocked for months
+  because the firm didn't control the domain's DNS. **That changed 2026-07-23: rm117.com sits on
+  the firm's OWN Wix account** (Premium, custom domain), so SPF/DKIM can finally be published.
 
 ## Data model
 Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `proposals`, `letters`,
@@ -318,6 +336,14 @@ and a mis-typed escape hatch.
   email with the team CC'd. A CC'd link would be a shared credential: when a developer's project manager leaves
   the firm you'd have to revoke the whole team and re-send. Per-person links mean you revoke that one person,
   and you can see who actually opened it.
+- **The email + code door verifies identity; the magic link does not. Both are live, on purpose.**
+  A code proves the person controls the inbox — a genuine improvement, and a forwarded email no
+  longer gets anyone in. The magic link makes no such check, so **as long as both exist the link
+  is the weaker of the two, and that sets the bar.** That is an accepted trade (see below), not an
+  oversight: making a client type a code to read an update you just emailed them is exactly the
+  friction that stops a portal being used. Do not "fix" this by putting a code in front of the
+  update link. Security notes for the code path live in `api/_lib/portal-login-code.js` — the
+  HMAC and the attempt cap are both load-bearing.
 - **The client portal's magic link IS the credential — there is NO identity check, by design.**
   Whoever opens the link is in; they never type an email or a code. The `clients.email` on file only
   decides *who the link is mailed to*, not who may use it. **Ray's explicit decision (2026-07-13),
