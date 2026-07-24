@@ -14,9 +14,17 @@
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 
-// Until rm117.com is verified in Resend this MUST stay a domain Resend already trusts, or
-// every send 403s. Override with PORTAL_FROM_EMAIL once verification is done.
-const DEFAULT_FROM = 'Room 117 Architecture & Design <portal@rm117.com>';
+// ⚠️ MUST be a domain verified in Resend, or every send 403s.
+//
+// The verified domain is **send.rm117.com**, NOT rm117.com — and that is deliberate, not a
+// stopgap. Resend's free tier allows exactly ONE domain, and send.rm117.com was already
+// registered there (unverified since June). Verifying the existing one costs nothing; adding
+// rm117.com as a second domain would force a paid upgrade for no benefit.
+//
+// It is also the safer choice: the SPF/DKIM records live under send.rm117.com, so rm117.com's
+// own SPF and MX are untouched and the firm's Google Workspace mail cannot be affected by
+// anything done here. Verified 2026-07-23 (DKIM + both SPF records).
+const DEFAULT_FROM = 'Room 117 Architecture & Design <portal@send.rm117.com>';
 
 export const hasResend = () => Boolean(process.env.RESEND_API_KEY);
 
@@ -51,6 +59,11 @@ export async function sendTransactional({ to, subject, text }) {
       to: [to],
       subject,
       text,
+      // A confused client WILL reply to a sign-in code ("I didn't ask for this"), and
+      // portal@send.rm117.com is not a mailbox anyone reads. PORTAL_REPLY_TO points those
+      // replies at a real inbox. Omitted entirely when unset — an absent Reply-To is better
+      // than one aimed at a black hole.
+      ...(process.env.PORTAL_REPLY_TO ? { reply_to: process.env.PORTAL_REPLY_TO } : {}),
     }),
   });
 
