@@ -17,6 +17,8 @@ import {
   listSentInvoices,
   buildSentPnl,
   buildSentQuarters,
+  isInvoiceDueForPayment,
+  toPayableInvoice,
 } from '../api/_lib/qbo-reports.js';
 
 // Fixed "today" so days-past-due is deterministic.
@@ -454,5 +456,52 @@ describe('buildSentQuarters', () => {
     const quarters = buildSentQuarters(qtrReport, book, TODAY);
     expect(quarters.map((q) => q.label)).toEqual(['Q1 2025', 'Q2 2025']);
     expect(quarters[0]).toMatchObject({ partial: false, income: 3100, paid: 2000 }); // billed 3100, collected 2000
+  });
+});
+
+describe('portal "Pay now" — isInvoiceDueForPayment', () => {
+  const TODAY = '2026-07-24';
+  const base = { Balance: 500, DueDate: '2026-07-01', AllowOnlineACHPayment: true, AllowOnlineCreditCardPayment: true };
+
+  it('accepts a due, still-owed, online-payable invoice', () => {
+    expect(isInvoiceDueForPayment(base, TODAY)).toBe(true);
+  });
+
+  it('accepts an invoice due exactly today', () => {
+    expect(isInvoiceDueForPayment({ ...base, DueDate: TODAY }, TODAY)).toBe(true);
+  });
+
+  it('rejects a FUTURE-dated invoice (a pre-created phase not yet billed)', () => {
+    expect(isInvoiceDueForPayment({ ...base, DueDate: '2026-09-01' }, TODAY)).toBe(false);
+  });
+
+  it('rejects a fully-paid invoice (Balance 0)', () => {
+    expect(isInvoiceDueForPayment({ ...base, Balance: 0 }, TODAY)).toBe(false);
+  });
+
+  it('rejects an invoice with online payment switched off', () => {
+    expect(isInvoiceDueForPayment(
+      { ...base, AllowOnlineACHPayment: false, AllowOnlineCreditCardPayment: false }, TODAY,
+    )).toBe(false);
+  });
+
+  it('accepts card-only or ACH-only', () => {
+    expect(isInvoiceDueForPayment({ ...base, AllowOnlineACHPayment: false }, TODAY)).toBe(true);
+    expect(isInvoiceDueForPayment({ ...base, AllowOnlineCreditCardPayment: false }, TODAY)).toBe(true);
+  });
+
+  it('rejects an invoice with no due date rather than guessing', () => {
+    expect(isInvoiceDueForPayment({ ...base, DueDate: null }, TODAY)).toBe(false);
+  });
+
+  it('toPayableInvoice ships only the client-safe fields', () => {
+    const inv = {
+      Id: '1176', DocNumber: '1176', Balance: 250, DueDate: '2026-01-19',
+      PrivateNote: 'internal only', CustomerRef: { name: '25_048_Abar' },
+      Line: [{ DetailType: 'SalesItemLineDetail', SalesItemLineDetail: { ItemRef: { name: 'Design Phase I' } } }],
+    };
+    expect(toPayableInvoice(inv)).toEqual({
+      invoiceId: '1176', docNumber: '1176', description: 'Design Phase I', amount: 250, dueDate: '2026-01-19',
+    });
   });
 });

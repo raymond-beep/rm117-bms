@@ -35,6 +35,8 @@ import {
   MAX_REQUESTS_PER_WINDOW,
 } from '../_lib/portal-login-code.js';
 import { sendTransactional } from '../_lib/resend-send.js';
+import { hasQbo, listOpenInvoices, listOpenInvoicesForJob, getInvoiceLink } from '../_lib/qbo.js';
+import { isInvoiceDueForPayment, toPayableInvoice } from '../_lib/qbo-reports.js';
 
 function group(rows, key) {
   const m = new Map();
@@ -53,6 +55,7 @@ const METHODS = {
   download: 'GET',
   messages: 'GET',
   send: 'POST',
+  pay: 'GET',     // a job's due invoices + their QBO hosted pay-page links
   enter: 'GET',   // magic-link landing — PUBLIC by design (it IS the authentication)
   signout: 'GET', // clears the portal cookies
   // The email + code front door (2026-07-23). PUBLIC, for the same reason `enter` is: this
@@ -130,8 +133,38 @@ export default async function handler(req, res) {
       return handleMessages(req, res, identity);
     case 'send':
       return handleSend(req, res, identity);
+    case 'pay':
+      return handlePay(req, res, identity);
     default:
       return res.status(404).json({ error: 'unknown_action' });
+  }
+}
+
+// Today's date (yyyy-mm-dd) in the firm's timezone — the cutoff for "is this invoice
+// due yet". A few hours' slop around midnight is immaterial for a due-date gate.
+function todayInFirmTz() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+}
+
+// The whole open-invoice book, cached briefly. The portal's `me`/`preview` payload
+// annotates each job with what's DUE NOW (see buildPortalJobs), which needs QBO — but
+// a client reloading the portal must not fan out a QBO call per view. One list covers
+// every job, so we fetch it once and reuse it for ~60s across all portal loads.
+// Best-effort: any QBO failure leaves the cache empty and the portal simply omits the
+// due-now figure rather than breaking (money owed still shows from the local DB).
+let _openInvCache = { at: 0, rows: [] };
+const OPEN_INV_TTL_MS = 60_000;
+async function getOpenInvoicesCached() {
+  if (!hasQbo()) return [];
+  const now = Date.now();
+  if (now - _openInvCache.at < OPEN_INV_TTL_MS) return _openInvCache.rows;
+  try {
+    const rows = await listOpenInvoices();
+    _openInvCache = { at: now, rows };
+    return rows;
+  } catch (e) {
+    console.error('[portal] open-invoice fetch failed (due-now omitted):', e?.message || e);
+    return _openInvCache.rows; // last good list, or [] — never throw into portal load
   }
 }
 
@@ -141,8 +174,8 @@ export default async function handler(req, res) {
 // contracted total, paid-to-date and outstanding balance — a decision taken because a
 // client (especially a developer running several jobs) genuinely wants to know what they
 // owe, and because a large share of the firm's receivables sit 90+ days out. Only the
-// three summary figures cross the wire — never the payment records, the Forefront
-// commission, or anything about another client's job.
+// three summary figures (+ what's due now) cross the wire — never the payment records,
+// the Forefront commission, or anything about another client's job.
 async function buildPortalJobs(db, clientId) {
   const { data: jobs = [], error } = await db
     .from('jobs')
@@ -163,6 +196,22 @@ async function buildPortalJobs(db, clientId) {
     : { data: [] };
   const payByJob = group(payments, 'job_id');
 
+  // What's DUE NOW per job, from QBO's open-invoice book (one cached call). By the
+  // Job-ID invariant the QBO CustomerRef.name IS the Job ID. Only due/past-due,
+  // online-payable invoices count — future phases Ang pre-created are excluded, so a
+  // client is never invited to pre-pay unbilled work. Best-effort: empty on QBO trouble.
+  const today = todayInFirmTz();
+  const jobIdSet = new Set(jobIds);
+  const dueByJob = new Map();
+  for (const inv of await getOpenInvoicesCached()) {
+    const jid = inv?.CustomerRef?.name;
+    if (!jobIdSet.has(jid) || !isInvoiceDueForPayment(inv, today)) continue;
+    const cur = dueByJob.get(jid) || { amount: 0, count: 0 };
+    cur.amount += Number(inv.Balance || 0);
+    cur.count += 1;
+    dueByJob.set(jid, cur);
+  }
+
   return jobs.map((j) => {
     const timeline = (evByJob.get(j.job_id) || []).map((e) => ({ phase: e.phase, at: e.entered_at }));
     const lastEventAt = timeline.length ? timeline[timeline.length - 1].at : null;
@@ -181,8 +230,12 @@ async function buildPortalJobs(db, clientId) {
       last_update: lastEventAt || j.updated_at || j.created_at,
       timeline,
       // A job with no contracted total yet (a fresh proposal) shows no money at all,
-      // rather than a misleading $0 balance.
-      billing: total > 0 ? { total, paid, outstanding } : null,
+      // rather than a misleading $0 balance. `dueNow` (when > 0) is what the "Pay now"
+      // button collects — the sum of due/past-due online-payable invoices — which can
+      // be less than `outstanding` (future phases aren't billed yet).
+      billing: total > 0
+        ? { total, paid, outstanding, dueNow: (dueByJob.get(j.job_id)?.amount || 0) }
+        : null,
     };
   });
 }
@@ -198,6 +251,55 @@ async function handleMe(req, res, identity) {
     client: { name: client.name, email: client.email, type: client.type, company: client.company || null },
     jobs,
   });
+}
+
+// GET /api/portal/pay?job_id=... — the invoices this client can pay online RIGHT NOW
+// for one of their jobs, each with a QuickBooks hosted pay-page URL. Client-scoped via
+// getJobForIdentity (a client only ever reaches their own jobs; staff-preview may read
+// any). The client lands on Intuit's secure page and chooses ACH or card there —
+// nothing about a card or bank account ever passes through us. Payment then reconciles
+// on its own: QBO marks the invoice paid → the existing webhook writes a `payments`
+// row → the portal balance drops. Only due/past-due, online-payable invoices are
+// offered (see isInvoiceDueForPayment) so a client can't pre-pay an unbilled phase.
+async function handlePay(req, res, identity) {
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  if (identity.role !== 'client' && identity.role !== 'staff') return res.status(403).json({ error: 'forbidden' });
+
+  const url = new URL(req.url, 'http://localhost');
+  const job = await getJobForIdentity(identity, url.searchParams.get('job_id'));
+  if (!job) return res.status(404).json({ error: 'job_not_found' });
+
+  if (!hasQbo()) return res.status(200).json({ configured: false, dueNow: 0, invoices: [] });
+
+  let due = [];
+  try {
+    const today = todayInFirmTz();
+    const open = await listOpenInvoicesForJob(job.job_id);
+    due = open.filter((inv) => isInvoiceDueForPayment(inv, today));
+  } catch (e) {
+    console.error('[portal/pay] list invoices failed:', e?.message || e);
+    return res.status(502).json({ error: 'billing_unavailable' });
+  }
+
+  // Fetch each hosted pay link in parallel; drop any that can't produce one (an
+  // invoice whose online payment was turned off after all) rather than dangle a
+  // dead button. One slow/failed link never blocks the others.
+  const invoices = (
+    await Promise.all(
+      due.map(async (inv) => {
+        let payUrl = null;
+        try {
+          payUrl = await getInvoiceLink(inv.Id);
+        } catch (e) {
+          console.error('[portal/pay] link failed for invoice', inv.Id, e?.message || e);
+        }
+        return payUrl ? { ...toPayableInvoice(inv), payUrl } : null;
+      }),
+    )
+  ).filter(Boolean);
+
+  const dueNow = invoices.reduce((s, i) => s + Number(i.amount || 0), 0);
+  return res.status(200).json({ configured: true, dueNow, invoices });
 }
 
 // GET /api/portal/preview?client_id=... — STAFF ONLY. Render any client's portal

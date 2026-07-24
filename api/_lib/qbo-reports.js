@@ -55,6 +55,38 @@ export function invoiceDescription(inv) {
   return uniq.length === 1 ? uniq[0] : `${uniq[0]} +${uniq.length - 1} more`;
 }
 
+// ── Portal "Pay now" ──────────────────────────────────────────────────────────
+// An invoice a client may pay online RIGHT NOW. Three conditions, all required:
+//   1. still owed        — Balance > 0
+//   2. actually due      — DueDate on or before `today` (an ISO yyyy-mm-dd string).
+//                          Future-dated invoices are upcoming fee-schedule phases
+//                          Ang pre-creates in QBO; a client must NOT be invited to
+//                          pre-pay work that hasn't been billed. This is the whole
+//                          reason the portal can't just offer every open invoice.
+//   3. payable online    — online ACH or card is switched on for the invoice (the 5
+//                          older ones without it aren't offered a button; the client
+//                          settles those the way they already do).
+export function isInvoiceDueForPayment(inv, today) {
+  const balance = Number(inv?.Balance || 0);
+  if (balance <= 0) return false;
+  const due = String(inv?.DueDate || '').slice(0, 10);
+  if (!due || due > today) return false;
+  return Boolean(inv?.AllowOnlineACHPayment || inv?.AllowOnlineCreditCardPayment);
+}
+
+// The client-safe shape of a payable invoice. Deliberately minimal — a doc number,
+// what it's for, the amount owed and when it was due. No QBO ids beyond the one the
+// pay endpoint needs to fetch the hosted link, no memo, no other client's data.
+export function toPayableInvoice(inv) {
+  return {
+    invoiceId: inv?.Id != null ? String(inv.Id) : null,
+    docNumber: inv?.DocNumber || null,
+    description: invoiceDescription(inv),
+    amount: Number(inv?.Balance || 0),
+    dueDate: inv?.DueDate || null,
+  };
+}
+
 // Normalize one raw QBO Invoice into the flat shape the UI table wants. By the
 // Job-ID invariant the QBO Customer DisplayName === the Job ID, so `jobId` is the
 // customer name. `amount` is the still-open Balance (not the original TotalAmt).

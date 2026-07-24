@@ -407,3 +407,28 @@ export async function sendInvoice(invoiceId, email) {
   const res = await qboRequest('POST', path);
   return res?.Invoice || null;
 }
+
+// ── Client "Pay now" (portal) ─────────────────────────────────────────────────
+// A job's still-owed invoices, oldest-due first. QBO's `CustomerRef` filter matches
+// the customer Id (not the display name), so we resolve the customer by its display
+// name — which IS the Job ID via the invariant — then query by that Id. Balance > 0 =
+// still owed. Used by the portal to decide what a client can actually pay right now:
+// what's INVOICED, not the full contract outstanding (Ang bills per phase, so a
+// contract can be "outstanding" on work not yet billed).
+export async function listOpenInvoicesForJob(jobId) {
+  const customer = await findCustomerByDisplayName(jobId);
+  if (!customer?.Id) return [];
+  const safeId = escapeQboQueryValue(customer.Id);
+  return queryAllInvoices(`where CustomerRef = '${safeId}' and Balance > '0' order by DueDate`);
+}
+
+// The customer-facing hosted pay page for one invoice. QBO only returns this URL
+// when online payment is enabled on BOTH the company and the invoice, and only when
+// asked for it explicitly (include=invoiceLink) — it is not on a normal invoice read.
+// The client lands on Intuit's secure page and chooses ACH or card there; nothing
+// about card numbers ever touches our servers. Returns null when no link is available
+// (e.g. an invoice with online payment switched off — 5 of the older ones are).
+export async function getInvoiceLink(invoiceId) {
+  const res = await qboRequest('GET', `invoice/${invoiceId}?include=invoiceLink`);
+  return res?.Invoice?.InvoiceLink || null;
+}

@@ -169,30 +169,91 @@ function phaseTone(phase) {
   return 'default';
 }
 
-// Contract total / paid / outstanding for one project. Only the three summary figures
-// are sent to the browser — never the payment records themselves.
+// Contract total / paid / outstanding for one project. Only the summary figures are
+// sent to the browser — never the payment records themselves.
 //
-// A "Pay now" button belongs here, but it needs QuickBooks Payments enabled on the
-// company (and card fees are ~2.9% — ACH is the sane channel for invoices this size).
-// Until that's confirmed, we state the balance and let the client settle it the way
-// they already do rather than dangle a button that can't work.
-function BillingStrip({ billing }) {
+// "Pay now": `billing.dueNow` is what's actually INVOICED and due right now (server
+// filters to due/past-due, online-payable QBO invoices — never a future phase Ang
+// pre-created). It can be less than `outstanding`, which is the whole contract balance.
+// The button appears only when something is genuinely due; clicking it fetches the
+// QuickBooks hosted pay page(s) and opens Intuit's secure checkout — no card data ever
+// touches us, and the payment reconciles itself through the existing QBO webhook.
+function BillingStrip({ billing, jobId }) {
+  const { getToken } = useAuth();
   const { total, paid, outstanding } = billing;
+  const dueNow = Number(billing.dueNow || 0);
   const settled = outstanding <= 0;
+  const [pay, setPay] = useState({ status: 'idle', invoices: [] }); // idle|loading|list|none|error
+
+  const startPay = useCallback(async () => {
+    if (!jobId) return;
+    setPay({ status: 'loading', invoices: [] });
+    try {
+      const token = await getToken();
+      const r = await fetch(`/api/portal/pay?job_id=${encodeURIComponent(jobId)}`, {
+        cache: 'no-store',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await r.json().catch(() => ({}));
+      const invoices = Array.isArray(data?.invoices) ? data.invoices : [];
+      if (!r.ok) return setPay({ status: 'error', invoices: [] });
+      if (!invoices.length) return setPay({ status: 'none', invoices: [] });
+      // One invoice → straight to Intuit's secure page. Several → let them pick.
+      if (invoices.length === 1) {
+        window.open(invoices[0].payUrl, '_blank', 'noopener,noreferrer');
+        return setPay({ status: 'idle', invoices: [] });
+      }
+      setPay({ status: 'list', invoices });
+    } catch {
+      setPay({ status: 'error', invoices: [] });
+    }
+  }, [getToken, jobId]);
+
   return (
-    <div className="cp-billing">
-      <div className="cp-bill-cell">
-        <span className="cp-bill-label">Contract total</span>
-        <span className="cp-bill-value">{money(total)}</span>
+    <div className="cp-billing-wrap">
+      <div className="cp-billing">
+        <div className="cp-bill-cell">
+          <span className="cp-bill-label">Contract total</span>
+          <span className="cp-bill-value">{money(total)}</span>
+        </div>
+        <div className="cp-bill-cell">
+          <span className="cp-bill-label">Paid to date</span>
+          <span className="cp-bill-value">{money(paid)}</span>
+        </div>
+        <div className={`cp-bill-cell${settled ? '' : ' owed'}`}>
+          <span className="cp-bill-label">{settled ? 'Balance' : 'Outstanding'}</span>
+          <span className="cp-bill-value">{settled ? 'Paid in full' : money(outstanding)}</span>
+        </div>
       </div>
-      <div className="cp-bill-cell">
-        <span className="cp-bill-label">Paid to date</span>
-        <span className="cp-bill-value">{money(paid)}</span>
-      </div>
-      <div className={`cp-bill-cell${settled ? '' : ' owed'}`}>
-        <span className="cp-bill-label">{settled ? 'Balance' : 'Outstanding'}</span>
-        <span className="cp-bill-value">{settled ? 'Paid in full' : money(outstanding)}</span>
-      </div>
+
+      {dueNow > 0 && (
+        <div className="cp-pay">
+          <button className="cp-pay-btn" onClick={startPay} disabled={pay.status === 'loading'}>
+            {pay.status === 'loading' ? 'Opening secure payment…' : `Pay ${money(dueNow)} now`}
+          </button>
+          <span className="cp-pay-note">
+            Secure payment by bank transfer or card, powered by QuickBooks.
+            {dueNow < outstanding ? ` The rest of your ${money(outstanding)} balance is billed as later phases are completed.` : ''}
+          </span>
+          {pay.status === 'list' && (
+            <ul className="cp-pay-list">
+              {pay.invoices.map((inv) => (
+                <li key={inv.invoiceId} className="cp-pay-row">
+                  <span className="cp-pay-row-desc">{inv.description || `Invoice #${inv.docNumber}`}</span>
+                  <span className="cp-pay-row-amt">{money(inv.amount)}</span>
+                  <a className="cp-pay-btn cp-pay-btn-sm" href={inv.payUrl} target="_blank" rel="noopener noreferrer">Pay</a>
+                </li>
+              ))}
+            </ul>
+          )}
+          {pay.status === 'none' && (
+            <span className="cp-pay-err">Nothing is due for online payment right now. Please reach out with any questions.</span>
+          )}
+          {pay.status === 'error' && (
+            <span className="cp-pay-err">Sorry — we couldn’t open the payment page. Please try again in a moment.</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -319,7 +380,7 @@ function JobOverview({ job }) {
         </div>
       )}
 
-      {job.billing && <BillingStrip billing={job.billing} />}
+      {job.billing && <BillingStrip billing={job.billing} jobId={job.job_id} />}
 
       <div className="cp-stepper">
         <div className="cp-stepper-track" />
