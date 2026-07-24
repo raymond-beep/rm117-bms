@@ -232,7 +232,7 @@ function BillingStrip({ billing, jobId }) {
             {pay.status === 'loading' ? 'Opening secure payment…' : `Pay ${money(dueNow)} now`}
           </button>
           <span className="cp-pay-note">
-            Secure payment by bank transfer or card, powered by QuickBooks.
+            Pay by bank transfer (ACH) at no extra cost — credit card payments carry processing fees. Secured by QuickBooks.
             {dueNow < outstanding ? ` The rest of your ${money(outstanding)} balance is billed as later phases are completed.` : ''}
           </span>
           {pay.status === 'list' && (
