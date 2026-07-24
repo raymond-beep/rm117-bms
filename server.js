@@ -44,6 +44,7 @@ const routes = {
   '/api/portal/messages': () => import('./api/portal/[action].js'),
   '/api/jobs/design-phases': () => import('./api/jobs/design-phases.js'),
   '/api/portal/send': () => import('./api/portal/[action].js'),
+  '/api/portal/pay': () => import('./api/portal/[action].js'),
   '/api/portal/enter': () => import('./api/portal/[action].js'),
   '/api/portal/signout': () => import('./api/portal/[action].js'),
   '/api/portal/request-code': () => import('./api/portal/[action].js'),

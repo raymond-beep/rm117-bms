@@ -1589,6 +1589,25 @@ input, select, textarea { font: inherit; }
 .cp-bill-value { font-size: 18px; font-weight: 600; }
 .cp-bill-cell.owed .cp-bill-value { color: var(--brass-ink); }
 
+/* ---- Portal: "Pay now" (QuickBooks hosted checkout) ---- */
+.cp-billing-wrap { margin: 16px 0 4px; }
+.cp-billing-wrap .cp-billing { margin: 0; }
+.cp-pay { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; }
+.cp-pay-btn {
+  flex: none; background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 10px 18px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center;
+}
+.cp-pay-btn:hover { filter: brightness(1.05); }
+.cp-pay-btn:disabled { opacity: 0.55; cursor: default; filter: none; }
+.cp-pay-btn-sm { padding: 6px 14px; font-size: 13px; }
+.cp-pay-note { flex: 1 1 220px; min-width: 200px; font-size: 12px; color: var(--muted); line-height: 1.4; }
+.cp-pay-err { flex-basis: 100%; font-size: 12px; color: var(--brass-ink); }
+.cp-pay-list { flex-basis: 100%; list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 1px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--border); }
+.cp-pay-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--surface); }
+.cp-pay-row-desc { flex: 1; font-size: 13px; }
+.cp-pay-row-amt { font-family: var(--mono); font-weight: 600; }
+
 /* ---- Portal: portfolio table (the multi-project / developer view) ---- */
 .cp-portfolio { margin-bottom: 24px; overflow: hidden; }
 .cp-portfolio-head {
