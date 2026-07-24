@@ -6,6 +6,7 @@ import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
 import { SignedIn, SignedOut, SignIn, UserButton } from '@clerk/clerk-react';
 import { ErrorBoundary, RoleGate } from './components/shell/auth-gate.jsx';
 import { usePortalSession, PortalSplash, PortalLinkExpired, PortalClient } from './components/shell/portal-gate.jsx';
+import PortalLogin, { shouldShowClientLogin, readStaffOverride } from './components/shell/portal-login.jsx';
 import UserChip from './components/shell/UserChip.jsx';
 import TopBar from './components/shell/TopBar.jsx';
 
@@ -74,7 +75,27 @@ export default function AppShell() {
   const linkExpired = new URLSearchParams(location.search).get('portal_error');
   if (portal.status === 'loading') return <PortalSplash />;
   if (portal.status === 'client') return <PortalClient client={portal.client} jobs={portal.jobs} />;
-  if (linkExpired) return <PortalLinkExpired />;
+
+  // No session. WHICH sign-in belongs here depends on who's knocking: the staff app and the
+  // client portal are one Vercel deployment, so a client arriving at portal.rm117.com used to
+  // land on the staff Google screen with no way forward. Hostname decides (see
+  // shouldShowClientLogin); staff on the Vercel URL are unaffected.
+  const clientDoor = shouldShowClientLogin({
+    hostname: typeof window !== 'undefined' ? window.location.hostname : '',
+    pathname: location.pathname,
+    search: location.search,
+    staffOverride: readStaffOverride(location.search),
+  });
+
+  // An expired link used to be a dead end ("reply to your last email and we'll send a fresh
+  // one"). Now it has a self-serve way out, so hand it straight to the login with an
+  // explanation. Off the client door there's nothing to offer, so the old copy still stands.
+  if (linkExpired) {
+    return clientDoor
+      ? <PortalLogin notice="That link has expired. Sign in with your email instead — it only takes a moment." />
+      : <PortalLinkExpired />;
+  }
+  if (clientDoor) return <PortalLogin />;
 
   return (
     <>

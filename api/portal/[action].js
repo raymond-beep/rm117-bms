@@ -22,6 +22,19 @@ import {
   clearCookies,
   DEFAULT_LINK_TTL_DAYS,
 } from '../_lib/portal-session.js';
+import {
+  normalizeEmail,
+  mintCode,
+  hashCode,
+  codeMatches,
+  codeExpiry,
+  isCodeUsable,
+  isRateLimited,
+  buildLoginCodeEmail,
+  MAX_ATTEMPTS,
+  MAX_REQUESTS_PER_WINDOW,
+} from '../_lib/portal-login-code.js';
+import { sendTransactional } from '../_lib/resend-send.js';
 
 function group(rows, key) {
   const m = new Map();
@@ -42,6 +55,10 @@ const METHODS = {
   send: 'POST',
   enter: 'GET',   // magic-link landing — PUBLIC by design (it IS the authentication)
   signout: 'GET', // clears the portal cookies
+  // The email + code front door (2026-07-23). PUBLIC, for the same reason `enter` is: this
+  // is how a client becomes authenticated, so there is no identity to check yet.
+  'request-code': 'POST', // email in -> a 6-digit code is mailed
+  'verify-code': 'POST',  // code in  -> the normal portal session cookie
   invite: 'POST', // STAFF-only — mint a magic link for a client
   links: 'GET',   // STAFF-only — list a client's live links
   revoke: 'POST', // STAFF-only — kill a link
@@ -57,7 +74,7 @@ const METHODS = {
 // Actions that must NOT go through resolvePortalIdentity: `enter` is how a client
 // becomes authenticated in the first place, and `signout` must work even once the
 // cookie is stale. Everything else is gated.
-const PUBLIC_ACTIONS = new Set(['enter', 'signout']);
+const PUBLIC_ACTIONS = new Set(['enter', 'signout', 'request-code', 'verify-code']);
 
 // Staff-only actions are gated by requireStaff (Clerk), not the portal identity —
 // minting/revoking a client's access, and emailing them, are staff operations.
@@ -77,9 +94,12 @@ export default async function handler(req, res) {
   if (!allowed) return res.status(404).json({ error: 'unknown_action' });
   if (req.method !== allowed) return res.status(405).json({ error: 'Method not allowed' });
 
-  // The magic-link landing + signout run before any identity exists.
+  // These run before any identity exists — they're how one gets created.
   if (PUBLIC_ACTIONS.has(action)) {
-    return action === 'enter' ? handleEnter(req, res) : handleSignout(req, res);
+    if (action === 'enter') return handleEnter(req, res);
+    if (action === 'request-code') return handleRequestCode(req, res);
+    if (action === 'verify-code') return handleVerifyCode(req, res);
+    return handleSignout(req, res);
   }
 
   // Minting/revoking client access is a staff operation, gated by Clerk.
@@ -444,6 +464,160 @@ async function handleInvite(req, res, staff) {
     url: `${origin}/enter?t=${token}`,
     expires_at,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Email + code login — the front door for a client who doesn't have a live link.
+// ---------------------------------------------------------------------------
+
+// `_` and `%` are LIKE wildcards, and BOTH are legal in an email local-part
+// (first_last@x.com is ordinary). Unescaped, `first_last@x.com` would also match
+// `firstXlast@x.com` — i.e. one client could be mailed another client's code. Escape,
+// AND re-check exact equality in JS below; the JS check is the authority.
+const escapeLike = (s) => String(s).replace(/[\\%_]/g, '\\$&');
+
+// Find the active contact behind an email address. Returns { contact, client } or null.
+async function findContactByEmail(db, email) {
+  const { data: rows = [] } = await db
+    .from('client_contacts')
+    .select('id, client_id, name, email, is_primary, created_at')
+    .ilike('email', escapeLike(email))
+    .eq('is_active', true)
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: true });
+
+  // The DB filter only narrows; this is what actually decides a match.
+  const matches = rows.filter((r) => normalizeEmail(r.email) === email);
+  if (!matches.length) return null;
+
+  // ⚠️ One address CAN legitimately sit under two clients — client_contacts is unique on
+  // (client_id, lower(email)), not on email alone, so a project manager who works for two
+  // different developers is a valid row pair. The session holds ONE client id, so we pick
+  // deterministically: primary contact first, then oldest. That person sees one client's
+  // projects, not both. Rare today; if it starts happening, the fix is a client picker
+  // after verification, not a change here.
+  const contact = matches[0];
+  const { data: client } = await db
+    .from('clients')
+    .select('id, name, is_active')
+    .eq('id', contact.client_id)
+    .maybeSingle();
+
+  if (!client || client.is_active === false) return null;
+  return { contact, client };
+}
+
+// POST /api/portal/request-code  { email } — PUBLIC.
+//
+// ⚠️ ALWAYS RETURNS 200, whether or not the address belongs to a client. Anything else turns
+// this endpoint into an oracle for "is this person an RM117 client?", which is a real
+// disclosure about the firm's book of business. The client-facing copy therefore says "if
+// that address is on file, we've sent a code" — deliberately non-committal.
+async function handleRequestCode(req, res) {
+  if (!hasDb()) return res.status(503).json({ error: 'db_not_configured' });
+
+  const email = normalizeEmail(req.body?.email);
+  const ok = () => res.status(200).json({ ok: true });
+
+  // Cheap shape check only — never "that address isn't one of ours".
+  if (!email || !email.includes('@')) return res.status(400).json({ error: 'invalid_email' });
+
+  const db = getDb();
+
+  try {
+    const { data: recent = [] } = await db
+      .from('portal_login_codes')
+      .select('created_at')
+      .eq('email', email)
+      .order('created_at', { ascending: false })
+      .limit(MAX_REQUESTS_PER_WINDOW);
+
+    // Silently stop. Telling the caller they're throttled is itself a signal that the
+    // address is real, and a client who genuinely fumbled will simply try again shortly.
+    if (isRateLimited(recent)) return ok();
+
+    const found = await findContactByEmail(db, email);
+    if (!found) return ok(); // unknown address — indistinguishable from success, by design
+
+    const code = mintCode();
+
+    // One live code per address: supersede anything outstanding, so an older email can't
+    // still be used after a re-request. Mirrors how each new "Notify client" email revokes
+    // the previous magic link.
+    await db
+      .from('portal_login_codes')
+      .update({ consumed_at: new Date().toISOString() })
+      .eq('email', email)
+      .is('consumed_at', null);
+
+    const { error } = await db.from('portal_login_codes').insert({
+      email,
+      client_id: found.client.id,
+      contact_id: found.contact.id,
+      code_hash: hashCode(email, code),
+      expires_at: codeExpiry(),
+      requested_ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || null,
+    });
+    if (error) throw new Error(error.message);
+
+    const mail = buildLoginCodeEmail({ code, name: found.contact.name || found.client.name });
+    await sendTransactional({ to: email, subject: mail.subject, text: mail.text });
+  } catch (err) {
+    // Log the real cause (unverified domain, missing key) but never surface it — the failure
+    // must look identical to the unknown-address case from outside.
+    console.error('[portal/request-code]', err);
+  }
+
+  return ok();
+}
+
+// POST /api/portal/verify-code  { email, code } — PUBLIC.
+//
+// On success this mints the SAME session cookie a magic link does, so the client lands in the
+// identical portal and there is no second authorization path to maintain.
+async function handleVerifyCode(req, res) {
+  if (!hasDb()) return res.status(503).json({ error: 'db_not_configured' });
+
+  const email = normalizeEmail(req.body?.email);
+  const submitted = String(req.body?.code ?? '').trim();
+  if (!email || !submitted) return res.status(400).json({ error: 'invalid' });
+
+  const db = getDb();
+
+  const { data: row } = await db
+    .from('portal_login_codes')
+    .select('id, client_id, contact_id, code_hash, expires_at, attempts, consumed_at')
+    .eq('email', email)
+    .is('consumed_at', null)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // Same generic answer for "no code outstanding", "expired", and "attempts burned" — a
+  // guesser learns nothing about which wall they hit.
+  if (!isCodeUsable(row)) return res.status(400).json({ error: 'invalid_code' });
+
+  if (!codeMatches(email, submitted, row.code_hash)) {
+    const attempts = (row.attempts ?? 0) + 1;
+    await db.from('portal_login_codes').update({ attempts }).eq('id', row.id);
+    // Remaining count IS shown: it's honest UX for the client who fat-fingered a digit, and
+    // it tells an attacker nothing they couldn't determine by counting their own guesses.
+    return res.status(400).json({ error: 'invalid_code', attempts_remaining: Math.max(0, MAX_ATTEMPTS - attempts) });
+  }
+
+  // Single use — burn it before issuing the session.
+  await db.from('portal_login_codes').update({ consumed_at: new Date().toISOString() }).eq('id', row.id);
+
+  const { data: client } = await db
+    .from('clients')
+    .select('id, is_active')
+    .eq('id', row.client_id)
+    .maybeSingle();
+  if (!client || client.is_active === false) return res.status(400).json({ error: 'invalid_code' });
+
+  const session = signSession(client.id, { contactId: row.contact_id });
+  res.setHeader('Set-Cookie', sessionCookies(session, { secure: isSecureReq(req) }));
+  return res.status(200).json({ ok: true });
 }
 
 // GET /api/portal/links?client_id=... — STAFF. A client's links (never the tokens —

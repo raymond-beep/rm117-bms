@@ -22,7 +22,11 @@ export const SESSION_COOKIE = 'rm117_portal_session'; // HttpOnly — the creden
 export const HINT_COOKIE = 'rm117_portal'; // readable — lets the SPA skip Clerk
 
 export const DEFAULT_LINK_TTL_DAYS = 60;
-export const SESSION_TTL_DAYS = 30;
+// 60 days, raised from 30 (2026-07-23). Once there's a login screen on rm117.com the portal
+// is meant to feel like an account you stay signed into — being silently logged out is the
+// moment a client gives up and just emails "any update?", which is the one outcome the portal
+// exists to prevent. Applies to magic-link sessions too; both doors mint the same cookie.
+export const SESSION_TTL_DAYS = 60;
 
 const DAY_MS = 86_400_000;
 
@@ -65,9 +69,17 @@ export function isLinkUsable(row, now = Date.now()) {
 
 const sign = (payload) => crypto.createHmac('sha256', sessionSecret()).update(payload).digest('base64url');
 
-// `<base64url({c,e})>.<hmac>` — c = client id, e = expiry (epoch ms).
-export function signSession(clientId, { now = Date.now(), days = SESSION_TTL_DAYS } = {}) {
-  const payload = b64url(JSON.stringify({ c: String(clientId), e: now + days * DAY_MS }));
+// `<base64url({c,k,e})>.<hmac>` — c = client id, k = contact id (optional), e = expiry (ms).
+//
+// `k` records WHICH PERSON signed in, which matters now that a client can be a developer with
+// several contacts: "Tyler's PM opened this" is a different fact from "someone at Tyler's
+// office opened this". It is deliberately OPTIONAL — cookies minted before this existed carry
+// no `k` and must keep working, so nothing may ever require it. Authorization is still by
+// client id alone; `k` is for the audit trail, never for access decisions.
+export function signSession(clientId, { now = Date.now(), days = SESSION_TTL_DAYS, contactId = null } = {}) {
+  const claims = { c: String(clientId), e: now + days * DAY_MS };
+  if (contactId) claims.k = String(contactId);
+  const payload = b64url(JSON.stringify(claims));
   return `${payload}.${sign(payload)}`;
 }
 
@@ -101,7 +113,8 @@ export function verifySession(value, now = Date.now()) {
   if (!claims?.c || typeof claims.e !== 'number') return null;
   if (claims.e <= now) return null;
 
-  return { clientId: claims.c, expiresAt: claims.e };
+  // contactId is null for every pre-`k` cookie — callers must treat it as optional.
+  return { clientId: claims.c, contactId: claims.k ? String(claims.k) : null, expiresAt: claims.e };
 }
 
 // ---------- cookie plumbing ----------
