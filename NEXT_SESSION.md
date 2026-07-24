@@ -1,7 +1,53 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-18 — **QuickBooks ↔ Drive Job-ID reconciliation** (renumbers, merges, Boyko,
-cross-reference) + a QBO apostrophe-query fix shipped. Working tree clean, `main` in sync, **263 tests green**,
-prod deployed & verified (READY). Angelena is cleaning up QuickBooks; Ray is refining the app alongside her.
+**Last updated:** 2026-07-23 — **Client portal email + code sign-in is LIVE at `portal.rm117.com`.**
+Working tree clean, `main` in sync, **289 tests green**, prod deployed & verified. Migration `0018`
+applied. ▶ **Next session starts with Phase C: the "Client Login" button on the Wix site — full
+step-by-step in `PORTAL_LOGIN.md`.**
+
+---
+
+# ▶ START HERE 2026-07-23 — Client portal sign-in
+
+**Canonical doc: `PORTAL_LOGIN.md`.** Read that first; it has the architecture, the security notes,
+and the Phase C click-by-click Wix guide.
+
+### The one job left
+**Phase C — add a "Client Login" button to the rm117.com header, linking to `https://portal.rm117.com`.**
+It **cannot be automated** (Wix has no REST API for editing a classic Editor site's header or nav), so
+it's a manual Editor task. ⚠️ **Add a BUTTON, not a menu item** — the nav already overflows into "More"
+even at 1600px, so a 7th menu entry would be hidden. Steps are in `PORTAL_LOGIN.md` → *Phase C*.
+
+### What shipped today
+- **Email + 6-digit code sign-in** — the portal's front door, for clients who lost their update email.
+  Ray asked for "a username and password like QuickBooks"; chose passwordless codes instead (no Clerk
+  prod instance, no reset flow, nobody becomes the password desk). **The magic link stays** — both
+  doors mint the same session. ⚠️ While both are live the link is the weaker one; that's an accepted
+  trade, not an oversight. Do NOT put a code in front of the update link.
+- **`portal.rm117.com` is live** — A record written into Wix DNS, Let's Encrypt cert, `PORTAL_BASE_URL`
+  set so emailed links stop reading `rm117-bms.vercel.app` (which looks like phishing to a client).
+- **Resend sending finally works** — domain `send.rm117.com` verified (DKIM + both SPF). Free tier, no
+  upgrade: that domain was *already* registered and unverified since June; the upgrade prompt Ray hit
+  was only because he tried to add `rm117.com` as a **second** domain. Root SPF/MX untouched.
+- **`PORTAL_REPLY_TO=raymond@rm117.com`** so replies to a sign-in code reach a real inbox.
+- Fixed along the way: `.portal-splash` / `.portal-brand` were **referenced but never defined in CSS**
+  (those screens had been rendering unstyled); `?staff=1` didn't survive navigation; session TTL 30 → 60 days.
+
+### ⭐ Things worth knowing next time
+- **rm117.com's DNS IS writable from Claude** (Wix Domain DNS API, `additions` only). **Never
+  `CreateDnsZone` — it deletes the zone.** Always snapshot + diff: the live site and company email
+  share that zone. See the `rm117-dns-wix` memory.
+- **The Wix dashboard silently fails to save DNS edits.** Ray added a record by hand and it never
+  reached the zone. Verify with `dig +short A <host> @ns4.wixdns.net`, never the Wix UI.
+- **Vercel cannot read env values back** — `vercel env pull` returns `KEY=""` for every encrypted var.
+- ⚠️ **Open, unrelated finding: rm117.com has only ONE MX record** (`5 alt1.aspmx.l.google.com`).
+  Standard Google Workspace has five. Mail flows today but there is **no fallback**. Ray was told;
+  not fixed.
+
+### Cleanup already done
+Test client/contact/login-code rows deleted (97 clients, unchanged); `setup-temp` full-access Resend
+key deleted; `.env` restored to the send-only key; local scratch files with a session cookie removed.
+
+---
 
 ## What happened 2026-07-18 — QBO ↔ Drive Job-ID reconciliation
 Almost all of this is **data work in Supabase** (no code) — the one code change is the apostrophe fix.
@@ -1322,7 +1368,12 @@ click-through with Ang for final UX sign-off.
 ## Vercel / deployment notes
 
 - Project folder: `/Users/raymondarocha/Desktop/RM117 App` (renamed 2026-06-16 from `RM117-App-handoff copy`)
-- Vercel project: `rm117-bms` under `rm117-s-projects`
-- To deploy: `cd` to project folder, `vercel --prod`
-- Folder is linked to Vercel (`.vercel/project.json` now exists)
-- Auto-deploys are NOT set up (no git remote) — deploy manually via CLI or push to GitHub
+- Vercel project: `rm117-bms` under `rm117-s-projects` (team `team_ZoaOjxUbLl21FdfJn9UNucEJ`)
+- **To deploy: `git push origin main`.** Auto-deploy from `main` IS set up, behind a test gate
+  (`vercel-build` = `vitest run && vite build`), so a failing test aborts the deploy.
+- ⚠️ **Do NOT run `vercel --prod`** — it causes duplicate deploys. (The three lines that used to sit
+  here said the opposite and that auto-deploy wasn't set up; both were stale as of 2026-07-23 and
+  contradicted CLAUDE.md, which is authoritative.)
+- Env var changes need a redeploy to take effect (`vercel redeploy <deployment-url>`).
+- Domains on the project: `rm117-bms.vercel.app` (staff) and **`portal.rm117.com`** (clients).
+  Same deployment — the hostname decides which sign-in renders. See `PORTAL_LOGIN.md`.
