@@ -105,7 +105,7 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `api/_lib/portal-auth.js` | The one place portal authorization lives. **Two identity paths, cookie first:** magic-link session → `clients` row; else Clerk → staff (or a legacy Clerk-linked client). `getClientJob` scopes every job read by `client_id` |
 | `api/portal/[action].js` | All portal routes. Client-facing: `me`/`files`/`download`/`messages`/`send`. **Public:** `enter` (the magic-link landing — it *is* the login; redirects so the token leaves the URL) + `signout`. **Staff-only:** `invite` (mint a link), `links`, `revoke`, **`draft`** (compose the client update email and **send NOTHING** — this is what the confirm dialog shows), **`notify`** (actually sends), **`history`** (what a client was told, verbatim). `buildPortalJobs` builds the payload incl. the per-job billing summary. ⚠️ **`draft` must stay side-effect-free** — the magic link is minted only on `notify`, so opening the dialog and closing it leaves nothing behind (an early version minted on preview and revoked the client's working link) |
 | `src/components/shell/portal-gate.jsx` | Resolves the magic-link cookie **above** the Clerk gates in the shell — without it a client would land on the staff Google sign-in screen. Staff have no portal cookie, so they skip the probe entirely |
-| `src/rm117-portal-v1.jsx` | The client portal. **One project → card switcher** (homeowner); **several → `PortfolioTable`** (developer: every project, stage, next-up, balance on one screen). `BillingStrip` shows contract total / paid / outstanding. The only forward-looking date is the job's **next milestone** — blank if staff haven't set it (the Progress tab now flags that) |
+| `src/rm117-portal-v1.jsx` | The client portal. **One project → card switcher** (homeowner); **several → `PortfolioTable`** (developer: every project, stage, next-up, balance on one screen). `BillingStrip` shows contract total / paid / outstanding. **"Next up" is DERIVED** from the next rung of the client ladder — see `api/_lib/portal-ladder.js` |
 | `scripts/import-sheet.js` | One-time Sheet → Supabase migration (Phase 2) |
 | `scripts/link-jobs-to-clients.js` | Link unlinked jobs to existing clients (dry-run default) |
 | `scripts/create-clients-for-unlinked.js` | Create clients for unlinked jobs w/ real names (dry-run default) |
@@ -151,7 +151,9 @@ Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `prop
 - **Frontend DnD** uses `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities` (BMS grouped view).
 - **`jobs`** keyed by Job ID (`YY_NNN_[FF_]LastName`). `client_id` = who's billed;
   `referred_by_id` = who referred the work in (nullable; inbound referrals only — no outbound).
-  `next_milestone_label` + `next_milestone_date` = the one upcoming "date to follow".
+  `next_milestone_label` + `next_milestone_date` = the one upcoming "date to follow". **These are
+  an OVERRIDE, not the source** — filled on 0 of 162 jobs in the year they existed, so the portal
+  derives "Next up" from the ladder instead and uses a typed label only when there is one.
 - **`outstanding` is computed**, never stored: `job_total - sum(payments.amount)`.
 - **`job_phase_events`** = append-only log of when each job reached a phase (powers the Progress
   timeline). Auto-stamped on phase change; editable per phase via `POST /api/phase-events`.
@@ -366,6 +368,26 @@ and a mis-typed escape hatch.
   provisioned until promotion. Moving a job out of `lead`/`potential`/`job_dropped` IS the signing
   event: `assignOfficialJobId()` (`api/_lib/job-number.js`) picks the next free number (app DB **and**
   Drive), renames the job (children follow via `ON UPDATE CASCADE`), and creates the Drive folder.
+- **"Next up" is DERIVED from the client ladder, and a derived one NEVER carries a date.**
+  (`api/_lib/portal-ladder.js`, 2026-07-25.) Two separate rules, both load-bearing:
+  - *Derive from the CLIENT ladder, never the stored phase set.* A job in `cd_prep` or
+    `cd_outgoing` must both read "Next up: Permitting". Deriving from `PHASES` would put
+    "CD — Outgoing" in front of a client and leak the internal split through the back door —
+    the same leak the ladder exists to prevent. Off-ladder phases (`on_hold`, `completed`,
+    `canceled`, `job_dropped`, `lead`) show NOTHING: a paused job that names a next step reads
+    as progress that isn't happening (Ray's call).
+  - *No date on a derived value.* The date the firm assigns a phase is an internal planning
+    figure; showing it to a client converts an estimate into a commitment they will hold the
+    firm to. Only a milestone a staff member TYPED may carry a date. Do not "improve" this by
+    projecting a date from phase averages onto the portal without Ray deciding to publish it.
+- **The phase clock starts at CREATION, not at the first move.** `api/jobs/create.js` and
+  `api/drive/import.js` both stamp `job_phase_events` + `phase_since` via
+  `api/_lib/phase-clock.js`, alongside `api/jobs/update.js` on every later change. Before
+  2026-07-25 only the update path stamped, so 29 of 162 jobs (every Drive import) had no event
+  at all and a job's FIRST phase was unmeasurable — precisely the phases (Lead, Proposal Sent)
+  where the firm most wants to know how long things sit. **The gap is NOT backfillable**; per-phase
+  duration history accrues from 2026-07-25 forward, so treat any average older than that as absent
+  rather than as zero.
 - **The client portal shows only three money figures per job — contract total, paid-to-date,
   outstanding — and nothing else.** (This deliberately supersedes the old "the portal is money-free"
   rule, dropped 2026-07-13: clients, especially developers running several jobs, want to know what
