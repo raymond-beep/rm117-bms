@@ -12,6 +12,7 @@ import { getDb, hasDb, computeOutstanding } from '../_lib/db.js';
 import { getUserEmail } from '../_lib/clerk.js';
 import { sendAsUser } from '../_lib/gmail-send.js';
 import { buildUpdateEmail } from '../_lib/portal-notify.js';
+import { deriveNextUp } from '../_lib/portal-ladder.js';
 import {
   mintToken,
   hashToken,
@@ -235,14 +236,19 @@ async function buildPortalJobs(db, clientId) {
     const total = Number(j.job_total || 0);
     const paid = jobPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
     const outstanding = computeOutstanding(j, jobPayments);
+    const nextUp = deriveNextUp(j);
     return {
       job_id: j.job_id,
       title: j.client_name || j.job_id,
       address: j.address || null,
       phase: j.phase,
       phase_override: j.phase_override || null,
-      next_milestone_label: j.next_milestone_label || null,
-      next_milestone_date: j.next_milestone_date || null,
+      // "Next up" — a staff-typed milestone when there is one, otherwise DERIVED from the
+      // next rung of the client ladder. The manual field has never been filled on any job,
+      // so without this fallback the line is blank portal-wide. A derived value carries no
+      // date (see deriveNextUp), which is what keeps it from reading as a commitment.
+      next_milestone_label: nextUp.label,
+      next_milestone_date: nextUp.date,
       last_update: lastEventAt || j.updated_at || j.created_at,
       timeline,
       // A job with no contracted total yet (a fresh proposal) shows no money at all,

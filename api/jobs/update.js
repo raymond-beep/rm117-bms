@@ -3,6 +3,7 @@
 import { getDb, hasDb, PHASES, isValidSubPhase, isPlaceholderJobId, UNNUMBERED_PHASES } from '../_lib/db.js';
 import { assignOfficialJobId } from '../_lib/job-number.js';
 import { requireStaff } from '../_lib/require-staff.js';
+import { stampPhaseEntry } from '../_lib/phase-clock.js';
 
 // Whitelist — only fields the JobEditor may write. Everything else is computed,
 // import-only, or managed elsewhere.
@@ -109,12 +110,10 @@ export default async function handler(req, res) {
       .single();
     if (error) throw error;
 
+    // Keep the phase clock running. Creation starts it (api/jobs/create + api/drive/import);
+    // this is every subsequent move. Best-effort — the timeline is a side record.
     if (phaseChanged) {
-      const { error: evErr } = await db
-        .from('job_phase_events')
-        .insert({ job_id, phase: updates.phase });
-      // Don't fail the save if the timeline log hiccups — it's a side record.
-      if (evErr) console.error('[api/jobs/update] phase-event insert', evErr);
+      await stampPhaseEntry(db, job_id, updates.phase, { where: 'api/jobs/update' });
     }
 
     // ── The proposal was signed → the lead earns its official Job ID ──

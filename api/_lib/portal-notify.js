@@ -8,6 +8,7 @@
 //
 // Deliberately NOT in this email: money, sub-phases (Prep/Outgoing, DPI/II/III), job IDs,
 // phase jargon. A client who reads "your CDs are 90% complete" replies "so where's my set?"
+import { deriveNextUp } from './portal-ladder.js';
 
 // The client-facing name for each phase — plain English, matching the portal's ladder.
 // "CD" reads as a compact disc to a homeowner; "Outgoing" means nothing at all.
@@ -72,10 +73,15 @@ export function buildUpdateEmail({ job, client, link, senderName, note }) {
     lines.push(note.trim());
   }
 
-  if (job?.next_milestone_label) {
-    const when = fmtDate(job.next_milestone_date);
+  // "Next up" — staff-typed when set, else derived from the next rung of the client
+  // ladder so the email carries a forward-looking line even though nobody fills the
+  // field in. A DERIVED value is phrased as what comes next, never as a scheduled
+  // date: an emailed date reads as a promise, and this one is a phase name.
+  const nextUp = deriveNextUp(job);
+  if (nextUp.label) {
+    const when = nextUp.derived ? null : fmtDate(nextUp.date);
     lines.push('');
-    lines.push(when ? `Next up: ${job.next_milestone_label} — ${when}.` : `Next up: ${job.next_milestone_label}.`);
+    lines.push(when ? `Next up: ${nextUp.label} — ${when}.` : `Next up: ${nextUp.label}.`);
   }
 
   lines.push('');
