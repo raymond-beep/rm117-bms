@@ -10,31 +10,16 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth, useClerk, useUser } from '@clerk/clerk-react';
 import { shortDate, fileSize, money } from './lib/format.js';
+import { CLIENT_LADDER } from './lib/portal-ladder.js';
 import { hasPortalHint } from './components/shell/portal-gate.jsx';
 
 const fmtMsgTime = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
 
-// Client-facing phase vocabulary — plain English, not the staff BMS shorthand ("CD" reads
-// as a compact disc to a homeowner; "Outgoing" means nothing at all).
-//
-// SUB-PHASES ARE DELIBERATELY ABSENT. Prep/Outgoing and DPI/II/III are an internal
-// workload split; telling a client their drawings are "90% done" only invites "so where
-// is my set?". Staff see them on the BMS board; clients never do.
-//
-// 'lead' is absent too — a lead has no portal (they aren't a client until they sign).
-// A ladder step can cover SEVERAL stored phases — the firm splits CDs into Prep and
-// Outgoing to manage workload, but a client sees one "Construction Drawings" step. They
-// don't need to know their drawings are 90% done; it only invites "so where's my set?".
-const LADDER = [
-  { key: 'potential', label: 'Proposal', phases: ['potential'] },
-  { key: 'survey_zoning', label: 'Survey / Zoning', phases: ['survey_zoning'] },
-  { key: 'design_phase', label: 'Design', phases: ['design_phase'] },
-  { key: 'cd', label: 'Construction Drawings', phases: ['cd_prep', 'cd_outgoing'] },
-  { key: 'permitting', label: 'Permitting', phases: ['permitting'] },
-  { key: 'construction', label: 'Construction', phases: ['construction'] },
-  { key: 'completed', label: 'Complete', phases: ['completed'] },
-];
+// Client-facing phase vocabulary — plain English, not the staff BMS shorthand. Lives in
+// its own module because the SERVER derives the "Next up" line from the same rungs
+// (api/_lib/portal-ladder.js); see the note there.
+const LADDER = CLIENT_LADDER;
 const SHORT_PHASE = {
   lead: 'Lead',
   potential: 'Proposal',

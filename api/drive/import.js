@@ -16,6 +16,7 @@ import { getDb, hasDb, PHASES, isPlaceholderJobId } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
 import { hasDrive, getFileMeta } from '../_lib/google-drive.js';
 import { parseFolderName } from '../_lib/drive-sync.js';
+import { stampPhaseEntry } from '../_lib/phase-clock.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -78,6 +79,9 @@ export default async function handler(req, res) {
       client_name: req.body.client_name || parsed.clientName || 'Unknown',
       address: req.body.address || null,
       phase,
+      // Start the phase clock at import. Every one of the 29 jobs that had no timeline row
+      // at all (measured 2026-07-25) came in through here — see api/_lib/phase-clock.js.
+      phase_since: new Date().toISOString(),
       job_total: 0,
       amount_billed: 0,
       bill_flag: false,
@@ -98,6 +102,9 @@ export default async function handler(req, res) {
       }
       throw error;
     }
+
+    // Start the phase clock. Best-effort — never fail an import over the side record.
+    await stampPhaseEntry(db, parsed.jobId, phase, { where: 'api/drive/import' });
 
     res.status(201).json({ job: data, folderName: meta.name });
   } catch (err) {

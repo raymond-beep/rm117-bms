@@ -44,9 +44,20 @@ describe('the client update email', () => {
     expect(compose().text).toContain('Next up: Design Meeting 2 — August 4.');
   });
 
-  it('says nothing about a milestone when none is set', () => {
-    const e = compose({ job: { ...job, next_milestone_label: null, next_milestone_date: null } });
-    expect(e.text).not.toContain('Next up');
+  // Changed 2026-07-25: the email used to go silent here. Nobody ever filled the manual
+  // field (0 of 162 jobs), so "silent" meant every update email lost its forward-looking
+  // line. It now derives the next rung of the client ladder instead.
+  it('derives the next step when no milestone is typed — and gives it NO date', () => {
+    const e = compose({ job: { ...job, phase: 'design_phase', next_milestone_label: null, next_milestone_date: null } });
+    expect(e.text).toContain('Next up: Construction Drawings.');
+    expect(e.text).not.toMatch(/Next up:.* — /); // a derived step is not a scheduled date
+  });
+
+  it('still says nothing when the job is off the ladder', () => {
+    for (const phase of ['on_hold', 'completed', 'canceled']) {
+      const e = compose({ job: { ...job, phase, next_milestone_label: null, next_milestone_date: null } });
+      expect(e.text, phase).not.toContain('Next up');
+    }
   });
 
   it('carries the staff member’s own note — the reason a HUMAN presses send', () => {

@@ -4,6 +4,7 @@
 import { getDb, hasDb, JOB_ID_RE, PHASES, isPlaceholderJobId } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
 import { hasDrive, provisionJobFolders } from '../_lib/google-drive.js';
+import { stampPhaseEntry } from '../_lib/phase-clock.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -31,6 +32,9 @@ export default async function handler(req, res) {
     client_name,
     address: body.address || null,
     phase,
+    // The phase clock starts at creation, not at the first move — otherwise a job's very
+    // first phase is unmeasurable and its aging flag never arms. See api/_lib/phase-clock.js.
+    phase_since: new Date().toISOString(),
     job_total: body.job_total || 0,
     amount_billed: 0,
     bill_flag: false,
@@ -54,6 +58,9 @@ export default async function handler(req, res) {
       }
       throw error;
     }
+
+    // Start the phase clock. Best-effort — a missing timeline row must never fail a create.
+    await stampPhaseEntry(db, job_id, phase, { where: 'api/jobs/create' });
 
     // Best-effort: provision the job's Drive folder tree (keyed by Job ID) and
     // persist its "Files Sent" id for the portal vault. Non-fatal — a Drive
