@@ -31,7 +31,7 @@ export function usePortalSession() {
         const r = await fetch('/api/portal/me', { cache: 'no-store', credentials: 'include' });
         const d = await r.json();
         if (!alive) return;
-        setState(d?.role === 'client' ? { status: 'client', client: d.client, jobs: d.jobs } : { status: 'none' });
+        setState(d?.role === 'client' ? { status: 'client', client: d.client, jobs: d.jobs, promptPassword: !!d.promptPassword } : { status: 'none' });
       } catch {
         if (alive) setState({ status: 'none' });
       }
@@ -68,10 +68,10 @@ export function PortalLinkExpired() {
   );
 }
 
-export function PortalClient({ client, jobs }) {
+export function PortalClient({ client, jobs, promptPassword }) {
   return (
     <Suspense fallback={<PortalSplash />}>
-      <ClientPortal client={client} jobs={jobs} />
+      <ClientPortal client={client} jobs={jobs} promptPassword={promptPassword} />
     </Suspense>
   );
 }

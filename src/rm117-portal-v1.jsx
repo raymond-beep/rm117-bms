@@ -62,7 +62,7 @@ const splitAddr = (addr) => {
 const pickDefault = (jobs) =>
   (jobs.find((j) => j.phase !== 'completed' && j.phase !== 'on_hold') || jobs[0])?.job_id;
 
-export default function ClientPortal({ client, jobs = [], preview = false }) {
+export default function ClientPortal({ client, jobs = [], preview = false, promptPassword = false }) {
   const clerk = useClerk();
   const { user } = useUser();
 
@@ -129,6 +129,10 @@ export default function ClientPortal({ client, jobs = [], preview = false }) {
           You have {projectCount} {projectWord} with Room 117 Architecture &amp; Design.
         </p>
 
+        {/* Offered once, to a real client who signed in without a password yet — never in a
+            staff preview or when a staffer is viewing a client's link. */}
+        {promptPassword && !preview && !staffViewing && <PasswordSetup />}
+
         {jobs.length === 0 ? (
           <div className="cp-card cp-empty">
             No projects on file yet — your project manager will be in touch.
@@ -158,6 +162,97 @@ export default function ClientPortal({ client, jobs = [], preview = false }) {
         )}
       </div>
     </div>
+  );
+}
+
+// Offered to a client who signed in (by code or link) but hasn't set a password. Sets one
+// for their contact via /api/portal/set-password, so next time they can just type it. The
+// code/link never goes away — this is a convenience layer, and also the reset path.
+const PW_DISMISS_KEY = 'rm117_portal_pw_dismissed';
+
+function PasswordSetup() {
+  const [dismissed, setDismissed] = useState(() => {
+    try { return window.localStorage.getItem(PW_DISMISS_KEY) === '1'; } catch { return false; }
+  });
+  const [open, setOpen] = useState(false);
+  const [pw, setPw] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+
+  const notNow = () => {
+    try { window.localStorage.setItem(PW_DISMISS_KEY, '1'); } catch { /* private mode */ }
+    setDismissed(true);
+  };
+
+  const save = useCallback(async (e) => {
+    e?.preventDefault();
+    if (busy) return;
+    if (pw.length < 8) return setError('Use at least 8 characters.');
+    if (pw !== confirm) return setError('Those passwords don’t match.');
+    setBusy(true);
+    setError('');
+    try {
+      const r = await fetch('/api/portal/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password: pw }),
+      });
+      if (r.ok) { setDone(true); return; }
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 409) setError('Please sign in again with a code, then set your password.');
+      else setError(d?.message || 'Sorry — that didn’t work. Please try again.');
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, pw, confirm]);
+
+  if (dismissed) return null;
+
+  if (done) {
+    return (
+      <div className="cp-pw cp-pw-done">
+        Password set — next time you can sign in with your email and password. ✓
+      </div>
+    );
+  }
+
+  if (!open) {
+    return (
+      <div className="cp-pw">
+        <span className="cp-pw-text">Want a faster sign-in next time? Set a password for your account.</span>
+        <span className="cp-pw-actions">
+          <button className="cp-pw-btn" onClick={() => setOpen(true)}>Set a password</button>
+          <button className="cp-pw-link" onClick={notNow}>Not now</button>
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <form className="cp-pw cp-pw-form" onSubmit={save}>
+      <div className="cp-pw-fields">
+        <input
+          className="cp-pw-input" type="password" autoComplete="new-password" placeholder="New password (8+ characters)"
+          value={pw} onChange={(ev) => setPw(ev.target.value)} autoFocus
+        />
+        <input
+          className="cp-pw-input" type="password" autoComplete="new-password" placeholder="Confirm password"
+          value={confirm} onChange={(ev) => setConfirm(ev.target.value)}
+        />
+      </div>
+      {error ? <div className="cp-pw-error">{error}</div> : null}
+      <div className="cp-pw-actions">
+        <button className="cp-pw-btn" type="submit" disabled={busy || !pw || !confirm}>
+          {busy ? 'Saving…' : 'Save password'}
+        </button>
+        <button className="cp-pw-link" type="button" onClick={notNow}>Not now</button>
+      </div>
+    </form>
   );
 }
 

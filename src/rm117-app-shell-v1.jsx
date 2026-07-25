@@ -74,7 +74,7 @@ export default function AppShell() {
   const portal = usePortalSession();
   const linkExpired = new URLSearchParams(location.search).get('portal_error');
   if (portal.status === 'loading') return <PortalSplash />;
-  if (portal.status === 'client') return <PortalClient client={portal.client} jobs={portal.jobs} />;
+  if (portal.status === 'client') return <PortalClient client={portal.client} jobs={portal.jobs} promptPassword={portal.promptPassword} />;
 
   // No session. WHICH sign-in belongs here depends on who's knocking: the staff app and the
   // client portal are one Vercel deployment, so a client arriving at portal.rm117.com used to

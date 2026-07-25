@@ -1608,6 +1608,30 @@ input, select, textarea { font: inherit; }
 .cp-pay-row-desc { flex: 1; font-size: 13px; }
 .cp-pay-row-amt { font-family: var(--mono); font-weight: 600; }
 
+/* ---- Portal: "set a password" prompt ---- */
+.cp-pw {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+  margin: 0 0 18px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--accent-soft);
+}
+.cp-pw-text { font-size: 13px; color: var(--ink); }
+.cp-pw-form { flex-direction: column; align-items: stretch; }
+.cp-pw-fields { display: flex; flex-wrap: wrap; gap: 10px; }
+.cp-pw-input {
+  flex: 1 1 200px; min-width: 0; border: 1px solid var(--border); border-radius: 8px;
+  padding: 9px 12px; font-size: 13px; color: var(--ink); background: var(--surface); outline: none;
+}
+.cp-pw-input:focus { border-color: var(--accent); }
+.cp-pw-actions { display: flex; align-items: center; gap: 12px; }
+.cp-pw-btn {
+  flex: none; background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+  padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.cp-pw-btn:disabled { opacity: 0.55; cursor: default; }
+.cp-pw-link { background: none; border: 0; color: var(--muted); font-size: 13px; cursor: pointer; text-decoration: underline; }
+.cp-pw-error { flex-basis: 100%; font-size: 12px; color: var(--brass-ink); }
+.cp-pw-done { background: var(--success-soft); color: var(--success); font-size: 13px; font-weight: 500; }
+
 /* ---- Portal: portfolio table (the multi-project / developer view) ---- */
 .cp-portfolio { margin-bottom: 24px; overflow: hidden; }
 .cp-portfolio-head {

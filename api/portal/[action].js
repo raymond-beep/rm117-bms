@@ -37,6 +37,14 @@ import {
 import { sendTransactional } from '../_lib/resend-send.js';
 import { hasQbo, listOpenInvoices, listOpenInvoicesForJob, getInvoiceLink } from '../_lib/qbo.js';
 import { isInvoiceDueForPayment, toPayableInvoice } from '../_lib/qbo-reports.js';
+import {
+  validatePassword,
+  hashPassword,
+  verifyPassword,
+  isLocked,
+  nextFailureState,
+  DUMMY_HASH,
+} from '../_lib/portal-password.js';
 
 function group(rows, key) {
   const m = new Map();
@@ -62,6 +70,11 @@ const METHODS = {
   // is how a client becomes authenticated, so there is no identity to check yet.
   'request-code': 'POST', // email in -> a 6-digit code is mailed
   'verify-code': 'POST',  // code in  -> the normal portal session cookie
+  // The optional third door — email + password (2026-07-24). `login-password` is PUBLIC
+  // (it's how you authenticate); `set-password` needs an existing session (you prove who
+  // you are by already being signed in via a code/link, then choose a password).
+  'login-password': 'POST',
+  'set-password': 'POST',
   invite: 'POST', // STAFF-only — mint a magic link for a client
   links: 'GET',   // STAFF-only — list a client's live links
   revoke: 'POST', // STAFF-only — kill a link
@@ -77,7 +90,7 @@ const METHODS = {
 // Actions that must NOT go through resolvePortalIdentity: `enter` is how a client
 // becomes authenticated in the first place, and `signout` must work even once the
 // cookie is stale. Everything else is gated.
-const PUBLIC_ACTIONS = new Set(['enter', 'signout', 'request-code', 'verify-code']);
+const PUBLIC_ACTIONS = new Set(['enter', 'signout', 'request-code', 'verify-code', 'login-password']);
 
 // Staff-only actions are gated by requireStaff (Clerk), not the portal identity —
 // minting/revoking a client's access, and emailing them, are staff operations.
@@ -102,6 +115,7 @@ export default async function handler(req, res) {
     if (action === 'enter') return handleEnter(req, res);
     if (action === 'request-code') return handleRequestCode(req, res);
     if (action === 'verify-code') return handleVerifyCode(req, res);
+    if (action === 'login-password') return handleLoginPassword(req, res);
     return handleSignout(req, res);
   }
 
@@ -135,6 +149,8 @@ export default async function handler(req, res) {
       return handleSend(req, res, identity);
     case 'pay':
       return handlePay(req, res, identity);
+    case 'set-password':
+      return handleSetPassword(req, res, identity);
     default:
       return res.status(404).json({ error: 'unknown_action' });
   }
@@ -246,10 +262,25 @@ async function handleMe(req, res, identity) {
   if (identity.role !== 'client') return res.status(200).json({ role: identity.role });
   const { client, db } = identity;
   const jobs = await buildPortalJobs(db, client.id);
+
+  // Offer to set a password only when (a) we know exactly who signed in (a contact id is in
+  // the session — code and magic-link logins both carry it now) and (b) they don't already
+  // have one. Best-effort: a lookup hiccup just suppresses the prompt.
+  let promptPassword = false;
+  if (identity.contactId) {
+    const { data: cred } = await db
+      .from('portal_credentials')
+      .select('contact_id')
+      .eq('contact_id', identity.contactId)
+      .maybeSingle();
+    promptPassword = !cred;
+  }
+
   return res.status(200).json({
     role: 'client',
     client: { name: client.name, email: client.email, type: client.type, company: client.company || null },
     jobs,
+    promptPassword,
   });
 }
 
@@ -497,7 +528,7 @@ async function handleEnter(req, res) {
   const db = getDb();
   const { data: link } = await db
     .from('portal_links')
-    .select('id, client_id, expires_at, revoked_at, use_count')
+    .select('id, client_id, contact_id, expires_at, revoked_at, use_count')
     .eq('token_hash', hashToken(token))
     .maybeSingle();
 
@@ -518,8 +549,119 @@ async function handleEnter(req, res) {
     .eq('id', link.id)
     .then(() => {}, (err) => console.error('[portal/enter] touch link', err));
 
-  res.setHeader('Set-Cookie', sessionCookies(signSession(client.id), { secure: isSecureReq(req) }));
+  // Carry the link's contact id into the session so per-person actions (e.g. setting a
+  // password) know exactly who signed in. Still never an access decision — isolation is
+  // by client_id — so a link minted before contact_id existed still works.
+  const session = signSession(client.id, { contactId: link.contact_id || null });
+  res.setHeader('Set-Cookie', sessionCookies(session, { secure: isSecureReq(req) }));
   return res.redirect(302, job ? `/?job=${encodeURIComponent(job)}` : '/');
+}
+
+// POST /api/portal/login-password { email, password } — PUBLIC. The email + password door.
+//
+// ⚠️ ANTI-ENUMERATION: the reply is the SAME generic "invalid" whether the email is
+// unknown, has no password set, or the password is wrong — and we run one scrypt every
+// time (against DUMMY_HASH when there's no credential) so timing can't distinguish them.
+// Otherwise this becomes an oracle for "is X an RM117 client?".
+//
+// ⚠️ Online brute force is stopped by the per-account attempt cap + lockout in
+// portal_credentials, not by password length. A lockout is reported plainly (it's honest
+// UX for the real owner and tells an attacker nothing they couldn't count themselves).
+async function handleLoginPassword(req, res) {
+  if (!hasDb()) return res.status(503).json({ error: 'db_not_configured' });
+
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password ?? '');
+  const bad = () => res.status(400).json({ error: 'invalid_credentials' });
+  if (!email || !email.includes('@') || !password) return bad();
+
+  const db = getDb();
+  const found = await findContactByEmail(db, email); // active contact + its client, or null
+
+  // Load the credential (if any). We ALWAYS do one verifyPassword below — against the real
+  // hash or the dummy — so a missing account and a wrong password cost the same time.
+  let cred = null;
+  if (found) {
+    const { data } = await db
+      .from('portal_credentials')
+      .select('contact_id, password_hash, failed_attempts, locked_until')
+      .eq('contact_id', found.contact.id)
+      .maybeSingle();
+    cred = data || null;
+  }
+
+  // Locked out — refuse before spending a verify, but keep the message generic-ish.
+  if (cred && isLocked(cred)) {
+    return res.status(429).json({ error: 'temporarily_locked', retry_after_minutes: 15 });
+  }
+
+  const ok = verifyPassword(password, cred?.password_hash || DUMMY_HASH);
+
+  if (!found || !cred || !ok) {
+    // Count the miss against a real account so brute force trips the lock.
+    if (cred) {
+      const next = nextFailureState(cred.failed_attempts);
+      await db.from('portal_credentials').update(next).eq('contact_id', cred.contact_id);
+    }
+    return bad();
+  }
+
+  // Success — clear any failed-attempt state and mint the same session every other door does.
+  await db
+    .from('portal_credentials')
+    .update({ failed_attempts: 0, locked_until: null })
+    .eq('contact_id', cred.contact_id);
+
+  const session = signSession(found.client.id, { contactId: found.contact.id });
+  res.setHeader('Set-Cookie', sessionCookies(session, { secure: isSecureReq(req) }));
+  return res.status(200).json({ ok: true });
+}
+
+// POST /api/portal/set-password { password } — CLIENT (already signed in via a code or
+// link). Sets/updates the password for the CONTACT who is signed in. Requires a session
+// that carries a contact id: a client who arrived on an old cookie without one simply
+// signs in again with a code (which always carries it) and then sets a password.
+async function handleSetPassword(req, res, identity) {
+  if (identity.role !== 'client') return res.status(403).json({ error: 'forbidden' });
+  if (!hasDb()) return res.status(503).json({ error: 'db_not_configured' });
+
+  const contactId = identity.contactId;
+  if (!contactId) {
+    // We can't safely guess which teammate this is. Ask them to re-auth with a code.
+    return res.status(409).json({ error: 'reauth_required' });
+  }
+
+  const password = String(req.body?.password ?? '');
+  const problem = validatePassword(password);
+  if (problem) return res.status(400).json({ error: 'weak_password', message: problem });
+
+  const db = getDb();
+
+  // Belt + suspenders: confirm the contact still belongs to this signed-in client and is
+  // active, so a stale cookie can't set a password on someone else's contact.
+  const { data: contact } = await db
+    .from('client_contacts')
+    .select('id, client_id, is_active')
+    .eq('id', contactId)
+    .maybeSingle();
+  if (!contact || contact.client_id !== identity.client.id || contact.is_active === false) {
+    return res.status(409).json({ error: 'reauth_required' });
+  }
+
+  const now = new Date().toISOString();
+  const { error } = await db.from('portal_credentials').upsert(
+    {
+      contact_id: contactId,
+      password_hash: hashPassword(password),
+      updated_at: now,
+      failed_attempts: 0,
+      locked_until: null,
+    },
+    { onConflict: 'contact_id' },
+  );
+  if (error) return res.status(500).json({ error: error.message });
+
+  return res.status(200).json({ ok: true });
 }
 
 // GET /api/portal/signout — clear the portal cookies. Public: it must work even when

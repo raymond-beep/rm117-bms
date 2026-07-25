@@ -50,18 +50,56 @@ export function readStaffOverride(search) {
   }
 }
 
-const EMAIL_STEP = 'email';
-const CODE_STEP = 'code';
+// Three views. Password is the default door (developers expect email + password); the code
+// path is the fallback AND the way a first-time user gets in before they've set a password.
+const PASSWORD_VIEW = 'password';
+const CODE_EMAIL_VIEW = 'code-email';
+const CODE_VERIFY_VIEW = 'code-verify';
+
+// A full reload rather than a state hand-off: the session cookie is HttpOnly, so the shell's
+// portal gate has to re-probe /api/portal/me to pick it up.
+const enterPortal = () => { window.location.href = '/'; };
 
 // `notice` explains how you got here when it wasn't your idea — chiefly a magic link that
 // expired. Without it the client just sees a login form and assumes the link was broken.
 export default function PortalLogin({ notice = '' } = {}) {
-  const [step, setStep] = useState(EMAIL_STEP);
+  const [view, setView] = useState(PASSWORD_VIEW);
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const go = (v) => { setView(v); setError(''); setPassword(''); setCode(''); };
+
+  // email + password
+  async function submitPassword(e) {
+    e?.preventDefault();
+    if (!email.trim() || !password || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await fetch('/api/portal/login-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      if (r.ok) return enterPortal();
+      if (r.status === 429) {
+        setError('Too many attempts. Try again in about 15 minutes, or use a sign-in code.');
+      } else {
+        // One generic message — the server won't say whether it was the email or the
+        // password, and neither will we (that would leak who's a client).
+        setError('Email or password is incorrect.');
+      }
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // email -> request a 6-digit code
   async function requestCode(e) {
     e?.preventDefault();
     if (!email.trim() || busy) return;
@@ -76,10 +114,9 @@ export default function PortalLogin({ notice = '' } = {}) {
       if (r.status === 400) {
         setError('That doesn’t look like an email address.');
       } else {
-        // Any other outcome advances the step. The server answers identically for a known
-        // and an unknown address on purpose, so there is nothing here to branch on — and
-        // showing "no such client" would leak who the firm works with.
-        setStep(CODE_STEP);
+        // The server answers identically for a known and unknown address on purpose, so
+        // there's nothing to branch on — showing "no such client" would leak the firm's book.
+        setView(CODE_VERIFY_VIEW);
       }
     } catch {
       setError('Something went wrong. Please try again.');
@@ -88,6 +125,7 @@ export default function PortalLogin({ notice = '' } = {}) {
     }
   }
 
+  // code -> session
   async function submitCode(e) {
     e?.preventDefault();
     if (!code.trim() || busy) return;
@@ -99,12 +137,7 @@ export default function PortalLogin({ notice = '' } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), code: code.trim() }),
       });
-      if (r.ok) {
-        // Full reload rather than a state hand-off: the session cookie is HttpOnly, so the
-        // shell's portal gate has to re-probe /api/portal/me to pick it up.
-        window.location.href = '/';
-        return;
-      }
+      if (r.ok) return enterPortal();
       const d = await r.json().catch(() => ({}));
       const left = d?.attempts_remaining;
       setError(
@@ -124,18 +157,61 @@ export default function PortalLogin({ notice = '' } = {}) {
       <div className="portal-login">
         <div className="portal-brand">RM117<small>Architecture &amp; Design</small></div>
 
-        {notice && step === EMAIL_STEP ? <div className="portal-login-notice">{notice}</div> : null}
+        {notice && view === PASSWORD_VIEW ? <div className="portal-login-notice">{notice}</div> : null}
 
-        {step === EMAIL_STEP ? (
-          <form className="portal-login-card" onSubmit={requestCode}>
+        {view === PASSWORD_VIEW && (
+          <form className="portal-login-card" onSubmit={submitPassword}>
             <h1>Client sign-in</h1>
-            <p className="portal-login-sub">
-              Enter the email address we use for your project and we’ll send you a sign-in code.
-            </p>
+            <p className="portal-login-sub">Sign in to see your projects, documents and balances.</p>
 
             <label className="portal-login-label" htmlFor="portal-email">Email address</label>
             <input
               id="portal-email"
+              className="portal-login-input"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoFocus
+              value={email}
+              onChange={(ev) => setEmail(ev.target.value)}
+              placeholder="you@example.com"
+            />
+
+            <label className="portal-login-label" htmlFor="portal-password">Password</label>
+            <input
+              id="portal-password"
+              className="portal-login-input"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(ev) => setPassword(ev.target.value)}
+              placeholder="Your password"
+            />
+
+            {error ? <div className="portal-login-error">{error}</div> : null}
+
+            <button className="portal-login-btn" type="submit" disabled={busy || !email.trim() || !password}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+            <button className="portal-login-link" type="button" onClick={() => go(CODE_EMAIL_VIEW)}>
+              Email me a sign-in code instead
+            </button>
+            <p className="portal-login-note">
+              First time here, or no password yet? Use a sign-in code — you can set a password once you’re in.
+            </p>
+          </form>
+        )}
+
+        {view === CODE_EMAIL_VIEW && (
+          <form className="portal-login-card" onSubmit={requestCode}>
+            <h1>Sign in with a code</h1>
+            <p className="portal-login-sub">
+              Enter the email address we use for your project and we’ll send you a 6-digit sign-in code.
+            </p>
+
+            <label className="portal-login-label" htmlFor="portal-email-code">Email address</label>
+            <input
+              id="portal-email-code"
               className="portal-login-input"
               type="email"
               inputMode="email"
@@ -151,9 +227,13 @@ export default function PortalLogin({ notice = '' } = {}) {
             <button className="portal-login-btn" type="submit" disabled={busy || !email.trim()}>
               {busy ? 'Sending…' : 'Send me a code'}
             </button>
-            <p className="portal-login-note">No password needed.</p>
+            <button className="portal-login-link" type="button" onClick={() => go(PASSWORD_VIEW)}>
+              Sign in with a password instead
+            </button>
           </form>
-        ) : (
+        )}
+
+        {view === CODE_VERIFY_VIEW && (
           <form className="portal-login-card" onSubmit={submitCode}>
             <h1>Check your email</h1>
             <p className="portal-login-sub">
@@ -181,11 +261,7 @@ export default function PortalLogin({ notice = '' } = {}) {
             <button className="portal-login-btn" type="submit" disabled={busy || code.length < 6}>
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
-            <button
-              className="portal-login-link"
-              type="button"
-              onClick={() => { setStep(EMAIL_STEP); setCode(''); setError(''); }}
-            >
+            <button className="portal-login-link" type="button" onClick={() => go(CODE_EMAIL_VIEW)}>
               Use a different email
             </button>
           </form>
