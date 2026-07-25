@@ -55,6 +55,7 @@ export function readStaffOverride(search) {
 const PASSWORD_VIEW = 'password';
 const CODE_EMAIL_VIEW = 'code-email';
 const CODE_VERIFY_VIEW = 'code-verify';
+const CREATE_PASSWORD_VIEW = 'create-password'; // first-time activation, after a verified code
 
 // A full reload rather than a state hand-off: the session cookie is HttpOnly, so the shell's
 // portal gate has to re-probe /api/portal/me to pick it up.
@@ -66,11 +67,12 @@ export default function PortalLogin({ notice = '' } = {}) {
   const [view, setView] = useState(PASSWORD_VIEW);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const go = (v) => { setView(v); setError(''); setPassword(''); setCode(''); };
+  const go = (v) => { setView(v); setError(''); setPassword(''); setConfirm(''); setCode(''); };
 
   // email + password
   async function submitPassword(e) {
@@ -137,7 +139,13 @@ export default function PortalLogin({ notice = '' } = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), code: code.trim() }),
       });
-      if (r.ok) return enterPortal();
+      if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        // First-timer (no password yet): they've just proven they own the inbox, so offer
+        // to set a password right here — the on-the-spot activation step. Otherwise, in.
+        if (d && d.hasPassword === false) { setView(CREATE_PASSWORD_VIEW); setError(''); return; }
+        return enterPortal();
+      }
       const d = await r.json().catch(() => ({}));
       const left = d?.attempts_remaining;
       setError(
@@ -145,6 +153,32 @@ export default function PortalLogin({ notice = '' } = {}) {
           ? `That code isn’t right. ${left} ${left === 1 ? 'try' : 'tries'} left.`
           : 'That code has expired or been used. Request a new one.',
       );
+    } catch {
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // First-time activation: set a password for the account we JUST signed into (the code
+  // set the session cookie), then land in the portal.
+  async function createPassword(e) {
+    e?.preventDefault();
+    if (busy) return;
+    if (password.length < 8) return setError('Use at least 8 characters.');
+    if (password !== confirm) return setError('Those passwords don’t match.');
+    setBusy(true);
+    setError('');
+    try {
+      const r = await fetch('/api/portal/set-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ password }),
+      });
+      if (r.ok) return enterPortal();
+      const d = await r.json().catch(() => ({}));
+      setError(d?.message || 'Sorry — that didn’t work. You can set a password later from inside your portal.');
     } catch {
       setError('Something went wrong. Please try again.');
     } finally {
@@ -193,12 +227,20 @@ export default function PortalLogin({ notice = '' } = {}) {
             <button className="portal-login-btn" type="submit" disabled={busy || !email.trim() || !password}>
               {busy ? 'Signing in…' : 'Sign in'}
             </button>
+
+            <div className="portal-login-firsttime">
+              <span className="portal-login-firsttime-h">First time signing in?</span>
+              <span className="portal-login-firsttime-p">
+                We’ll email you a one-time code to verify it’s you, then you’ll create your password.
+              </span>
+              <button className="portal-login-firsttime-btn" type="button" onClick={() => go(CODE_EMAIL_VIEW)}>
+                Set up your account →
+              </button>
+            </div>
+
             <button className="portal-login-link" type="button" onClick={() => go(CODE_EMAIL_VIEW)}>
-              Email me a sign-in code instead
+              Forgot your password? Sign in with a code
             </button>
-            <p className="portal-login-note">
-              First time here, or no password yet? Use a sign-in code — you can set a password once you’re in.
-            </p>
           </form>
         )}
 
@@ -263,6 +305,47 @@ export default function PortalLogin({ notice = '' } = {}) {
             </button>
             <button className="portal-login-link" type="button" onClick={() => go(CODE_EMAIL_VIEW)}>
               Use a different email
+            </button>
+          </form>
+        )}
+
+        {view === CREATE_PASSWORD_VIEW && (
+          <form className="portal-login-card" onSubmit={createPassword}>
+            <h1>Create your password</h1>
+            <p className="portal-login-sub">
+              You’re verified. Set a password so you can sign in with just your email and password next time.
+            </p>
+
+            <label className="portal-login-label" htmlFor="portal-newpw">New password</label>
+            <input
+              id="portal-newpw"
+              className="portal-login-input"
+              type="password"
+              autoComplete="new-password"
+              autoFocus
+              value={password}
+              onChange={(ev) => setPassword(ev.target.value)}
+              placeholder="At least 8 characters"
+            />
+
+            <label className="portal-login-label" htmlFor="portal-newpw2">Confirm password</label>
+            <input
+              id="portal-newpw2"
+              className="portal-login-input"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(ev) => setConfirm(ev.target.value)}
+              placeholder="Re-enter your password"
+            />
+
+            {error ? <div className="portal-login-error">{error}</div> : null}
+
+            <button className="portal-login-btn" type="submit" disabled={busy || !password || !confirm}>
+              {busy ? 'Saving…' : 'Save password & continue'}
+            </button>
+            <button className="portal-login-link" type="button" onClick={enterPortal}>
+              Skip for now
             </button>
           </form>
         )}
