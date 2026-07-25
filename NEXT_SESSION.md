@@ -42,13 +42,20 @@ jobs is offered once. A job with no client linked is shown greyed out with "no c
 rather than returning nothing (~29 Drive imports are in that state). Pure logic =
 `searchPortalClients` in `src/lib/search.js`, unit-tested.
 
-## ⏸ Left open (both need Ray, not code)
-- **The portal password test is HALF DONE.** The first-timer path is verified end-to-end in production
-  (email → code → "Create your password" → session → Costello's 7 jobs). **I did not type a password** —
-  that's a line I don't cross even on a test account. Remaining: click "Set a password" in the portal,
-  then sign out and back in with `raymond+gctest@rm117.com` + that password as a returning user.
-- 🧪 **Delete the test contact** `raymond+gctest@rm117.com` ("Test GC — DELETE ME", under Mike Costello)
-  when done.
+## Portal password door — verified as far as it goes, then closed out
+The **first-timer path is proven in production** (2026-07-25): email → 6-digit code (arrived in seconds
+from `portal@send.rm117.com`; consumed 22s later, single-use, stored as an HMAC) → **"Create your password"
+on the spot** → "Skip for now" → session minted → **Costello's 7 jobs, $30,900**, every figure matching.
+The anti-enumeration wording ("**If** … is on file") held.
+- **Two steps were never run:** creating the password, and returning with it. Entering a password into a
+  login form is a line not crossed even on a test account.
+- **Ray's call: stop there and delete the test account** rather than finish it — "if anything I'll go in and
+  we can create another test user." ✅ **Deleted:** `raymond+gctest@rm117.com` + its 3 spent codes (it had
+  **0** credential rows, so nothing was ever set). **Mike Costello's own contact is untouched.**
+- **To test again:** add a contact with a `raymond+alias@rm117.com` address under any client. With no
+  `portal_credentials` row it's automatically a clean first-timer — that account had no special setup.
+
+## ⏸ Left open (need Ray, not code)
 - Still open from before: QBO card surcharge (blocked on Intuit — beta not enabled on this account),
   "Next up" *typed* milestones are now optional rather than needed, `PORTAL_REPLY_TO` verify, and Ang's
   bucket-C job-number decisions.
