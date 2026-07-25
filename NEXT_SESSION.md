@@ -1,8 +1,57 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-23 — **Client portal email + code sign-in is LIVE at `portal.rm117.com`.**
-Working tree clean, `main` in sync, **289 tests green**, prod deployed & verified. Migration `0018`
-applied. ▶ **Next session starts with Phase C: the "Client Login" button on the Wix site — full
-step-by-step in `PORTAL_LOGIN.md`.**
+**Last updated:** 2026-07-25 — **"Next up" is now DERIVED, the phase clock starts at creation, and the
+portal-preview picker is a search box.** `main` in sync, **329 tests green**, deployed & verified live.
+
+---
+
+# ▶ START HERE 2026-07-25 — three things shipped, two left open
+
+## 1. "Next up" is derived from the ladder (LIVE, verified on portal.rm117.com)
+**The problem wasn't data entry — it was the mechanism.** `jobs.next_milestone_label` was filled on
+**0 of 162 jobs** in the year it existed, so the one forward-looking line a client reads was blank
+portal-wide. It now derives from the next rung of the client ladder; a staff-typed milestone still wins.
+**Result: all 44 in-flight jobs show a line (was 0).** The 118 blanks are completed/on-hold/lead/dropped —
+correctly silent.
+- `api/_lib/portal-ladder.js` (`deriveNextUp`) + `src/lib/portal-ladder.js` (the copy the portal draws),
+  kept honest by `tests/portal-ladder.test.js` asserting the two ladders are identical.
+- ⚠️ **Derive from the CLIENT ladder, never `PHASES`** — `cd_prep`/`cd_outgoing` must both read
+  "Permitting" or the internal CD split leaks. Verified live on `26_024_Costello_77 Benjamin St`.
+- ⚠️ **A derived line carries NO DATE.** Ray's framing: the per-phase date is an internal planning
+  figure; a date in front of a client becomes a commitment. Only a typed milestone may carry one.
+- The update email derives the same line, so email and portal can't disagree.
+
+## 2. The phase clock now starts at CREATION (LIVE)
+Ray asked for "how long is each phase taking" — **it wasn't recordable.** Only `api/jobs/update.js`
+stamped `job_phase_events`, and only on a phase CHANGE, so a job had no event until someone first moved
+it. Measured 2026-07-25: **29 of 162 jobs had no event at all (every one Drive-imported)**, 13 had no
+`phase_since`. A job's FIRST phase — Lead, Proposal Sent, where the firm most wants the number — was
+unmeasurable. `api/jobs/create.js` + `api/drive/import.js` now stamp via `api/_lib/phase-clock.js`.
+- ⚠️ **NOT backfillable.** Those events were never written. Per-phase history accrues from 2026-07-25;
+  treat anything older as ABSENT, not zero.
+- **The reporting view was deliberately NOT built** — only 12 jobs have any transition history, so it
+  would render an empty page. Revisit in ~2 months, and that's also when a projected date per phase
+  becomes derivable from measured medians instead of something anyone has to type.
+- Available NOW without waiting: `phase_since` is set on 149 jobs, so a "time in current phase" column
+  is a live snapshot (it already powers the aging flags).
+
+## 3. Portal-preview picker is now a search box
+97 clients in a native `<select>` is a list you scroll and never find anything in. `ClientPicker` in
+`StaffPortalPreview.jsx` searches **client names AND Job IDs** (staff speak Job ID everywhere else),
+resolving every hit to the client whose portal opens — **deduped**, so Costello matching on name + 7
+jobs is offered once. A job with no client linked is shown greyed out with "no client linked yet"
+rather than returning nothing (~29 Drive imports are in that state). Pure logic =
+`searchPortalClients` in `src/lib/search.js`, unit-tested.
+
+## ⏸ Left open (both need Ray, not code)
+- **The portal password test is HALF DONE.** The first-timer path is verified end-to-end in production
+  (email → code → "Create your password" → session → Costello's 7 jobs). **I did not type a password** —
+  that's a line I don't cross even on a test account. Remaining: click "Set a password" in the portal,
+  then sign out and back in with `raymond+gctest@rm117.com` + that password as a returning user.
+- 🧪 **Delete the test contact** `raymond+gctest@rm117.com` ("Test GC — DELETE ME", under Mike Costello)
+  when done.
+- Still open from before: QBO card surcharge (blocked on Intuit — beta not enabled on this account),
+  "Next up" *typed* milestones are now optional rather than needed, `PORTAL_REPLY_TO` verify, and Ang's
+  bucket-C job-number decisions.
 
 ---
 

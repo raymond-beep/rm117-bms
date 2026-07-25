@@ -1,7 +1,7 @@
 // Global search ranking (src/lib/search.js) — the rules that decide which of 134
 // jobs a staffer actually meant.
 import { describe, it, expect } from 'vitest';
-import { searchRecords } from '../src/lib/search.js';
+import { searchRecords, searchPortalClients } from '../src/lib/search.js';
 
 const JOBS = [
   { job_id: '26_001_Deuel', client_name: 'Tyler Deuel', phase: 'design_phase', address: '12 Oak St\nMadison NJ' },
@@ -77,5 +77,53 @@ describe('searchRecords', () => {
 
   it('is case-insensitive', () => {
     expect(searchRecords('DEUEL', JOBS, []).length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The portal-preview picker resolves everything down to "whose portal do I open?"
+const PJOBS = [
+  { job_id: '26_001_Deuel', client_id: 'c1', client_name: 'Tyler Deuel', phase: 'design_phase' },
+  { job_id: '26_003_Deuel', client_id: 'c1', client_name: 'Tyler Deuel', phase: 'cd_prep' },
+  { job_id: '22_010_Malanga', client_id: 'c2', client_name: 'Joe Malanga', phase: 'completed' },
+  // A Drive import: real Job ID, no client linked yet (28 of these exist in prod).
+  { job_id: '26_044_Seesman', client_id: null, client_name: 'Seesman', phase: 'survey_zoning' },
+];
+
+describe('searchPortalClients', () => {
+  it('browses every client alphabetically when nothing is typed', () => {
+    const all = searchPortalClients('', PJOBS, CLIENTS);
+    expect(all.map((m) => m.title)).toEqual(['Joe Malanga', 'Tyler Deuel']);
+  });
+
+  it('finds a client by Job ID — staff think in Job IDs', () => {
+    const [top] = searchPortalClients('26_003_Deuel', PJOBS, CLIENTS);
+    expect(top).toMatchObject({ clientId: 'c1', title: 'Tyler Deuel', meta: '26_003_Deuel' });
+  });
+
+  it('finds a client by name', () => {
+    const [top] = searchPortalClients('malanga', PJOBS, CLIENTS);
+    expect(top.clientId).toBe('c2');
+  });
+
+  // The whole point of the dedupe: Tyler matches by name AND on two jobs.
+  it('offers a client ONCE even when several of their jobs match', () => {
+    const hits = searchPortalClients('deuel', PJOBS, CLIENTS);
+    expect(hits.filter((m) => m.clientId === 'c1')).toHaveLength(1);
+  });
+
+  it('surfaces a job with no client linked, and marks it unselectable', () => {
+    const [top] = searchPortalClients('26_044', PJOBS, CLIENTS);
+    expect(top.unlinked).toBe(true);
+    expect(top.clientId).toBeNull();
+    expect(top.meta).toContain('no client linked');
+  });
+
+  it('returns nothing when neither a name nor a Job ID matches', () => {
+    expect(searchPortalClients('zzzz', PJOBS, CLIENTS)).toEqual([]);
+  });
+
+  it('is case-insensitive on Job IDs', () => {
+    expect(searchPortalClients('26_001_deuel', PJOBS, CLIENTS)[0].clientId).toBe('c1');
   });
 });

@@ -97,3 +97,82 @@ export function searchRecords(query, jobs = [], clients = [], limit = SEARCH_LIM
     .sort((a, b) => b.score - a.score || b.order - a.order || a.title.localeCompare(b.title))
     .slice(0, limit);
 }
+
+// ---- Portal preview picker ------------------------------------------------
+// The staff portal preview is per-CLIENT (a portal belongs to a client, not a job),
+// but staff think in Job IDs as often as in names — the Job ID is the firm's primary
+// key for everything else. So this searches BOTH and resolves every hit down to the
+// client whose portal you'd open, deduped: matching a developer's name and three of
+// their jobs must offer that developer ONCE, not four times.
+//
+// Separate from `searchRecords` because that one answers "what did I find?" and this
+// answers "whose portal do I open?" — different result shape, different dedupe rule.
+export const PICKER_LIMIT = 40;
+
+/**
+ * @returns {Array<{clientId:string|null, title:string, meta:string, unlinked:boolean}>}
+ */
+export function searchPortalClients(query, jobs = [], clients = [], limit = PICKER_LIMIT) {
+  const q = norm(query);
+  const byClient = new Map();
+  const push = (key, entry, score) => {
+    const prev = byClient.get(key);
+    if (!prev || score > prev.score) byClient.set(key, { ...entry, score });
+  };
+
+  // No query → plain alphabetical browse, so the box still works as the old list did.
+  if (!q) {
+    return [...clients]
+      .filter((c) => c && c.name)
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+      .slice(0, limit)
+      .map((c) => ({
+        clientId: c.id,
+        title: c.name,
+        meta: c.company || c.email || '',
+        unlinked: false,
+      }));
+  }
+
+  for (const client of clients) {
+    const score = scoreClient(client, q);
+    if (score <= 0) continue;
+    push(client.id, {
+      clientId: client.id,
+      title: client.name || 'Unnamed client',
+      meta: client.company || client.email || '',
+      unlinked: false,
+    }, score);
+  }
+
+  for (const job of jobs) {
+    const score = scoreJob(job, q);
+    if (score <= 0) continue;
+
+    // A job with no client can't have a portal — but staying silent is worse than
+    // saying so. 28 Drive-imported jobs land with `client_id` NULL on purpose, and a
+    // staffer who searches one of those Job IDs deserves the reason, not an empty box.
+    if (!job.client_id) {
+      push(`job:${job.job_id}`, {
+        clientId: null,
+        title: job.client_name || job.job_id,
+        meta: `${job.job_id} — no client linked yet`,
+        unlinked: true,
+      }, score);
+      continue;
+    }
+
+    const name = job.client?.name || job.client_name || 'Client';
+    push(job.client_id, {
+      clientId: job.client_id,
+      title: name,
+      meta: job.job_id, // show WHICH job matched — that's why this row is here
+      unlinked: false,
+    }, score);
+  }
+
+  return [...byClient.values()]
+    .sort((a, b) => b.score - a.score || a.title.localeCompare(b.title))
+    .slice(0, limit)
+    .map(({ score, ...rest }) => rest);
+}

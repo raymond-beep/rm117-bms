@@ -1762,6 +1762,42 @@ input, select, textarea { font: inherit; }
   border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink);
 }
 
+/* Portal-preview client picker: type-to-search over names AND Job IDs. Replaced a
+   native <select> that had grown to 97 options. Same interaction as the Drawing QA
+   JobPicker (.dqa-combo*) — kept as its own layer because that one lives inside the
+   preflight-less Tailwind island and can't be reused directly. */
+.cp-combo { position: relative; }
+.cp-combo-box { position: relative; flex: 1; min-width: 240px; max-width: 460px; }
+.cp-combo-input {
+  width: 100%; padding: 9px 30px 9px 12px; font-size: 14px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink);
+}
+.cp-combo-input:focus { outline: none; border-color: var(--accent); }
+.cp-combo-clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 22px; height: 22px; line-height: 1; padding: 0; border: 0; cursor: pointer;
+  border-radius: 50%; background: transparent; color: var(--ink3); font-size: 17px;
+}
+.cp-combo-clear:hover { background: var(--hover); color: var(--ink); }
+.cp-combo-list {
+  position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; right: 0;
+  margin: 0; padding: 4px; list-style: none; max-height: 320px; overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg, 0 10px 30px rgba(0,0,0,0.18));
+}
+.cp-combo-opt {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 7px 10px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px;
+}
+.cp-combo-opt.is-active { background: var(--hover); }
+/* A job with no client linked can't be previewed — shown so the search doesn't just
+   come back empty, but deliberately not selectable. */
+.cp-combo-opt.is-unlinked { cursor: default; opacity: 0.66; }
+.cp-combo-name { color: var(--ink); }
+.cp-combo-meta { font-family: var(--mono); font-size: 11px; color: var(--ink3); white-space: nowrap; }
+.cp-combo-empty { padding: 10px; font-size: 13px; color: var(--ink3); }
+
 /* Staff Messages tab (reuses .cp-msg bubbles inside the JobEditor drawer) */
 .staff-thread { max-height: 46vh; overflow-y: auto; padding: 4px 2px; }
 .staff-composer { border-top: 0; padding: 12px 0 0; }
