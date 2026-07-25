@@ -861,7 +861,16 @@ async function handleVerifyCode(req, res) {
 
   const session = signSession(client.id, { contactId: row.contact_id });
   res.setHeader('Set-Cookie', sessionCookies(session, { secure: isSecureReq(req) }));
-  return res.status(200).json({ ok: true });
+
+  // Tell the login screen whether this person already has a password. If not, it offers
+  // to set one right here (they've just proven they own the inbox, so it's safe) — the
+  // first-time "activation" step, rather than a banner they might miss inside the portal.
+  const { data: cred } = await db
+    .from('portal_credentials')
+    .select('contact_id')
+    .eq('contact_id', row.contact_id)
+    .maybeSingle();
+  return res.status(200).json({ ok: true, hasPassword: !!cred });
 }
 
 // GET /api/portal/links?client_id=... — STAFF. A client's links (never the tokens —
