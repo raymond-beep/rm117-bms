@@ -23,20 +23,24 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 - **Auth:** **two separate systems, on purpose.**
   - **Staff → Clerk** (Google sign-in, `@rm117.com`). Clerk is a **Development** instance; there is
     no production instance and none is needed.
-  - **Clients → magic link OR emailed code, no Clerk account at all.** TWO doors, one session:
-    both call `signSession()`, so there is no second authorization path to keep in step.
+  - **Clients → magic link, emailed code, OR email+password — no Clerk account at all.** THREE doors,
+    ONE session: all call `signSession()`, so there is no second authorization path to keep in step.
     1. **Magic link** (2026-07-13) — a signed, expiring, revocable link in an update email;
        `/api/portal/enter` exchanges the token for an HttpOnly session cookie. Stays because it
        is one click and killing "any update?" emails is the portal's whole job.
     2. **Email + 6-digit code** (2026-07-23) — the self-serve FRONT DOOR, for a client who lost
-       the email or just goes to the website. `/api/portal/request-code` → `/verify-code`.
-       **Deliberately not passwords** (Ray's call): a homeowner won't keep one, a developer
-       won't tolerate one, and every forgotten password becomes a call to the office.
-    See `api/_lib/portal-session.js` + `portal-login-code.js` (the crypto) and `portal_links` +
-    `portal_login_codes` (the tables).
-    Rationale: a homeowner won't keep a password and a developer won't tolerate one, but both will
-    click a link — and the notification email is the portal's front door anyway. This also keeps a
-    Clerk production instance + client-facing DNS off the critical path entirely.
+       the email or just goes to the website. `/api/portal/request-code` → `/verify-code`. Also the
+       first-time bootstrap AND the self-serve password reset, so **Ang never runs a reset desk**.
+    3. **Email + password** (2026-07-24) — added because developers expect it and their PMs/GCs
+       want a login they can type. `/api/portal/login-password` + `/set-password`; per-CONTACT scrypt
+       hash in `portal_credentials` (migration 0019). ⚠️ **This is familiarity/adoption, NOT more
+       secure** — the magic link is a bearer credential with no identity check and stays live by
+       design, so it remains the weakest door and sets the security bar. Do NOT "restore" a no-password
+       rule or harden the link/code away; friction is exactly what stops a portal being used.
+       First-timers verify with a code, THEN create a password on the spot (the activation flow).
+    See `api/_lib/portal-session.js` + `portal-login-code.js` + `portal-password.js` (the crypto) and
+    `portal_links` + `portal_login_codes` + `portal_credentials` (the tables). No Clerk production
+    instance and no per-user fee — clients never touch Clerk, so adding client logins costs nothing.
   - Clients never touch the Google OAuth app, so the portal can't consume the Google 100-test-user cap.
 - **Email:** Resend (portal notifications + inbound reply bridge; Postmark fallback)
 - **E-sign / invoicing:** DocuSign (proposals); QuickBooks Online API (outbound invoices)

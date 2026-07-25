@@ -1,6 +1,9 @@
 # Client Portal Sign-In — canonical doc
 
-**Status: FULLY SHIPPED. LIVE in production at https://portal.rm117.com (portal 2026-07-23; Phase C 2026-07-24).**
+**Status: FULLY SHIPPED. LIVE in production at https://portal.rm117.com (portal 2026-07-23; Phase C,
+Pay-now, and email+password login all 2026-07-24).** THREE sign-in doors now (magic link · email+code ·
+email+password), all one session; per-contact passwords (scrypt, migration 0019) with on-the-spot
+first-time activation; plus a "Pay now" button that settles due QBO invoices via Intuit's hosted checkout.
 Everything below is built, deployed and verified — **including Phase C**: the **"Client Login"** link
 is live in the rm117.com header, sitewide (shared header → every page), pointing at
 `https://portal.rm117.com` in a new tab. Ray placed it by hand in the Wix Editor 2026-07-24 (see the
@@ -26,20 +29,26 @@ projects — is delivered by a mailed code without a Clerk production instance, 
 flow, or Angelena becoming the password-reset desk. A homeowner won't keep a password and a
 developer won't tolerate one.
 
-## ⚠️ Two doors, one session — do not "fix" this
+## ⚠️ THREE doors, one session — do not "fix" this
 
 | Door | How | Verifies identity? |
 |------|-----|--------------------|
 | **Magic link** | Rides in the client update email; one click | **No** — possession of the email is the credential |
 | **Email + code** | `portal.rm117.com`, type email → 6-digit code | **Yes** — must control the inbox |
+| **Email + password** (2026-07-24) | `portal.rm117.com`, type email + password | **Yes** — but only as strong as its reset, which is the code |
 
-Both call the same `signSession()`, so there is only ever one authorization path to maintain.
+All three call the same `signSession()`, so there is only ever one authorization path to maintain.
 
 **The magic link stays.** Killing "any update?" emails is the portal's entire purpose, and making a
 client type a code to read an update you just sent them is exactly the friction that stops a portal
-being used. State the consequence plainly rather than pretending otherwise: **while both doors are
-live, the link is the weaker one and it sets the security bar.** That is an accepted trade (Ray,
-2026-07-13, reaffirmed when asked directly). **Do not put a code in front of the update link.**
+being used. State the consequence plainly rather than pretending otherwise: **while the link is
+live, it is the weakest door and it sets the security bar** — adding a password does NOT raise the
+floor (it's familiarity/adoption for developers who expect one, not a security upgrade). That is an
+accepted trade (Ray, 2026-07-13, reaffirmed 2026-07-24). **Do not put a code in front of the update
+link, and do not "restore" a no-password rule.** The email+code is also how a first-timer bootstraps
+and how a forgotten password is reset, so **Angelena never runs a reset desk.** Password crypto +
+policy live in `api/_lib/portal-password.js` (per-contact scrypt in `portal_credentials`, migration
+0019); first-timers verify with a code then set a password on the spot (the activation flow).
 
 ## Files
 
