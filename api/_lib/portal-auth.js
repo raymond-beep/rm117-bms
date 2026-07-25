@@ -36,7 +36,11 @@ async function identityFromCookie(req) {
 
   // Deactivating a client immediately kills their portal session.
   if (!client || client.is_active === false) return null;
-  return { role: 'client', client, db };
+  // contactId (the cookie's `k` claim) is optional — null for pre-`k` cookies and for
+  // magic-link sessions minted before we carried it — so it is NEVER an access decision
+  // (isolation is by client_id). It's surfaced only so per-person actions like setting a
+  // password can target the exact contact who signed in.
+  return { role: 'client', client, db, contactId: session.contactId || null };
 }
 
 // Returns one of:
