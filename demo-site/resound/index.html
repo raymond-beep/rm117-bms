@@ -349,6 +349,7 @@
       <button data-v="orders">${icon('truck')}Orders &amp; Payments</button>
       <button data-v="feed">${icon('hash')}Team Feed</button>
       <button data-v="clients">${icon('users')}Clients</button>
+      <button data-v="vendors">${icon('tag')}Vendors</button>
       <div class="lbl">Company</div>
       <button data-v="setup">${icon('wallet')}Setup &amp; Costs</button>
       <button data-v="dash2" disabled style="opacity:.5">${icon('gear')}Settings</button>
@@ -832,6 +833,15 @@
       </div>
     </section>
 
+    <!-- ===== VENDORS ===== -->
+    <section class="view" id="v-vendors">
+      <div class="section-h"><h2>Vendors</h2></div>
+      <p class="sub">Who each part is bought from, on what terms, and how long it takes to arrive. This is what lets the reorder list split itself into real purchase orders — one per supplier — instead of a single list you still have to sort out by hand.</p>
+      <div id="vendorCards"></div>
+      <div class="subh" style="margin-top:22px">${icon('doc',14)} Recent purchase orders</div>
+      <div id="poLog"></div>
+    </section>
+
     <!-- ===== TEAM FEED (Slack) ===== -->
     <section class="view" id="v-feed">
       <div class="section-h"><h2>Team Feed</h2><span class="pill accent">${icon('hash',12)}Slack · #resound-jobs</span></div>
@@ -1151,7 +1161,7 @@
   const titles={dash:['Workspace','Dashboard'],proposals:['Workspace','Proposals'],
     builder:['Proposals','Bedroom TV Install'],inventory:['Workspace','Inventory'],
     orders:['Workspace','Orders & Payments'],feed:['Workspace','Team Feed'],
-    clients:['Workspace','Clients'],setup:['Company','Setup & Costs']};
+    clients:['Workspace','Clients'],vendors:['Workspace','Vendors'],setup:['Company','Setup & Costs']};
   function go(v){
     document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
     const el=document.getElementById('v-'+v); if(el)el.classList.add('on');
@@ -1195,6 +1205,7 @@
     else if(a==='stock-sell') sellStock(arg);
     else if(a==='stock-reorder') reorderPart(arg);
     else if(a==='consume') consumeOne(arg);
+    else if(a==='po') sendPO(arg);
     else if(a==='pull') pull(arg);
     else if(a==='toast') toast(arg);
     else if(a==='theme') toggleTheme();
@@ -1282,12 +1293,44 @@
   // changed quantities). Saved state overrides the seed wholesale, so without a
   // version stamp anyone who has ALREADY opened the demo keeps their old copy and
   // silently never sees the new items — they'd report the change as missing.
-  const SEED_VERSION = 2;
+  const SEED_VERSION = 3;
 
   function invSeed() {
     return {
       seedVersion: SEED_VERSION,
       activeJob: 'winter',
+
+      // Who each item is bought from. A purchase order can only go to ONE
+      // supplier, so this is what turns the reorder list from "here's what you're
+      // short" into "here are three orders, ready to send".
+      // `freeShipOver` earns its place: being $40 short of free freight is the
+      // kind of thing you want told to you BEFORE you send the order.
+      vendors: [
+        {
+          id: 'ui', name: 'UI Supplies', kind: 'A/V distributor',
+          email: 'orders@uisupplies.example.com', rep: 'Dana Whitfield', phone: '(800) 555-0143',
+          account: 'RES-4471', terms: 'Net 30', leadDays: 3, freeShipOver: 500,
+          note: 'Primary line — displays, mounts, Sonos, racks. Rep quotes project pricing on request.',
+        },
+        {
+          id: 'adi', name: 'ADI Global Distribution', kind: 'Low-voltage distributor',
+          email: 'branch.nj@adiglobal.example.com', rep: 'Marcus Tolliver', phone: '(732) 555-0190',
+          account: 'ADI-88213', terms: 'Net 30', leadDays: 2, freeShipOver: 350,
+          note: 'Cable, plates, jacks, enclosures. Will-call at the Edison branch same day.',
+        },
+        {
+          id: 'amzn', name: 'Amazon Business', kind: 'General supply',
+          email: '—', rep: null, phone: null,
+          account: 'AB-99204', terms: 'Card on file', leadDays: 1, freeShipOver: 0,
+          note: 'Commodity consumables only. Fastest, rarely the cheapest at volume.',
+        },
+        {
+          id: 'pexp', name: 'Parts Express', kind: 'Audio accessories',
+          email: 'sales@partsexpress.example.com', rep: null, phone: '(937) 555-0121',
+          account: 'PE-20558', terms: 'Card on file', leadDays: 4, freeShipOver: 100,
+          note: 'Connectors, banana plugs, speaker hardware.',
+        },
+      ],
       stockFilter: 'all',
       scanId: 'sanus-vmpl50a',
       jobs: [
@@ -1323,28 +1366,28 @@
         },
       ],
       stock: [
-        { id: 'arc-wm', name: 'Sonos Arc Ultra Wall Mount', sku: 'ARC-ULTRA-WM', kind: 'unit', condition: 'sealed', qty: 1, buy: 56.5, sell: 79, fromJob: 'Over-ordered', location: 'Rack A · Sh 1', ageDays: 22 },
-        { id: 'furman-m8s', name: 'Furman M-8S Power Sequencer', sku: 'M-8S', kind: 'unit', condition: 'sealed', qty: 1, buy: 190, sell: 280, fromJob: 'Returned — job cut', location: 'Rack B · Sh 1', ageDays: 41 },
-        { id: 'onq-enp1700', name: 'On-Q 17" In-Wall Enclosure', sku: 'ENP1700-NA', kind: 'unit', condition: 'sealed', qty: 4, buy: 65, sell: 65, fromJob: 'Bulk + Winter', location: 'Bin C4', ageDays: 12 },
-        { id: 'ultratech-ups', name: 'Ultratech 1000VA Rack UPS', sku: '0E-1000VASNM', kind: 'unit', condition: 'open', qty: 1, buy: 580, sell: 770, fromJob: 'Swap-out spare', location: 'Rack B · Sh 3', ageDays: 63 },
-        { id: 'frame-bezel', name: 'Samsung Frame Bezel — White', sku: 'VG-SCFH', kind: 'unit', condition: 'open', qty: 1, buy: 149, sell: 149, fromJob: 'Winter · Bedroom', location: 'Bin D1', ageDays: 94 },
-        { id: 'sanus-vmpl50a', name: 'Sanus VMPL50A Tilting Mount', sku: 'VMPL50A', kind: 'part', sub: 'TV mount · 32–85"', condition: 'open', qty: 4, buy: 107.5, sell: 140, fromJob: 'Winter · Bedroom', location: 'Rack A · Sh 2', reorderAt: 2, ageDays: 30 },
-        { id: 'tv-floor-stand', name: 'Universal TV Floor Stand', sku: 'TVFS-40', kind: 'part', sub: 'Swivel · 40–65"', condition: 'sealed', qty: 1, buy: 120, sell: 189, fromJob: 'Bulk', location: 'Bin B2', reorderAt: 2, ageDays: 55 },
-        { id: 'under-tv-mount', name: 'Under-TV Soundbar Mount', sku: 'UTV-SB', kind: 'part', sub: 'Universal bracket', condition: 'sealed', qty: 3, buy: 48, sell: 79, fromJob: 'Bulk', location: 'Bin B3', reorderAt: 2, ageDays: 18 },
+        { id: 'arc-wm', name: 'Sonos Arc Ultra Wall Mount', sku: 'ARC-ULTRA-WM', kind: 'unit', condition: 'sealed', qty: 1, buy: 56.5, sell: 79, fromJob: 'Over-ordered', location: 'Rack A · Sh 1', ageDays: 22, vendorId: 'ui' },
+        { id: 'furman-m8s', name: 'Furman M-8S Power Sequencer', sku: 'M-8S', kind: 'unit', condition: 'sealed', qty: 1, buy: 190, sell: 280, fromJob: 'Returned — job cut', location: 'Rack B · Sh 1', ageDays: 41, vendorId: 'ui' },
+        { id: 'onq-enp1700', name: 'On-Q 17" In-Wall Enclosure', sku: 'ENP1700-NA', kind: 'unit', condition: 'sealed', qty: 4, buy: 65, sell: 65, fromJob: 'Bulk + Winter', location: 'Bin C4', ageDays: 12, vendorId: 'adi' },
+        { id: 'ultratech-ups', name: 'Ultratech 1000VA Rack UPS', sku: '0E-1000VASNM', kind: 'unit', condition: 'open', qty: 1, buy: 580, sell: 770, fromJob: 'Swap-out spare', location: 'Rack B · Sh 3', ageDays: 63, vendorId: 'ui' },
+        { id: 'frame-bezel', name: 'Samsung Frame Bezel — White', sku: 'VG-SCFH', kind: 'unit', condition: 'open', qty: 1, buy: 149, sell: 149, fromJob: 'Winter · Bedroom', location: 'Bin D1', ageDays: 94, vendorId: 'ui' },
+        { id: 'sanus-vmpl50a', name: 'Sanus VMPL50A Tilting Mount', sku: 'VMPL50A', kind: 'part', sub: 'TV mount · 32–85"', condition: 'open', qty: 4, buy: 107.5, sell: 140, fromJob: 'Winter · Bedroom', location: 'Rack A · Sh 2', reorderAt: 2, ageDays: 30, vendorId: 'ui' },
+        { id: 'tv-floor-stand', name: 'Universal TV Floor Stand', sku: 'TVFS-40', kind: 'part', sub: 'Swivel · 40–65"', condition: 'sealed', qty: 1, buy: 120, sell: 189, fromJob: 'Bulk', location: 'Bin B2', reorderAt: 2, ageDays: 55, vendorId: 'ui' },
+        { id: 'under-tv-mount', name: 'Under-TV Soundbar Mount', sku: 'UTV-SB', kind: 'part', sub: 'Universal bracket', condition: 'sealed', qty: 3, buy: 48, sell: 79, fromJob: 'Bulk', location: 'Bin B3', reorderAt: 2, ageDays: 18, vendorId: 'ui' },
 
         // Consumables — counted individually rather than buried in a dollar
         // allowance. `pack` is how the vendor sells them, so the suggested order
         // is a number you can actually put on a purchase order.
-        { id: 'hdmi-6', name: 'HDMI 2.1 Cable — 6 ft', sku: 'HD21-06', kind: 'consumable', sub: '48Gbps · 8K', qty: 14, buy: 9.4, sell: 29, reorderAt: 8, pack: 10, location: 'Van · Bin 1' },
-        { id: 'hdmi-15', name: 'HDMI 2.1 Cable — 15 ft', sku: 'HD21-15', kind: 'consumable', sub: '48Gbps · 8K', qty: 5, buy: 16.8, sell: 45, reorderAt: 6, pack: 10, location: 'Van · Bin 1' },
-        { id: 'hdmi-25-optical', name: 'HDMI Cable — 25 ft (optical)', sku: 'HD-AOC-25', kind: 'consumable', sub: 'Active optical · in-wall rated', qty: 2, buy: 58, sell: 139, reorderAt: 3, pack: 5, location: 'Van · Bin 1' },
-        { id: 'outlet-cover-1g', name: 'Outlet Cover — 1-gang Decora', sku: 'WP-1G-WH', kind: 'consumable', sub: 'White · screwless', qty: 31, buy: 1.15, sell: 6, reorderAt: 20, pack: 25, location: 'Van · Bin 3' },
-        { id: 'outlet-cover-2g', name: 'Outlet Cover — 2-gang Decora', sku: 'WP-2G-WH', kind: 'consumable', sub: 'White · screwless', qty: 7, buy: 1.85, sell: 9, reorderAt: 12, pack: 25, location: 'Van · Bin 3' },
-        { id: 'brush-plate', name: 'Brush Wall Plate — 1-gang', sku: 'WP-BR-1G', kind: 'consumable', sub: 'Cable pass-through', qty: 4, buy: 3.2, sell: 14, reorderAt: 6, pack: 10, location: 'Van · Bin 3' },
-        { id: 'lv-bracket', name: 'Low-Voltage Bracket — 1-gang', sku: 'LV-1G', kind: 'consumable', sub: 'Old work · mud ring', qty: 22, buy: 1.05, sell: 5, reorderAt: 15, pack: 20, location: 'Van · Bin 3' },
-        { id: 'cat6-keystone', name: 'Cat6 Keystone Jack', sku: 'KJ-C6-WH', kind: 'consumable', sub: 'Punch-down · white', qty: 9, buy: 1.75, sell: 8, reorderAt: 20, pack: 25, location: 'Van · Bin 2' },
-        { id: 'banana-plugs', name: 'Banana Plugs — pair', sku: 'BP-GLD', kind: 'consumable', sub: 'Gold · screw-type', qty: 18, buy: 1.4, sell: 6, reorderAt: 12, pack: 20, location: 'Van · Bin 2' },
-        { id: 'velcro-ties', name: 'Velcro Cable Ties — 8"', sku: 'VT-8', kind: 'consumable', sub: 'Reusable · black', qty: 46, buy: 0.28, sell: 2, reorderAt: 25, pack: 50, location: 'Van · Bin 2' },
+        { id: 'hdmi-6', name: 'HDMI 2.1 Cable — 6 ft', sku: 'HD21-06', kind: 'consumable', sub: '48Gbps · 8K', qty: 14, buy: 9.4, sell: 29, reorderAt: 8, pack: 10, location: 'Van · Bin 1', vendorId: 'adi' },
+        { id: 'hdmi-15', name: 'HDMI 2.1 Cable — 15 ft', sku: 'HD21-15', kind: 'consumable', sub: '48Gbps · 8K', qty: 5, buy: 16.8, sell: 45, reorderAt: 6, pack: 10, location: 'Van · Bin 1', vendorId: 'adi' },
+        { id: 'hdmi-25-optical', name: 'HDMI Cable — 25 ft (optical)', sku: 'HD-AOC-25', kind: 'consumable', sub: 'Active optical · in-wall rated', qty: 2, buy: 58, sell: 139, reorderAt: 3, pack: 5, location: 'Van · Bin 1', vendorId: 'adi' },
+        { id: 'outlet-cover-1g', name: 'Outlet Cover — 1-gang Decora', sku: 'WP-1G-WH', kind: 'consumable', sub: 'White · screwless', qty: 31, buy: 1.15, sell: 6, reorderAt: 20, pack: 25, location: 'Van · Bin 3', vendorId: 'amzn' },
+        { id: 'outlet-cover-2g', name: 'Outlet Cover — 2-gang Decora', sku: 'WP-2G-WH', kind: 'consumable', sub: 'White · screwless', qty: 7, buy: 1.85, sell: 9, reorderAt: 12, pack: 25, location: 'Van · Bin 3', vendorId: 'amzn' },
+        { id: 'brush-plate', name: 'Brush Wall Plate — 1-gang', sku: 'WP-BR-1G', kind: 'consumable', sub: 'Cable pass-through', qty: 4, buy: 3.2, sell: 14, reorderAt: 6, pack: 10, location: 'Van · Bin 3', vendorId: 'adi' },
+        { id: 'lv-bracket', name: 'Low-Voltage Bracket — 1-gang', sku: 'LV-1G', kind: 'consumable', sub: 'Old work · mud ring', qty: 22, buy: 1.05, sell: 5, reorderAt: 15, pack: 20, location: 'Van · Bin 3', vendorId: 'adi' },
+        { id: 'cat6-keystone', name: 'Cat6 Keystone Jack', sku: 'KJ-C6-WH', kind: 'consumable', sub: 'Punch-down · white', qty: 9, buy: 1.75, sell: 8, reorderAt: 20, pack: 25, location: 'Van · Bin 2', vendorId: 'adi' },
+        { id: 'banana-plugs', name: 'Banana Plugs — pair', sku: 'BP-GLD', kind: 'consumable', sub: 'Gold · screw-type', qty: 18, buy: 1.4, sell: 6, reorderAt: 12, pack: 20, location: 'Van · Bin 2', vendorId: 'pexp' },
+        { id: 'velcro-ties', name: 'Velcro Cable Ties — 8"', sku: 'VT-8', kind: 'consumable', sub: 'Reusable · black', qty: 46, buy: 0.28, sell: 2, reorderAt: 25, pack: 50, location: 'Van · Bin 2', vendorId: 'amzn' },
       ],
       reorderList: [],
       soldIds: [],
@@ -1682,37 +1725,90 @@
   // The shopping list. This is the answer to "what do I need to order?" — the
   // whole reason for counting consumables instead of lumping them into a
   // dollar allowance.
+  const vendorById = (id) => (INV.vendors || []).find((v) => v.id === id);
+
+  // Group what's short by vendor. One purchase order cannot go to two suppliers,
+  // so the list has to split before it can be sent — this is the step that makes
+  // "Draft purchase order" mean something.
+  function reorderByVendor() {
+    const groups = new Map();
+    for (const n of reorderNeeds()) {
+      const v = vendorById(n.vendorId) || { id: 'unassigned', name: 'No vendor set', kind: '—', terms: '—', leadDays: null, freeShipOver: 0 };
+      if (!groups.has(v.id)) groups.set(v.id, { vendor: v, items: [], total: 0 });
+      const g = groups.get(v.id);
+      g.items.push(n);
+      g.total += n.cost;
+    }
+    return [...groups.values()].sort((a, b) => b.total - a.total);
+  }
+
   function renderReorder() {
     const el = document.getElementById('reorderPanel');
     if (!el) return;
-    const needs = reorderNeeds();
+    const groups = reorderByVendor();
 
-    if (!needs.length) {
+    if (!groups.length) {
       el.innerHTML = `<div class="allow">${icon('info')}<div><b>Nothing to order.</b> Every counted part and consumable is above its reorder point.</div></div>`;
       return;
     }
-    const total = needs.reduce((s, n) => s + n.cost, 0);
-    el.innerHTML = `<div class="card panel" style="border-color:rgba(224,163,60,.4)">
-      <div class="panel-h">
-        <h3>${icon('truck', 15)} To order — ${needs.length} item${needs.length > 1 ? 's' : ''} below reorder point</h3>
-        <span class="pill warn">${m0(total)} est.</span>
-      </div>
-      <div class="tbl-wrap" style="border:0">
-        <table>
-          <thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Reorder at</th><th class="r">Order</th><th class="r">Est. cost</th></tr></thead>
-          <tbody>
-            ${needs.map((n) => `<tr>
-              <td><div class="rowname">${n.name}</div><div class="rowsys mono">${n.sku}</div></td>
-              <td class="r tnum" style="color:var(--warn);font-weight:700">${n.qty}</td>
-              <td class="r tnum muted">${n.reorderAt}</td>
-              <td class="r tnum"><b>${n.order}</b></td>
-              <td class="r tnum muted">${m0(n.cost)}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-      <button class="btn primary" style="width:100%;justify-content:center;margin-top:12px" data-act="toast" data-arg="Purchase order drafted for ${needs.length} items — ${m0(total)}. Posts to #resound-jobs.">${icon('send', 14)}Draft purchase order</button>
-    </div>`;
+    const grand = groups.reduce((s, g) => s + g.total, 0);
+    const count = groups.reduce((s, g) => s + g.items.length, 0);
+
+    el.innerHTML = `
+      <div class="subh" style="margin-top:0">${icon('truck',14)} To order — ${count} item${count > 1 ? 's' : ''} below reorder point ·
+        <span style="color:var(--warn)">${m0(grand)} est.</span> across ${groups.length} vendor${groups.length > 1 ? 's' : ''}</div>
+      ${groups.map((g) => {
+        const v = g.vendor;
+        const shortOfFreeShip = v.freeShipOver && g.total < v.freeShipOver ? v.freeShipOver - g.total : 0;
+        return `<div class="card panel" style="border-color:rgba(224,163,60,.35);margin-bottom:12px">
+          <div class="panel-h">
+            <h3>${v.name}</h3>
+            <span class="pill neutral">${v.kind}</span>
+            <div class="spacer" style="flex:1"></div>
+            <span class="pill warn">${m0(g.total)}</span>
+          </div>
+          <div class="muted" style="font-size:12px;margin:-2px 0 10px">
+            ${v.account ? `Acct <span class="mono">${v.account}</span> · ` : ''}${v.terms}${v.leadDays ? ` · ~${v.leadDays} day${v.leadDays > 1 ? 's' : ''} lead` : ''}${v.rep ? ` · ${v.rep}` : ''}${v.email && v.email !== '—' ? ` · <span class="mono">${v.email}</span>` : ''}
+          </div>
+          <div class="tbl-wrap" style="border:0">
+            <table>
+              <thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Reorder at</th><th class="r">Order</th><th class="r">Est. cost</th></tr></thead>
+              <tbody>
+                ${g.items.map((n) => `<tr>
+                  <td><div class="rowname">${n.name}</div><div class="rowsys mono">${n.sku}</div></td>
+                  <td class="r tnum" style="color:var(--warn);font-weight:700">${n.qty}</td>
+                  <td class="r tnum muted">${n.reorderAt}</td>
+                  <td class="r tnum"><b>${n.order}</b></td>
+                  <td class="r tnum muted">${m0(n.cost)}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+          ${shortOfFreeShip
+            ? `<div class="muted" style="font-size:12px;margin-top:9px">${icon('info',12)} <b style="color:var(--warn)">${m0(shortOfFreeShip)}</b> under ${v.name}'s ${m0(v.freeShipOver)} free-freight threshold.</div>`
+            : (v.freeShipOver ? `<div class="muted" style="font-size:12px;margin-top:9px">Ships free — over ${m0(v.freeShipOver)}.</div>` : '')}
+          <button class="btn primary" style="width:100%;justify-content:center;margin-top:12px" data-act="po" data-arg="${v.id}">${icon('send', 14)}Send PO to ${v.name}</button>
+        </div>`;
+      }).join('')}`;
+  }
+
+  // Placing the order: stock comes in, the items leave the reorder list, and the
+  // vendor's running spend goes up. Demo-only in that no email actually leaves.
+  function sendPO(vendorId) {
+    const g = reorderByVendor().find((x) => x.vendor.id === vendorId);
+    if (!g) { toast('Nothing outstanding for that vendor'); return; }
+    for (const item of g.items) {
+      const s = stockById(item.id);
+      if (s) s.qty += item.order;
+    }
+    INV.poLog = INV.poLog || [];
+    INV.poLog.unshift({
+      id: 'PO-' + Math.floor(10000 + Math.random() * 89999),
+      vendorId, at: new Date().toISOString(),
+      lines: g.items.length, total: Math.round(g.total),
+    });
+    saveInv(); renderInv();
+    toast(`PO sent to ${g.vendor.name} — ${g.items.length} line${g.items.length > 1 ? 's' : ''}, ${m0(g.total)}. Posts to #resound-jobs.`);
   }
 
   function renderScanCard() {
@@ -1773,11 +1869,79 @@
       `~${m0(have + COSTS.newApp.low)}–${Math.round(have + COSTS.newApp.high).toLocaleString('en-US')}`;
   }
 
+  function renderVendors() {
+    const el = document.getElementById('vendorCards');
+    if (!el) return;
+    const needsByVendor = new Map(reorderByVendor().map((g) => [g.vendor.id, g]));
+
+    el.innerHTML = (INV.vendors || []).map((v) => {
+      const supplies = INV.stock.filter((s) => s.vendorId === v.id);
+      const onHandValue = supplies.reduce((s, i) => s + i.qty * i.buy, 0);
+      const g = needsByVendor.get(v.id);
+      const spend = (INV.poLog || []).filter((p) => p.vendorId === v.id).reduce((s, p) => s + p.total, 0);
+
+      return `<div class="card panel" style="margin-bottom:12px">
+        <div class="panel-h">
+          <h3>${v.name}</h3>
+          <span class="pill neutral">${v.kind}</span>
+          <div class="spacer" style="flex:1"></div>
+          ${g ? `<span class="pill warn">${g.items.length} to order · ${m0(g.total)}</span>`
+              : `<span class="pill good">Nothing outstanding</span>`}
+        </div>
+
+        <div class="cols" style="grid-template-columns:1fr 1fr;gap:18px;align-items:start">
+          <div>
+            <div class="totrow"><span class="lbl">Account</span><span class="mono">${v.account || '—'}</span></div>
+            <div class="totrow"><span class="lbl">Terms</span><span>${v.terms}</span></div>
+            <div class="totrow"><span class="lbl">Lead time</span><span>${v.leadDays ? `~${v.leadDays} day${v.leadDays > 1 ? 's' : ''}` : '—'}</span></div>
+            <div class="totrow"><span class="lbl">Free freight</span><span>${v.freeShipOver ? `over ${m0(v.freeShipOver)}` : '—'}</span></div>
+          </div>
+          <div>
+            <div class="totrow"><span class="lbl">Contact</span><span>${v.rep || '—'}</span></div>
+            <div class="totrow"><span class="lbl">Phone</span><span>${v.phone || '—'}</span></div>
+            <div class="totrow"><span class="lbl">Email</span><span class="mono" style="font-size:11.5px">${v.email || '—'}</span></div>
+            <div class="totrow"><span class="lbl">Ordered here</span><span class="tnum">${spend ? m0(spend) : '—'}</span></div>
+          </div>
+        </div>
+
+        <div class="muted" style="font-size:12.5px;margin:12px 0 10px">${v.note}</div>
+
+        <div class="subh" style="margin:0 0 8px">Supplies ${supplies.length} item${supplies.length === 1 ? '' : 's'} · ${m0(onHandValue)} on hand</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          ${supplies.map((s) => {
+            const low = (s.kind === 'part' || s.kind === 'consumable') && s.qty <= (s.reorderAt || 0);
+            return `<span class="pill ${low ? 'warn' : 'neutral'}" style="font-weight:500">${s.name} <b>${s.qty}</b></span>`;
+          }).join('') || '<span class="muted" style="font-size:12.5px">Nothing assigned yet.</span>'}
+        </div>
+
+        ${g ? `<button class="btn primary" style="width:100%;justify-content:center;margin-top:14px" data-act="po" data-arg="${v.id}">${icon('send',14)}Send PO — ${g.items.length} line${g.items.length > 1 ? 's' : ''}, ${m0(g.total)}</button>` : ''}
+      </div>`;
+    }).join('');
+
+    const log = document.getElementById('poLog');
+    if (!log) return;
+    const rows = INV.poLog || [];
+    log.innerHTML = rows.length
+      ? `<div class="tbl-wrap"><table>
+          <thead><tr><th>PO #</th><th>Vendor</th><th class="r">Lines</th><th class="r">Total</th><th>Sent</th></tr></thead>
+          <tbody>${rows.map((p) => {
+            const v = vendorById(p.vendorId);
+            return `<tr>
+              <td class="mono">${p.id}</td>
+              <td>${v ? v.name : '—'}</td>
+              <td class="r tnum">${p.lines}</td>
+              <td class="r tnum">${m0(p.total)}</td>
+              <td class="muted">${new Date(p.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</td>
+            </tr>`;
+          }).join('')}</tbody></table></div>`
+      : `<div class="allow">${icon('info')}<div>No purchase orders sent yet. Send one from the reorder list on <b>Inventory → Stock Pool</b>, or from a vendor above.</div></div>`;
+  }
+
   function renderInv() {
     renderJobSel(); renderRecon(); renderJobTable();
     renderStockKpis(); renderStockTable(); renderPartsTable();
     renderConsumables(); renderReorder(); renderScanCard();
-    renderDashInv(); renderCosts();
+    renderDashInv(); renderCosts(); renderVendors();
     document.querySelectorAll('#stockFilter button').forEach((b) =>
       b.classList.toggle('on', b.dataset.cond === INV.stockFilter));
   }
