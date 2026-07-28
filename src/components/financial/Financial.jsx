@@ -136,10 +136,10 @@ export default function Financial() {
             <span className="mock">Not connected</span>
           ) : (
             <>
-              {/* The demo build answers this endpoint from fixtures and flags it with
-                  `demo: true`. Saying "Live from QuickBooks" over invented figures is
-                  the kind of small lie that makes someone distrust every other number
-                  on the page. */}
+              {/* Only claim "live" when the payload actually came from QuickBooks.
+                  The live endpoint never sets `demo`, so this reads exactly as before
+                  in production; it exists so a fixture-backed build can't sit under a
+                  banner insisting the numbers are real. */}
               {data?.demo ? 'Sample data — QuickBooks not connected' : 'Live from QuickBooks'}<br />
               {data?.asOf ? `as of ${fmtDateOnly(data.asOf.slice(0, 10))}` : ''}
               {data && (
