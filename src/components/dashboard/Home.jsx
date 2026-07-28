@@ -109,9 +109,17 @@ export default function Home() {
         </div>
         <div className="page-meta">
           {dateLabel}<br />
-          {source === 'mock'
-            ? <span className="mock">● Sample data</span>
-            : <span className="live">● Supabase live</span>}
+          {/* Claim "live" only when the data genuinely came from Supabase — a badge
+              asserting a live database over data that didn't come from one is worse
+              than no badge. Note the three-way: until the fetch resolves (and if it
+              fails) `source` is null and we show NOTHING, rather than guessing. The
+              old form defaulted to "Supabase live" for any non-'mock' value, so a
+              failed load kept claiming the database was live. */}
+          {source == null
+            ? null
+            : source === 'supabase'
+              ? <span className="live">● Supabase live</span>
+              : <span className="mock">● Sample data</span>}
         </div>
       </div>
 

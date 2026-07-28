@@ -7,3 +7,7 @@ dist/
 service-account*.json
 .DS_Store
 .claude/
+
+# demo build outputs (branch demo-mode) — never shipped
+dist-demo/
+demo-site/dist/
