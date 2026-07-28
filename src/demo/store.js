@@ -16,10 +16,17 @@ import { PROPOSALS, LETTERS, FIELD_NOTES, DELEGATION_NOTES } from './fixtures/in
 
 const KEY = 'rm117-demo-store-v1';
 
+// Bump whenever the fixtures change. Saved state overrides the fixtures per
+// top-level key, so without this anyone who has ALREADY opened the demo keeps
+// their old copy and silently never sees new data — they'd report the change as
+// missing rather than as stale.
+const SEED_VERSION = 2;
+
 // A deep clone of the pristine fixture set. Every read goes through this, so a
 // mutation can never reach back into the imported fixture module.
 function pristine() {
   return structuredClone({
+    seedVersion: SEED_VERSION,
     jobs: JOBS,
     clients: CLIENTS,
     contacts: CLIENT_CONTACTS,
@@ -43,10 +50,12 @@ function load() {
     const raw = localStorage.getItem(KEY);
     if (raw) {
       const saved = JSON.parse(raw);
-      // Merge onto a fresh base so a fixture added in a later build still shows up
-      // for someone whose browser holds an older saved store.
-      state = { ...pristine(), ...saved };
-      return state;
+      // Only trust saved state from this seed generation — see SEED_VERSION.
+      // Anything older is discarded so new fixtures actually reach the viewer.
+      if (saved && saved.seedVersion === SEED_VERSION) {
+        state = { ...pristine(), ...saved };
+        return state;
+      }
     }
   } catch {
     /* corrupt or unavailable storage — fall through to a clean slate */

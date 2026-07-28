@@ -350,6 +350,7 @@
       <button data-v="feed">${icon('hash')}Team Feed</button>
       <button data-v="clients">${icon('users')}Clients</button>
       <div class="lbl">Company</div>
+      <button data-v="setup">${icon('wallet')}Setup &amp; Costs</button>
       <button data-v="dash2" disabled style="opacity:.5">${icon('gear')}Settings</button>
     </nav>
     <div class="side-foot">
@@ -607,14 +608,25 @@
           </table>
         </div>
 
-        <div class="subh">${icon('box',14)} Parts &amp; consumables — hybrid tracking</div>
+        <div id="reorderPanel" style="margin-bottom:18px"></div>
+
+        <div class="subh">${icon('box',14)} Parts — counted equipment</div>
         <div class="tbl-wrap">
           <table>
             <thead><tr><th>Part</th><th>Tracking</th><th class="r">On hand</th><th>Stock level</th><th class="r">Value</th><th></th></tr></thead>
             <tbody id="partsBody"></tbody>
           </table>
         </div>
-        <div class="allow">${icon('recycle')}<div>Expensive, countable parts (mounts, stands) get real quantities and <b>reorder alerts</b> that fire on a real threshold — take one below its reorder point and the bar turns amber here and on the dashboard. Cable and small connectors ride as a <b>materials allowance</b>: the hybrid keeps counting sane while still flagging when you're about to run out of the parts that matter.</div></div>
+
+        <div class="subh" style="margin-top:22px">${icon('box',14)} Consumables — counted by the piece</div>
+        <p class="sub" style="margin-top:-4px">Cable, plates, jacks and connectors, each tracked on its own so you can see what's on the van and what needs ordering. <b>−1 used</b> logs one off a job; <b>Add</b> receives a pack in.</p>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Item</th><th>SKU</th><th class="r">On hand</th><th>Stock level</th><th class="r">Order</th><th class="r">Value</th><th></th></tr></thead>
+            <tbody id="consumBody"></tbody>
+          </table>
+        </div>
+        <div class="allow">${icon('recycle')}<div>Suggested order quantities are rounded up to the <b>vendor's pack size</b>, so the number in the Order column is what goes on the purchase order — not a "you're low" nag you still have to do maths on.</div></div>
       </div>
     </section>
 
@@ -662,6 +674,161 @@
         ${clientCard('First Presbyterian Church','Cranbury, NJ','1 signed · $54,837','good')}
         ${clientCard('Steve Winter','Short Hills, NJ','1 sent · $6,452','warn')}
         ${clientCard('Meridian Dental Group','Livingston, NJ','1 draft','neutral')}
+      </div>
+    </section>
+
+    <!-- ===== SETUP & COSTS ===== -->
+    <section class="view" id="v-setup">
+      <div class="section-h"><h2>Setup &amp; Costs</h2></div>
+      <p class="sub">Everything Resound would need subscriptions to, and every connection this app makes into your Google Workspace — with a rough monthly price on each. Figures are approximate list prices; check current rates before budgeting.</p>
+
+      <div class="grid kpis" style="grid-template-columns:repeat(3,1fr)">
+        <div class="card kpi"><div class="k">To run the app</div><div class="v tnum" id="costApp">—</div><div class="d">New subscriptions only</div></div>
+        <div class="card kpi"><div class="k" style="color:var(--accent-ink)">Already paying</div><div class="v tnum" style="color:var(--accent-ink)" id="costHave">—</div><div class="d">Google Workspace + QuickBooks</div></div>
+        <div class="card kpi"><div class="k" style="color:var(--good)">All-in per month</div><div class="v tnum" style="color:var(--good)" id="costAll">—</div><div class="d">Assumes 4 people</div></div>
+      </div>
+
+      <div class="allow" style="margin-top:4px">${icon('info')}<div><b>The short version.</b> The only genuinely <b>new</b> spend is the database, the hosting and the AI drafting — roughly <b>$25–60/month</b> for a team your size. Google Workspace and QuickBooks you already pay for; the app connects to them rather than replacing them, so those lines don't change. The recurring cost is small. The cost is the build.</div></div>
+
+      <div class="subh">${icon('gear',14)} New subscriptions — what the app itself needs</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Service</th><th>What it does for Resound</th><th class="r">Rough cost</th><th>Needed?</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="rowname">Supabase</div><div class="rowsys">Database + file storage</div></td>
+              <td>Holds every proposal, job, client, inventory item and stock movement. Also stores photos from the field.</td>
+              <td class="r tnum">$0–25/mo</td>
+              <td><span class="pill bad">Required</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Vercel</div><div class="rowsys">Hosting</div></td>
+              <td>Runs the app at your own web address, with SSL. Publishes updates automatically.</td>
+              <td class="r tnum">$0–20/mo</td>
+              <td><span class="pill bad">Required</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Clerk</div><div class="rowsys">Sign-in</div></td>
+              <td>Your team signs in with their Resound Google accounts. Handles sessions and recovery so no password is ever stored here.</td>
+              <td class="r tnum">Free</td>
+              <td><span class="pill bad">Required</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Anthropic API</div><div class="rowsys">The AI drafting</div></td>
+              <td>Writes the scope of work from your line items — the part that saves the most time per proposal.</td>
+              <td class="r tnum">~$5–15/mo</td>
+              <td><span class="pill warn">Recommended</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Resend</div><div class="rowsys">Automated email</div></td>
+              <td>Sign-in codes and client notifications that go out with no one clicking send.</td>
+              <td class="r tnum">Free–$20/mo</td>
+              <td><span class="pill neutral">Optional</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">E-signature</div><div class="rowsys">DocuSign or similar</div></td>
+              <td>Client signs the proposal and contract without printing anything.</td>
+              <td class="r tnum">~$15–25/mo</td>
+              <td><span class="pill neutral">Optional</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">QR labels</div><div class="rowsys">Label stock</div></td>
+              <td>Printed codes for gear and bins. Phone camera scans them — nothing to install on anyone's phone.</td>
+              <td class="r tnum">One-off ~$40</td>
+              <td><span class="pill neutral">Optional</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="subh" style="margin-top:24px">${icon('users',14)} Google Workspace — the connections this app makes</div>
+      <p class="sub" style="margin-top:-4px">You already pay for Workspace. The app plugs into the parts you use every day rather than duplicating them, so your team keeps working where they already work.</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Google service</th><th>How the app uses it</th><th>Access needed</th><th class="r">Extra cost</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="rowname">Google Workspace</div><div class="rowsys">The subscription itself</div></td>
+              <td>Business Standard covers mail, 2 TB Drive per user and Meet. This is the one line that scales with headcount.</td>
+              <td><span class="pill accent">Existing plan</span></td>
+              <td class="r tnum">~$14–17<br><span class="muted" style="font-size:11px">per user/mo</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Google Drive</div><div class="rowsys">Job folders</div></td>
+              <td>Proposals, signed contracts and site photos file themselves into that job's folder. Your existing folder structure stays exactly as it is.</td>
+              <td><span class="pill warn">Content manager</span> on the shared drive</td>
+              <td class="r tnum">Included</td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Gmail</div><div class="rowsys">Send &amp; read</div></td>
+              <td>Client emails surface against the right job, and a proposal goes out <b>from your own mailbox</b> — so the reply comes back to you, and it sits in your Sent folder like any other email.</td>
+              <td><span class="pill warn">Send + read</span> per user, granted at sign-in</td>
+              <td class="r tnum">Included</td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Google Calendar</div><div class="rowsys">Install schedule</div></td>
+              <td>Install dates and site visits show on the dashboard, pulled from the calendar the crew already keeps. Add it to the phone and it syncs natively.</td>
+              <td><span class="pill neutral">Read-only</span></td>
+              <td class="r tnum">Included</td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Google Cloud project</div><div class="rowsys">The plumbing</div></td>
+              <td>Free container that authorises the three connections above. Set up once and left alone.</td>
+              <td><span class="pill neutral">One-time setup</span></td>
+              <td class="r tnum">Free</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="allow">${icon('info')}<div><b>Two Workspace gotchas worth knowing before you start.</b> The app's service account needs <b>Content manager</b> on the shared drive — anything less and it can read files but never deliver one. And each person grants Gmail access once at sign-in; if someone skips that step their inbox panel just sits there asking them to connect, which reads like a bug and isn't.</div></div>
+
+      <div class="subh" style="margin-top:24px">${icon('wallet',14)} Everything else you already pay for</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Service</th><th>How the app uses it</th><th class="r">Cost</th><th>Change?</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="rowname">QuickBooks Online</div><div class="rowsys">Accounting</div></td>
+              <td>Two-way: the app creates the customer and invoice; when it's paid, the payment comes back and the job balance updates itself. <b>The API is free</b> — no add-on.</td>
+              <td class="r tnum">~$35–99/mo<br><span class="muted" style="font-size:11px">your existing plan</span></td>
+              <td><span class="pill good">No change</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Slack</div><div class="rowsys">Team channel</div></td>
+              <td>Job updates post to <b>#resound-jobs</b>; techs log gear with a slash command. Built as a Slack app — works on the free plan.</td>
+              <td class="r tnum">Free–$8.75<br><span class="muted" style="font-size:11px">per user/mo</span></td>
+              <td><span class="pill good">No change</span></td>
+            </tr>
+            <tr>
+              <td><div class="rowname">Domain name</div><div class="rowsys">e.g. app.resoundav.com</div></td>
+              <td>A subdomain of the site you already own. One DNS record.</td>
+              <td class="r tnum">Free</td>
+              <td><span class="pill good">No change</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cols" style="grid-template-columns:1fr 1fr;align-items:start;margin-top:22px">
+        <div class="card panel">
+          <div class="panel-h"><h3>${icon('recycle',15)} The order to build it in</h3></div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.7;padding:4px 2px">
+            <div><b style="color:var(--ink)">1 · Database and hosting.</b> Supabase and Vercel, deployed on day one even when empty.</div>
+            <div style="margin-top:8px"><b style="color:var(--ink)">2 · Sign-in.</b> Locked to <span class="mono">@resoundav.com</span> addresses. Now it's private and real data can go in.</div>
+            <div style="margin-top:8px"><b style="color:var(--ink)">3 · Proposals and inventory,</b> with nothing connected. Prove the workflow matches how you actually price and stock before wiring anything external.</div>
+            <div style="margin-top:8px"><b style="color:var(--ink)">4 · QuickBooks,</b> read-only first — pull the invoice list in and check it matches. Only then let it write.</div>
+            <div style="margin-top:8px"><b style="color:var(--ink)">5 · Drive and Gmail,</b> once the team relies on the core.</div>
+            <div style="margin-top:8px"><b style="color:var(--ink)">6 · The rest</b> — AI drafting, Slack, e-sign, QR — one at a time, each able to fail without taking the app down.</div>
+          </div>
+        </div>
+        <div class="card panel">
+          <div class="panel-h"><h3>${icon('info',15)} What this replaces</h3></div>
+          <div style="font-size:13px;color:var(--muted);line-height:1.7;padding:4px 2px">
+            <div>The estimator spreadsheet, the PACKLIST tab, and the manual leftover count all fold into this app.</div>
+            <div style="margin-top:10px"><b style="color:var(--ink)">Nothing you already pay for goes away.</b> QuickBooks stays the books. Drive stays the filing cabinet. Slack stays the team channel. The app is the layer that connects them and stops the same job number being typed into three places.</div>
+            <div style="margin-top:10px">The honest cost picture: <b style="color:var(--ink)">under $60/month</b> in new spend, and the real investment is building it.</div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -984,7 +1151,7 @@
   const titles={dash:['Workspace','Dashboard'],proposals:['Workspace','Proposals'],
     builder:['Proposals','Bedroom TV Install'],inventory:['Workspace','Inventory'],
     orders:['Workspace','Orders & Payments'],feed:['Workspace','Team Feed'],
-    clients:['Workspace','Clients']};
+    clients:['Workspace','Clients'],setup:['Company','Setup & Costs']};
   function go(v){
     document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
     const el=document.getElementById('v-'+v); if(el)el.classList.add('on');
@@ -1027,6 +1194,7 @@
     else if(a==='stock-reuse') pull(arg);
     else if(a==='stock-sell') sellStock(arg);
     else if(a==='stock-reorder') reorderPart(arg);
+    else if(a==='consume') consumeOne(arg);
     else if(a==='pull') pull(arg);
     else if(a==='toast') toast(arg);
     else if(a==='theme') toggleTheme();
@@ -1110,8 +1278,15 @@
 
   const INV_KEY = 'resound-inv-v1';
 
+  // Bump this whenever the seed data below changes (new gear, new consumables,
+  // changed quantities). Saved state overrides the seed wholesale, so without a
+  // version stamp anyone who has ALREADY opened the demo keeps their old copy and
+  // silently never sees the new items — they'd report the change as missing.
+  const SEED_VERSION = 2;
+
   function invSeed() {
     return {
+      seedVersion: SEED_VERSION,
       activeJob: 'winter',
       stockFilter: 'all',
       scanId: 'sanus-vmpl50a',
@@ -1156,6 +1331,20 @@
         { id: 'sanus-vmpl50a', name: 'Sanus VMPL50A Tilting Mount', sku: 'VMPL50A', kind: 'part', sub: 'TV mount · 32–85"', condition: 'open', qty: 4, buy: 107.5, sell: 140, fromJob: 'Winter · Bedroom', location: 'Rack A · Sh 2', reorderAt: 2, ageDays: 30 },
         { id: 'tv-floor-stand', name: 'Universal TV Floor Stand', sku: 'TVFS-40', kind: 'part', sub: 'Swivel · 40–65"', condition: 'sealed', qty: 1, buy: 120, sell: 189, fromJob: 'Bulk', location: 'Bin B2', reorderAt: 2, ageDays: 55 },
         { id: 'under-tv-mount', name: 'Under-TV Soundbar Mount', sku: 'UTV-SB', kind: 'part', sub: 'Universal bracket', condition: 'sealed', qty: 3, buy: 48, sell: 79, fromJob: 'Bulk', location: 'Bin B3', reorderAt: 2, ageDays: 18 },
+
+        // Consumables — counted individually rather than buried in a dollar
+        // allowance. `pack` is how the vendor sells them, so the suggested order
+        // is a number you can actually put on a purchase order.
+        { id: 'hdmi-6', name: 'HDMI 2.1 Cable — 6 ft', sku: 'HD21-06', kind: 'consumable', sub: '48Gbps · 8K', qty: 14, buy: 9.4, sell: 29, reorderAt: 8, pack: 10, location: 'Van · Bin 1' },
+        { id: 'hdmi-15', name: 'HDMI 2.1 Cable — 15 ft', sku: 'HD21-15', kind: 'consumable', sub: '48Gbps · 8K', qty: 5, buy: 16.8, sell: 45, reorderAt: 6, pack: 10, location: 'Van · Bin 1' },
+        { id: 'hdmi-25-optical', name: 'HDMI Cable — 25 ft (optical)', sku: 'HD-AOC-25', kind: 'consumable', sub: 'Active optical · in-wall rated', qty: 2, buy: 58, sell: 139, reorderAt: 3, pack: 5, location: 'Van · Bin 1' },
+        { id: 'outlet-cover-1g', name: 'Outlet Cover — 1-gang Decora', sku: 'WP-1G-WH', kind: 'consumable', sub: 'White · screwless', qty: 31, buy: 1.15, sell: 6, reorderAt: 20, pack: 25, location: 'Van · Bin 3' },
+        { id: 'outlet-cover-2g', name: 'Outlet Cover — 2-gang Decora', sku: 'WP-2G-WH', kind: 'consumable', sub: 'White · screwless', qty: 7, buy: 1.85, sell: 9, reorderAt: 12, pack: 25, location: 'Van · Bin 3' },
+        { id: 'brush-plate', name: 'Brush Wall Plate — 1-gang', sku: 'WP-BR-1G', kind: 'consumable', sub: 'Cable pass-through', qty: 4, buy: 3.2, sell: 14, reorderAt: 6, pack: 10, location: 'Van · Bin 3' },
+        { id: 'lv-bracket', name: 'Low-Voltage Bracket — 1-gang', sku: 'LV-1G', kind: 'consumable', sub: 'Old work · mud ring', qty: 22, buy: 1.05, sell: 5, reorderAt: 15, pack: 20, location: 'Van · Bin 3' },
+        { id: 'cat6-keystone', name: 'Cat6 Keystone Jack', sku: 'KJ-C6-WH', kind: 'consumable', sub: 'Punch-down · white', qty: 9, buy: 1.75, sell: 8, reorderAt: 20, pack: 25, location: 'Van · Bin 2' },
+        { id: 'banana-plugs', name: 'Banana Plugs — pair', sku: 'BP-GLD', kind: 'consumable', sub: 'Gold · screw-type', qty: 18, buy: 1.4, sell: 6, reorderAt: 12, pack: 20, location: 'Van · Bin 2' },
+        { id: 'velcro-ties', name: 'Velcro Cable Ties — 8"', sku: 'VT-8', kind: 'consumable', sub: 'Reusable · black', qty: 46, buy: 0.28, sell: 2, reorderAt: 25, pack: 50, location: 'Van · Bin 2' },
       ],
       reorderList: [],
       soldIds: [],
@@ -1167,7 +1356,13 @@
   function loadInv() {
     try {
       const raw = localStorage.getItem(INV_KEY);
-      if (raw) return Object.assign(invSeed(), JSON.parse(raw));
+      if (raw) {
+        const saved = JSON.parse(raw);
+        // Only trust saved state from this seed generation — see SEED_VERSION.
+        if (saved && saved.seedVersion === SEED_VERSION) {
+          return Object.assign(invSeed(), saved);
+        }
+      }
     } catch (e) { /* private mode or corrupt — start clean */ }
     return invSeed();
   }
@@ -1366,13 +1561,14 @@
     const totalVal = live.reduce((s, i) => s + i.qty * i.buy, 0);
     const totalItems = live.reduce((s, i) => s + i.qty, 0);
     const reusable = live.filter((s) => s.kind === 'unit').reduce((s, i) => s + i.qty * i.buy, 0);
-    const low = INV.stock.filter((s) => s.kind === 'part' && s.qty <= (s.reorderAt || 0));
+    const needs = reorderNeeds();
+    const needsCost = needs.reduce((s, n) => s + n.cost, 0);
     const aging = live.filter((s) => (s.ageDays || 0) > 90).reduce((s, i) => s + i.qty * i.buy, 0);
 
     el.innerHTML = `
       <div class="card kpi"><div class="k">Total stock value</div><div class="v tnum">${m0(totalVal)}</div><div class="d">${totalItems} items · at buy cost</div></div>
       <div class="card kpi"><div class="k" style="color:var(--good)">Reusable now</div><div class="v tnum" style="color:var(--good)">${m0(reusable)}</div><div class="d">Finished gear, ready to pull</div></div>
-      <div class="card kpi"><div class="k" style="color:var(--warn)">Low / reorder</div><div class="v tnum" style="color:var(--warn)">${low.length} part${low.length === 1 ? '' : 's'}</div><div class="d">${low.length ? low.map((l) => l.name.split(' ')[0]).join(', ') : 'All above reorder point'}</div></div>
+      <div class="card kpi"><div class="k" style="color:var(--warn)">To order</div><div class="v tnum" style="color:var(--warn)">${needs.length} item${needs.length === 1 ? '' : 's'}</div><div class="d">${needs.length ? `${m0(needsCost)} est. · below reorder point` : 'All above reorder point'}</div></div>
       <div class="card kpi"><div class="k" style="color:var(--bad)">Aging &gt; 90 days</div><div class="v tnum" style="color:var(--bad)">${m0(aging)}</div><div class="d">${aging ? 'Consider selling' : 'Nothing stale'}</div></div>`;
   }
 
@@ -1437,6 +1633,88 @@
     b.innerHTML = rows + allowanceRow;
   }
 
+  // Everything at or below its reorder point, with a suggested order quantity
+  // rounded UP to the vendor's pack size — so it's a number you can put straight
+  // on a purchase order rather than a nag that says "low".
+  function reorderNeeds() {
+    return INV.stock
+      .filter((s) => (s.kind === 'part' || s.kind === 'consumable') && s.qty <= (s.reorderAt || 0))
+      .map((s) => {
+        const target = Math.max((s.reorderAt || 0) * 2, (s.reorderAt || 0) + 1);
+        const short = Math.max(1, target - s.qty);
+        const pack = s.pack || 1;
+        const order = Math.ceil(short / pack) * pack;
+        return { ...s, order, cost: order * s.buy };
+      })
+      .sort((a, b) => (a.qty / Math.max(a.reorderAt, 1)) - (b.qty / Math.max(b.reorderAt, 1)));
+  }
+
+  function renderConsumables() {
+    const b = document.getElementById('consumBody');
+    if (!b) return;
+    const rows = INV.stock.filter((s) => s.kind === 'consumable');
+
+    b.innerHTML = rows.map((s) => {
+      const reorder = s.reorderAt || 0;
+      const low = s.qty <= reorder;
+      const pct = Math.max(5, Math.min(100, Math.round((s.qty / Math.max(reorder * 2.5, 1)) * 100)));
+      const pack = s.pack || 1;
+      const target = Math.max(reorder * 2, reorder + 1);
+      const order = low ? Math.ceil(Math.max(1, target - s.qty) / pack) * pack : 0;
+      return `<tr>
+        <td><div class="rowname">${s.name}</div><div class="rowsys">${s.sub || ''} · ${s.location || ''}</div></td>
+        <td class="mono muted">${s.sku}</td>
+        <td class="r tnum"${low ? ' style="color:var(--warn);font-weight:700"' : ''}>${s.qty}</td>
+        <td><div class="lowbar"><div class="mbar"><i style="width:${pct}%;background:var(--${low ? 'warn' : 'good'})"></i></div>${
+          low ? `<span style="font-size:11px;color:var(--warn);font-weight:700">Below ${reorder}</span>`
+              : `<span class="muted" style="font-size:11px">reorder at ${reorder}</span>`}</div></td>
+        <td class="r">${order
+          ? `<b style="color:var(--warn)">${order}</b> <span class="muted" style="font-size:11px">(${pack}/pk)</span>`
+          : '<span class="muted">—</span>'}</td>
+        <td class="r tnum muted">${m0(s.qty * s.buy)}</td>
+        <td class="r">${low
+          ? `<button class="btn sm" data-act="stock-reorder" data-arg="${s.id}">${icon('plus', 13)}Add</button>`
+          : `<button class="btn sm" data-act="consume" data-arg="${s.id}">−1 used</button>`}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // The shopping list. This is the answer to "what do I need to order?" — the
+  // whole reason for counting consumables instead of lumping them into a
+  // dollar allowance.
+  function renderReorder() {
+    const el = document.getElementById('reorderPanel');
+    if (!el) return;
+    const needs = reorderNeeds();
+
+    if (!needs.length) {
+      el.innerHTML = `<div class="allow">${icon('info')}<div><b>Nothing to order.</b> Every counted part and consumable is above its reorder point.</div></div>`;
+      return;
+    }
+    const total = needs.reduce((s, n) => s + n.cost, 0);
+    el.innerHTML = `<div class="card panel" style="border-color:rgba(224,163,60,.4)">
+      <div class="panel-h">
+        <h3>${icon('truck', 15)} To order — ${needs.length} item${needs.length > 1 ? 's' : ''} below reorder point</h3>
+        <span class="pill warn">${m0(total)} est.</span>
+      </div>
+      <div class="tbl-wrap" style="border:0">
+        <table>
+          <thead><tr><th>Item</th><th class="r">On hand</th><th class="r">Reorder at</th><th class="r">Order</th><th class="r">Est. cost</th></tr></thead>
+          <tbody>
+            ${needs.map((n) => `<tr>
+              <td><div class="rowname">${n.name}</div><div class="rowsys mono">${n.sku}</div></td>
+              <td class="r tnum" style="color:var(--warn);font-weight:700">${n.qty}</td>
+              <td class="r tnum muted">${n.reorderAt}</td>
+              <td class="r tnum"><b>${n.order}</b></td>
+              <td class="r tnum muted">${m0(n.cost)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <button class="btn primary" style="width:100%;justify-content:center;margin-top:12px" data-act="toast" data-arg="Purchase order drafted for ${needs.length} items — ${m0(total)}. Posts to #resound-jobs.">${icon('send', 14)}Draft purchase order</button>
+    </div>`;
+  }
+
   function renderScanCard() {
     const el = document.getElementById('scanCard');
     if (!el) return;
@@ -1477,10 +1755,29 @@
     sub.innerHTML = `${items} items · <span style="color:var(--warn)">${m0(reusable)} reusable</span>`;
   }
 
+  // Setup & Costs headline figures. Derived from one place so the three tiles and
+  // the "$25–60/month" claim in the copy can never drift apart.
+  const COSTS = {
+    seats: 4,                    // assumed team size — stated on the tile
+    newApp: { low: 25, high: 60 },   // Supabase + Vercel + AI, per month
+    workspacePerSeat: 15.6,          // Workspace Business Standard, approx list
+    quickbooks: 60,                  // mid-plan, approx
+  };
+  function renderCosts() {
+    const app = document.getElementById('costApp');
+    if (!app) return;
+    const have = Math.round(COSTS.workspacePerSeat * COSTS.seats + COSTS.quickbooks);
+    app.textContent = `$${COSTS.newApp.low}–${COSTS.newApp.high}`;
+    document.getElementById('costHave').textContent = `~${m0(have)}`;
+    document.getElementById('costAll').textContent =
+      `~${m0(have + COSTS.newApp.low)}–${Math.round(have + COSTS.newApp.high).toLocaleString('en-US')}`;
+  }
+
   function renderInv() {
     renderJobSel(); renderRecon(); renderJobTable();
-    renderStockKpis(); renderStockTable(); renderPartsTable(); renderScanCard();
-    renderDashInv();
+    renderStockKpis(); renderStockTable(); renderPartsTable();
+    renderConsumables(); renderReorder(); renderScanCard();
+    renderDashInv(); renderCosts();
     document.querySelectorAll('#stockFilter button').forEach((b) =>
       b.classList.toggle('on', b.dataset.cond === INV.stockFilter));
   }
@@ -1514,9 +1811,21 @@
   function reorderPart(id) {
     const s = stockById(id);
     if (!s) return;
-    if (!INV.reorderList.includes(id)) INV.reorderList.push(id);
-    saveInv();
-    toast(`${s.name} added to the reorder list — posts to #resound-jobs`);
+    const pack = s.pack || 1;
+    s.qty += pack;
+    saveInv(); renderInv();
+    toast(`Received ${pack} × ${s.name} — ${s.qty} on hand`);
+  }
+
+  // Log a consumable used on site. This is the small, frequent action that keeps
+  // the counts honest; without it the reorder list is fiction.
+  function consumeOne(id) {
+    const s = stockById(id);
+    if (!s || s.qty < 1) { toast('None left to use'); return; }
+    s.qty -= 1;
+    saveInv(); renderInv();
+    if (s.qty <= (s.reorderAt || 0)) toast(`⚠ ${s.name} down to ${s.qty} — below reorder point of ${s.reorderAt}`);
+    else toast(`${s.name} — ${s.qty} left`);
   }
 
   // The QR path: scan a code in the van, check the unit straight onto the active
