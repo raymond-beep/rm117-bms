@@ -109,9 +109,12 @@ export default function Home() {
         </div>
         <div className="page-meta">
           {dateLabel}<br />
-          {source === 'mock'
-            ? <span className="mock">● Sample data</span>
-            : <span className="live">● Supabase live</span>}
+          {/* Claim "live" only when the data genuinely came from Supabase. Any other
+              source (mock, or the demo build's fixtures) is sample data and must say so —
+              a badge asserting a live database over invented numbers is worse than no badge. */}
+          {source === 'supabase'
+            ? <span className="live">● Supabase live</span>
+            : <span className="mock">● Sample data</span>}
         </div>
       </div>
 

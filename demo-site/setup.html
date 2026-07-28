@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Setup &amp; Connections — what a system like this needs</title>
+<style>
+  :root{
+    --bg:#0d1013; --card:#161b20; --ink:#eef2f5; --muted:#9aa6b2; --faint:#6b7885;
+    --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.18);
+    --resound:#2ec5b6; --rm117:#b08d57; --warn:#e0a33c; --good:#4bbf7b;
+    --code-bg:#0a0d10;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif; padding:40px 20px 80px}
+  .wrap{max-width:840px; margin:0 auto}
+  a{color:var(--resound)}
+  .back{font-size:13px; color:var(--muted); text-decoration:none; display:inline-block; margin-bottom:26px}
+  .back:hover{color:var(--ink)}
+
+  h1{font-size:29px; letter-spacing:-.02em; margin:0 0 10px; font-weight:640}
+  .lede{color:var(--muted); font-size:15.5px; margin:0 0 12px}
+  h2{font-size:19px; margin:44px 0 6px; letter-spacing:-.01em; padding-bottom:9px; border-bottom:1px solid var(--line)}
+  h3{font-size:15.5px; margin:26px 0 4px}
+  p{color:var(--muted); margin:0 0 12px}
+  strong{color:var(--ink); font-weight:600}
+
+  .callout{background:rgba(46,197,182,.07); border:1px solid rgba(46,197,182,.26);
+    border-radius:11px; padding:15px 18px; margin:20px 0; font-size:14px; color:var(--muted)}
+  .callout b{color:var(--ink)}
+  .callout.warn{background:rgba(224,163,60,.07); border-color:rgba(224,163,60,.3)}
+
+  table{width:100%; border-collapse:collapse; margin:14px 0 4px; font-size:13.5px}
+  .scroll{overflow-x:auto; -webkit-overflow-scrolling:touch}
+  th{text-align:left; font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--faint); font-weight:600; padding:0 12px 8px 0; border-bottom:1px solid var(--line); white-space:nowrap}
+  td{padding:11px 12px 11px 0; border-bottom:1px solid rgba(255,255,255,.055);
+    color:var(--muted); vertical-align:top}
+  td:first-child{color:var(--ink); font-weight:560; white-space:nowrap}
+  code{background:var(--code-bg); border:1px solid var(--line); border-radius:5px;
+    padding:1.5px 6px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:12.5px; color:#c8d4de; white-space:nowrap}
+  pre{background:var(--code-bg); border:1px solid var(--line); border-radius:10px;
+    padding:15px 17px; overflow-x:auto; font-size:12.5px; line-height:1.6; color:#c8d4de}
+  pre code{background:0; border:0; padding:0; white-space:pre}
+
+  .pill{display:inline-block; font-size:10.5px; letter-spacing:.07em; text-transform:uppercase;
+    font-weight:640; padding:3px 8px; border-radius:999px; vertical-align:middle}
+  .pill.req{background:rgba(224,163,60,.16); color:var(--warn)}
+  .pill.opt{background:rgba(255,255,255,.07); color:var(--faint)}
+  .pill.free{background:rgba(75,191,123,.15); color:var(--good)}
+  .pill.a{background:rgba(46,197,182,.14); color:var(--resound)}
+  .pill.b{background:rgba(176,141,87,.16); color:var(--rm117)}
+
+  ol.steps{counter-reset:s; list-style:none; padding:0; margin:16px 0}
+  ol.steps li{counter-increment:s; position:relative; padding:0 0 18px 40px; color:var(--muted)}
+  ol.steps li:before{content:counter(s); position:absolute; left:0; top:0;
+    width:26px; height:26px; border-radius:50%; background:rgba(46,197,182,.14);
+    color:var(--resound); font-size:12.5px; font-weight:700;
+    display:flex; align-items:center; justify-content:center}
+  ol.steps li b{color:var(--ink)}
+  ul{color:var(--muted); padding-left:20px}
+  li{margin-bottom:5px}
+  .foot{margin-top:56px; padding-top:20px; border-top:1px solid var(--line);
+    font-size:13px; color:var(--faint)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← Back to the demos</a>
+
+  <h1>Setup &amp; Connections</h1>
+  <p class="lede">What a system like this is actually plugged into, what each piece costs, and the
+  order to wire it up. Written for whoever builds the real thing.</p>
+
+  <div class="callout">
+    <b>The short version.</b> A system like this is one small web app plus a database, and then a
+    series of connections to services the business already pays for. The app itself is the easy part.
+    The value — and most of the work — is in the connections: the accounting system, the file storage,
+    the email. Get the database and hosting up first; add connections one at a time, in the order below.
+    Nothing here needs a server you maintain.
+  </div>
+
+  <h2>The two things you need before anything else</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Service</th><th>What it does</th><th>Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Supabase <span class="pill req">required</span></td>
+        <td>The database. Every job, client, invoice, inventory item and history record lives here.
+            Also handles file storage for photos and uploads.</td>
+        <td>Free tier is real; <strong>$25/mo</strong> per project once you outgrow it</td>
+        <td>Postgres under the hood, so nothing is proprietary — the data can be exported or moved out at any time.</td>
+      </tr>
+      <tr>
+        <td>Vercel <span class="pill req">required</span></td>
+        <td>Hosting. Deploys the app automatically every time the code changes, runs the
+            server-side functions, handles SSL and the custom domain.</td>
+        <td>Free tier works to start; <strong>$20/user/mo</strong> (Pro) for real use</td>
+        <td>Pro matters once you have background jobs and more than a handful of server functions.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>With just those two, you have a working private app: log in, add jobs, track inventory, see totals.
+  Everything below is a connection to something outside.</p>
+
+  <h2>Sign-in</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Service</th><th>What it does</th><th>Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Clerk <span class="pill req">required</span></td>
+        <td>Staff sign-in. Handles passwords, Google sign-in, sessions and account recovery so
+            you never store a password yourself.</td>
+        <td><strong>Free</strong> to ~10,000 users</td>
+        <td>Room 117 restricts access by email domain — anyone with a company address is staff, everyone
+            else is refused. Simple and it has never needed maintenance.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout warn">
+    <b>Worth knowing early.</b> Customers should <em>not</em> go through the same sign-in as staff.
+    Room 117 learned this: clients get in by a link emailed to them, a 6-digit code, or a password
+    they set themselves — no account to create, and they never touch the staff system. Deciding this
+    up front saves rebuilding it later.
+  </div>
+
+  <h2>The money connection</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Service</th><th>What it does</th><th>Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>QuickBooks Online <span class="pill a">Resound</span> <span class="pill b">RM117</span></td>
+        <td>Two-way. The app creates customers and invoices in QuickBooks; when an invoice gets paid,
+            the payment flows back into the app automatically. Also feeds the profit-and-loss and
+            receivables screens.</td>
+        <td>Your existing QuickBooks subscription — <strong>the API is free</strong></td>
+        <td>Accounting stays the system of record. The app is a nicer front end, never a second ledger.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout warn">
+    <b>The one rule that makes this work.</b> Every job has an ID, and that exact ID must be the
+    customer name in QuickBooks — character for character. That single convention is what lets a
+    payment recorded in QuickBooks find its way back to the right job with no manual matching. It
+    sounds trivial. It is the thing most likely to break, so build the rename tool that keeps both
+    sides in step from day one, rather than fixing collisions by hand later.
+  </div>
+
+  <h2>Files, email and calendar</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Service</th><th>What it does</th><th>Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Google Drive <span class="pill b">RM117</span></td>
+        <td>Document storage per job. The app reads and writes the job's folders, so the team keeps
+            working in Drive exactly as they always have.</td>
+        <td>Existing Google Workspace</td>
+        <td>The app's service account needs <strong>Content manager</strong> on the shared drive — read-only
+            access blocks anything that delivers a document.</td>
+      </tr>
+      <tr>
+        <td>Gmail <span class="pill b">RM117</span></td>
+        <td>Reads recent mail to surface client messages, and sends client updates
+            <em>as the person who clicked send</em>, from their own mailbox.</td>
+        <td>Existing Google Workspace</td>
+        <td>An update from a person gets opened. The same message from <code>noreply@</code> gets ignored.
+            Worth the extra plumbing.</td>
+      </tr>
+      <tr>
+        <td>Google Calendar <span class="pill opt">optional</span></td>
+        <td>Site visits and deadlines on the dashboard, pulled from the calendar the team already keeps.</td>
+        <td>Existing Google Workspace</td>
+        <td>Read-only is enough.</td>
+      </tr>
+      <tr>
+        <td>Resend <span class="pill opt">optional</span></td>
+        <td>Automated email — sign-in codes and notifications. Anything with no human in the loop,
+            which therefore can't come from a person's mailbox.</td>
+        <td><strong>Free</strong> to 3,000/mo, then ~$20/mo</td>
+        <td>Needs DNS records on a domain you control to prove you're allowed to send as it.
+            Budget an afternoon; it is the fiddliest item on this page.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>Optional, and genuinely optional</h2>
+
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Service</th><th>What it does</th><th>Cost</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Anthropic API <span class="pill a">Resound</span> <span class="pill b">RM117</span></td>
+        <td>The AI features: reviewing drawing sets against a checklist, reading a signed proposal to
+            pull out its terms, drafting a scope of work from line items.</td>
+        <td>Pay per use — <strong>a few dollars a month</strong> at this volume</td>
+        <td>Add last. Everything else must work without it.</td>
+      </tr>
+      <tr>
+        <td>Slack <span class="pill a">Resound</span></td>
+        <td>Job channel: proposal signed, order shipped, gear scanned in the field. Techs can log
+            work with a slash command instead of opening the app.</td>
+        <td><strong>Free</strong> — Slack app, not a paid plan</td>
+        <td>Deliberately excludes payments. Money stays in accounting.</td>
+      </tr>
+      <tr>
+        <td>DocuSign <span class="pill b">RM117</span></td>
+        <td>Proposals out for signature; the app tracks whether it's been signed.</td>
+        <td>From ~<strong>$15/mo</strong></td>
+        <td>A cheaper e-sign service works the same way if cost matters.</td>
+      </tr>
+      <tr>
+        <td>QR labels <span class="pill a">Resound</span></td>
+        <td>Printed codes on gear and bins. A phone camera opens the item's card — no app to install
+            on anyone's phone.</td>
+        <td><strong>Label stock only</strong></td>
+        <td>The app generates and prints the codes. Decide early: a code per individual unit, or per
+            bin/part number? It changes the data model, so settle it before building.</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h2>What it costs to run</h2>
+  <p>Realistically, for a small business running this for real:</p>
+  <ul>
+    <li><strong>Starting out:</strong> $0–25/month. Free tiers cover a single-user app with modest data.</li>
+    <li><strong>A real team using it daily:</strong> roughly <strong>$45–90/month</strong> — database, hosting,
+        and the odd API call. Sign-in is free at this size.</li>
+    <li><strong>Already-paid-for:</strong> QuickBooks, Google Workspace and Slack are things the business
+        already has. Connecting them costs nothing extra.</li>
+  </ul>
+  <p>The recurring cost is small. The cost is the build.</p>
+
+  <h2>The order to do it in</h2>
+  <ol class="steps">
+    <li><b>Database first.</b> Create the Supabase project and design the tables. Everything else
+        hangs off this, and changing it later is the expensive kind of change.</li>
+    <li><b>Get it deployed on day one.</b> Connect the code to Vercel immediately, even with nothing
+        in it. Every change should go live automatically from the start — batching that up is how
+        projects stall.</li>
+    <li><b>Add sign-in.</b> Clerk, restricted to your company's email domain. Now it's private and
+        you can put real data in.</li>
+    <li><b>Build the core screens with no outside connections.</b> Jobs, clients, inventory. Prove
+        the workflow matches how the business actually runs before wiring anything external.</li>
+    <li><b>Connect accounting.</b> QuickBooks, read-only at first — pull the invoice list in and check
+        it matches. Only then let the app write.</li>
+    <li><b>Connect files and email.</b> Drive and Gmail, once people are relying on the core.</li>
+    <li><b>Everything else, one at a time.</b> AI, Slack, e-signature, QR. Each is a self-contained
+        addition, and each should be able to fail without taking the app down with it.</li>
+  </ol>
+
+  <div class="callout">
+    <b>The one habit worth copying.</b> Every connection above can fail — a token expires, a service
+    has an outage, someone revokes access. In this system each one is wrapped so that when it fails,
+    that panel says so and the rest of the app keeps working. A dashboard that goes blank because
+    QuickBooks is briefly down is a system people stop trusting, and they only need to see it once.
+  </div>
+
+  <h2>Configuration, concretely</h2>
+  <p>These are the environment variables the real system reads. They live in the hosting platform's
+  settings, never in the code itself.</p>
+  <pre><code># Database — required
+SUPABASE_URL=
+SUPABASE_SERVICE_KEY=
+
+# Sign-in — required
+CLERK_SECRET_KEY=
+VITE_CLERK_PUBLISHABLE_KEY=
+
+# Accounting
+QBO_CLIENT_ID=
+QBO_CLIENT_SECRET=
+QBO_REALM_ID=
+
+# Google — files, mail, calendar
+GOOGLE_SERVICE_ACCOUNT_EMAIL=
+GOOGLE_PRIVATE_KEY=
+COMPANY_CALENDAR_ID=
+
+# Automated email
+RESEND_API_KEY=
+
+# AI features
+ANTHROPIC_API_KEY=
+
+# Slack (Resound)
+SLACK_BOT_TOKEN=
+SLACK_SIGNING_SECRET=</code></pre>
+
+  <div class="callout warn">
+    <b>Two things not to get wrong.</b> The service key above bypasses every permission rule in the
+    database — it belongs on the server only, never in anything the browser downloads. And permissions
+    must be enforced on the server, not by hiding buttons in the interface: a hidden button is not a
+    permission.
+  </div>
+
+  <h2>About these demos</h2>
+  <p>Both demos on this site are deliberately built the opposite way: they ship with
+  <strong>no credentials at all</strong> and no database. Every figure in them is invented, and the
+  screens that normally read from QuickBooks, Gmail, Drive or the AI review are showing sample
+  responses. That is why they can be handed out freely — there is no connection for them to leak.
+  Changes you make while clicking around are saved in your own browser and nowhere else.</p>
+
+  <div class="foot">
+    Room 117 Architecture &amp; Design · Resound Technologies LLC<br>
+    Questions: <a href="mailto:raymond@rm117.com">raymond@rm117.com</a>
+  </div>
+</div>
+</body>
+</html>

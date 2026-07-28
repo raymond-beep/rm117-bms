@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resound BMS — demo</title>
+<style>
+  :root{
+    --bg:#0d1013; --card:#161b20; --card-2:#1b2127;
+    --ink:#eef2f5; --muted:#9aa6b2; --faint:#6b7885;
+    --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.18);
+    --resound:#2ec5b6; --rm117:#b08d57;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--ink);
+    font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:32px 20px;
+  }
+  .wrap{width:100%; max-width:920px}
+
+  /* ---- gate ---- */
+  #gate{max-width:420px; margin:0 auto}
+  .gate-card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:34px 30px}
+  .gate-card h1{font-size:19px; margin:0 0 6px; letter-spacing:-.01em}
+  .gate-card p{color:var(--muted); font-size:13.5px; margin:0 0 22px}
+  label{display:block; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin-bottom:7px}
+  input{
+    width:100%; padding:12px 14px; border-radius:9px; font-size:15px;
+    background:#0d1013; border:1px solid var(--line-2); color:var(--ink); outline:none;
+  }
+  input:focus{border-color:var(--resound)}
+  button.go{
+    width:100%; margin-top:16px; padding:12px; border:0; border-radius:9px; cursor:pointer;
+    background:var(--resound); color:#06231f; font-size:14.5px; font-weight:650;
+  }
+  .err{color:#ef8b86; font-size:12.5px; margin-top:10px; display:none}
+
+  /* ---- picker ---- */
+  #picker{display:none}
+  .lede{text-align:center; margin-bottom:34px}
+  .lede h1{font-size:26px; margin:0 0 8px; letter-spacing:-.02em; font-weight:640}
+  .lede p{color:var(--muted); font-size:14.5px; margin:0; max-width:520px; margin-inline:auto}
+
+  .cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:15px;
+    padding:26px 24px 22px; display:flex; flex-direction:column;
+    text-decoration:none; color:inherit; transition:border-color .16s, background .16s, transform .16s;
+  }
+  .card:hover{border-color:var(--line-2); background:var(--card-2); transform:translateY(-2px)}
+  .card.lead{border-color:rgba(46,197,182,.34)}
+  .card.lead:hover{border-color:var(--resound)}
+
+  .tag{
+    display:inline-flex; align-items:center; gap:6px; align-self:flex-start;
+    font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; font-weight:640;
+    padding:4px 9px; border-radius:999px; margin-bottom:16px;
+  }
+  .tag.a{background:rgba(46,197,182,.14); color:var(--resound)}
+  .tag.b{background:rgba(176,141,87,.15); color:var(--rm117)}
+
+  .card h2{font-size:19px; margin:0 0 3px; letter-spacing:-.01em}
+  .card .sub{font-size:12.5px; color:var(--faint); margin-bottom:14px}
+  .card p{font-size:13.5px; color:var(--muted); margin:0 0 16px; flex:1}
+  .feat{list-style:none; padding:0; margin:0 0 20px; font-size:13px; color:var(--muted)}
+  .feat li{padding:4px 0 4px 17px; position:relative}
+  .feat li:before{content:''; position:absolute; left:2px; top:12px; width:5px; height:5px; border-radius:50%; background:currentColor; opacity:.45}
+  .feat li b{color:var(--ink); font-weight:600}
+  .open{font-size:13.5px; font-weight:620; display:flex; align-items:center; gap:7px}
+  .card.lead .open{color:var(--resound)}
+  .card:not(.lead) .open{color:var(--rm117)}
+
+  .foot{margin-top:28px; text-align:center; font-size:12.5px; color:var(--faint)}
+  .foot a{color:var(--muted)}
+  .note{
+    margin-top:22px; padding:13px 16px; border-radius:10px; font-size:12.5px; color:var(--muted);
+    background:rgba(255,255,255,.03); border:1px solid var(--line); text-align:center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ ACCESS GATE ============ -->
+  <div id="gate">
+    <div class="gate-card">
+      <h1>Demo access</h1>
+      <p>Enter the code you were sent to open the demos.</p>
+      <label for="code">Access code</label>
+      <input id="code" type="password" autocomplete="off" autofocus placeholder="Access code">
+      <div class="err" id="err">That code doesn’t match. Check the message you were sent.</div>
+      <button class="go" id="unlock">Continue</button>
+    </div>
+  </div>
+
+  <!-- ============ APP PICKER ============ -->
+  <div id="picker">
+    <div class="lede">
+      <h1>Two systems, one door</h1>
+      <p>Both are demonstrations running on sample data. Nothing you click here touches a real
+         business, a real client, or a real bank account.</p>
+    </div>
+
+    <div class="cards">
+      <a class="card lead" href="./resound/">
+        <span class="tag a">Your system — concept</span>
+        <h2>Resound BMS</h2>
+        <div class="sub">Resound Technologies LLC · A/V integration</div>
+        <p>Built from your estimator spreadsheet and the Cranbury proposal — the proposal
+           workflow and the gear inventory, in one place.</p>
+        <ul class="feat">
+          <li><b>Inventory tracker</b> — live: pull gear to a job, stock drops; leftovers come back with their value</li>
+          <li><b>Proposal builder</b> — BOM with live margins + your labor calculator</li>
+          <li><b>Client documents</b> — quick quote or full proposal + contract</li>
+          <li>QR scan · orders &amp; payments · team feed</li>
+        </ul>
+        <span class="open">Open Resound BMS →</span>
+      </a>
+
+      <a class="card" href="./app/">
+        <span class="tag b">Working system — live today</span>
+        <h2>Room 117 BMS</h2>
+        <div class="sub">Room 117 Architecture &amp; Design · reference build</div>
+        <p>The system this approach came from. It runs the architecture practice day to day —
+           shown here on sample data so you can see how far one of these goes.</p>
+        <ul class="feat">
+          <li>Job pipeline, phases and aging flags</li>
+          <li>Financials from the accounting system</li>
+          <li>AI drawing review · client portal · weekly planner</li>
+          <li>Document generation and e-signature</li>
+        </ul>
+        <span class="open">Open Room 117 BMS →</span>
+      </a>
+    </div>
+
+    <div class="note">
+      Wondering what it takes to run one of these for real?
+      <a href="/setup" style="color:var(--resound)">Setup &amp; Connections</a> lists every service,
+      what it costs, and the order to wire them up.
+    </div>
+
+    <div class="foot">Built by Ray Arocha · <a href="mailto:raymond@rm117.com">raymond@rm117.com</a></div>
+  </div>
+
+</div>
+
+<script>
+  // Soft access gate. This runs in the browser, so it is a "not for casual
+  // visitors" sign rather than a security control — which is the right level
+  // here, because there is nothing real behind it: both demos ship with sample
+  // data only and carry no credentials for any live service.
+  // The unlock flag is shared with the Room 117 app (same origin, same key), so
+  // the code is typed once for both.
+  var CODE = 'resound2026';
+  var KEY  = 'demo-unlocked';
+
+  function show() {
+    document.getElementById('gate').style.display = 'none';
+    document.getElementById('picker').style.display = 'block';
+  }
+  try { if (sessionStorage.getItem(KEY) === '1') show(); } catch (e) {}
+
+  function tryUnlock() {
+    var v = document.getElementById('code').value.trim().toLowerCase();
+    if (v === CODE) {
+      try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+      show();
+    } else {
+      document.getElementById('err').style.display = 'block';
+    }
+  }
+  document.getElementById('unlock').addEventListener('click', tryUnlock);
+  document.getElementById('code').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') tryUnlock();
+    else document.getElementById('err').style.display = 'none';
+  });
+</script>
+</body>
+</html>
