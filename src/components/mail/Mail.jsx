@@ -413,10 +413,23 @@ function ReplyBox({ thread, selfEmail, onSent }) {
   const [all, setAll] = useState(false);
   const [state, setState] = useState({ status: 'idle' });
 
+  const [dropped, setDropped] = useState(() => new Set());
+
   const { to, cc } = useMemo(
     () => replyRecipients(last, selfEmail, { all }),
     [last, selfEmail, all],
   );
+
+  // Turning reply-all off and on again should not silently keep people removed.
+  useEffect(() => { setDropped(new Set()); }, [all, last.id]);
+
+  const toggleDrop = (email) => setDropped((prev) => {
+    const next = new Set(prev);
+    if (next.has(email)) next.delete(email); else next.add(email);
+    return next;
+  });
+
+  const liveCount = [...to, ...cc].filter((a) => !dropped.has(a.email)).length;
 
   const send = async () => {
     if (!text.trim() || state.status === 'sending') return;
@@ -427,6 +440,7 @@ function ReplyBox({ thread, selfEmail, onSent }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           threadId: thread.id, messageId: last.id, text, replyAll: all,
+          drop: [...dropped],
         }),
       });
       const data = await r.json();
@@ -443,20 +457,47 @@ function ReplyBox({ thread, selfEmail, onSent }) {
     }
   };
 
-  const label = [
-    ...to.map((a) => a.name || a.email),
-    ...cc.map((a) => `${a.name || a.email} (cc)`),
-  ].join(', ');
+  // ⚠️ Every recipient is listed in full, never truncated. On a developer's
+  // thread this is the last chance to see that a reply-all reaches their whole
+  // team, and "Gabe …" cut off mid-name is exactly where that gets missed.
+  const chip = (a, kind) => {
+    const off = dropped.has(a.email);
+    return (
+      <button
+        key={`${kind}-${a.email}`}
+        type="button"
+        className={`mail-rcpt is-${kind}${off ? ' is-off' : ''}`}
+        title={off ? `${a.email} — removed, click to add back` : `${a.email} — click to remove`}
+        onClick={() => toggleDrop(a.email)}
+      >
+        <span className="mail-rcpt-name">{a.name || a.email}</span>
+        <span className="mail-rcpt-x" aria-hidden="true">{off ? '+' : '×'}</span>
+      </button>
+    );
+  };
 
   return (
     <div className="mail-reply">
       <div className="mail-reply-head">
-        <span className="mail-reply-to" title={label}>To: {label || '—'}</span>
+        <span className="mail-reply-count">
+          {liveCount} recipient{liveCount === 1 ? '' : 's'}
+        </span>
         {(last.to.length + last.cc.length) > 1 && (
           <label className="mail-reply-all">
             <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
             Reply all
           </label>
+        )}
+      </div>
+
+      <div className="mail-rcpts">
+        <span className="mail-rcpt-label">To</span>
+        {to.length ? to.map((a) => chip(a, 'to')) : <span className="mail-rcpt-none">—</span>}
+        {cc.length > 0 && (
+          <>
+            <span className="mail-rcpt-label">Cc</span>
+            {cc.map((a) => chip(a, 'cc'))}
+          </>
         )}
       </div>
       <textarea
@@ -481,7 +522,7 @@ function ReplyBox({ thread, selfEmail, onSent }) {
         <button
           type="button"
           className="btn"
-          disabled={!text.trim() || state.status === 'sending'}
+          disabled={!text.trim() || !liveCount || state.status === 'sending'}
           onClick={send}
         >
           {state.status === 'sending' ? 'Sending…' : 'Send'}

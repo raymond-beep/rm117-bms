@@ -2613,10 +2613,33 @@ input, select, textarea { font: inherit; }
   position: sticky; bottom: 0; background: var(--panel);
 }
 .mail-reply-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
-.mail-reply-to {
-  font-size: 11.5px; color: var(--muted); min-width: 0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.mail-reply-count { font-size: 11.5px; color: var(--muted); }
+
+/* Every recipient shown in full and wrapping — never truncated. On a developer's
+   thread this is the last chance to notice a reply-all is reaching their whole
+   team, and a name cut off mid-word is exactly where that gets missed.
+   Click a chip to drop that person (the server treats it as a subtraction, so
+   the browser can never ADD a recipient). */
+.mail-rcpts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 8px; }
+.mail-rcpt-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); margin-right: 1px;
 }
+.mail-rcpt-label:not(:first-child) { margin-left: 6px; }
+.mail-rcpt-none { font-size: 11.5px; color: var(--muted); }
+.mail-rcpt {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 7px 2px 9px;
+  background: var(--inset); color: var(--ink); cursor: pointer;
+  font: inherit; font-size: 11.5px; line-height: 1.7;
+}
+.mail-rcpt:hover { border-color: var(--accent); }
+.mail-rcpt.is-cc { background: transparent; color: var(--muted); }
+.mail-rcpt.is-off { opacity: 0.45; text-decoration: line-through; }
+.mail-rcpt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.mail-rcpt-x { font-size: 12px; color: var(--muted); line-height: 1; }
+.mail-rcpt:hover .mail-rcpt-x { color: var(--danger); }
+.mail-rcpt.is-off .mail-rcpt-x { color: var(--accent-ink); }
 .mail-reply-all { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); white-space: nowrap; cursor: pointer; }
 .mail-reply-input {
   width: 100%; resize: vertical; min-height: 62px;

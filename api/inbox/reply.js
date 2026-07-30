@@ -1,6 +1,6 @@
 // POST /api/inbox/reply — reply to a thread AS the signed-in staff member.
 //
-// Body: { threadId, messageId, to: [email], cc: [email], subject, text }
+// Body: { threadId, messageId, text, replyAll?: bool, drop?: [email] }
 //
 // Sends through the staffer's own Gmail (api/_lib/gmail-send.js), so the reply
 // comes from a person rather than a noreply@ address, lands in their Sent
@@ -30,7 +30,7 @@ export default async function handler(req, res) {
   const userId = await requireStaff(req, res);
   if (!userId) return;
 
-  const { threadId, messageId, text, replyAll = false, to: toOverride } = req.body || {};
+  const { threadId, messageId, text, replyAll = false, drop = [] } = req.body || {};
   if (!threadId || !messageId) {
     return res.status(400).json({ error: 'threadId and messageId are required' });
   }
@@ -76,25 +76,27 @@ export default async function handler(req, res) {
       origCc.forEach((a) => push(cc, a));
     }
 
-    // An explicit To from the UI may narrow the list but never widen it —
-    // otherwise a tampered request could mail anyone from a staff account.
-    if (Array.isArray(toOverride) && toOverride.length) {
-      const allowed = new Set([...to, ...cc].map((a) => a.email.toLowerCase()));
-      const narrowed = toOverride
-        .map((e) => String(e).toLowerCase().trim())
-        .filter((e) => allowed.has(e));
-      if (narrowed.length) {
-        const byEmail = new Map([...to, ...cc].map((a) => [a.email.toLowerCase(), a]));
-        to.length = 0; cc.length = 0;
-        narrowed.forEach((e) => to.push(byEmail.get(e)));
-      }
-    }
+    // The UI may DROP recipients but never add them. Expressing it as a
+    // subtraction is what makes widening impossible: a tampered request can only
+    // ever mail fewer people than the thread already contains, so no staff
+    // account can be used to mail an arbitrary address.
+    const dropped = new Set(
+      (Array.isArray(drop) ? drop : []).map((e) => String(e).toLowerCase().trim()),
+    );
+    const keep = (list) => list.filter((a) => !dropped.has(a.email.toLowerCase()));
+    const finalTo = keep(to);
+    const finalCc = keep(cc);
 
-    if (!to.length) return res.status(400).json({ error: 'No recipient for this reply' });
+    if (!finalTo.length && !finalCc.length) {
+      return res.status(400).json({ error: 'No recipient left for this reply' });
+    }
+    // Everyone dropped from To but some Cc left: promote so the message has a
+    // To header, which some servers require.
+    if (!finalTo.length) finalTo.push(finalCc.shift());
 
     const out = await sendAsUser(userId, {
-      to: formatAddresses(to),
-      cc: cc.length ? formatAddresses(cc) : undefined,
+      to: formatAddresses(finalTo),
+      cc: finalCc.length ? formatAddresses(finalCc) : undefined,
       subject: replySubject(h.subject),
       text: String(text),
       inReplyTo: h['message-id'] || undefined,
@@ -106,8 +108,8 @@ export default async function handler(req, res) {
       ok: true,
       id: out.id,
       threadId: out.threadId,
-      to: to.map((a) => a.email),
-      cc: cc.map((a) => a.email),
+      to: finalTo.map((a) => a.email),
+      cc: finalCc.map((a) => a.email),
     });
   } catch (err) {
     if (err.code === 'google_send_not_granted') {
