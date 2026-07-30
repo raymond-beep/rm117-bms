@@ -28,6 +28,7 @@ const LetterGenerator = lazy(() => import('./components/templates/LetterGenerato
 const ProposalGenerator = lazy(() => import('./components/templates/ProposalGenerator.jsx'));
 const DrawingQA = lazy(() => import('./components/drawing-qa/DrawingQA.jsx'));
 const Delegation = lazy(() => import('./components/delegation/Delegation.jsx'));
+const Mail = lazy(() => import('./components/mail/Mail.jsx'));
 
 const RouteFallback = () => <div className="page"><div className="card"><div className="empty">Loading…</div></div></div>;
 
@@ -47,6 +48,7 @@ const NAV_GROUPS = [
     caption: 'Workspace',
     items: [
       { to: '/', label: 'Dashboard', end: true },
+      { to: '/mail', label: 'Mail' },
       // Label only — the route stays /bms so existing links and bookmarks keep working.
       { to: '/bms', label: 'Project Management' },
       { to: '/financial', label: 'Financial' },
@@ -172,6 +174,7 @@ export default function AppShell() {
                     <Route path="/templates/proposal" element={<ProposalGenerator />} />
                     <Route path="/drawing-qa" element={<DrawingQA />} />
                     <Route path="/delegation" element={<Delegation />} />
+                    <Route path="/mail" element={<Mail />} />
                     <Route path="/portal" element={<StaffPortalPreview />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />

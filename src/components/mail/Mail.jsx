@@ -1,0 +1,400 @@
+// Mail (/mail) — read the firm's work email inside the app.
+//
+// Replaces the dead end the Home widget was: it could show that a client had
+// written and nothing more, so every actual question ("what did they say?",
+// "did they attach the survey?") still meant leaving for Gmail.
+//
+// Reads the SIGNED-IN STAFFER'S OWN mailbox (never a shared one — Ang's call),
+// on the gmail.readonly scope already granted. Threads, not messages: a
+// five-reply exchange is one row, both halves of the conversation included.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useClerk } from '@clerk/clerk-react';
+import { apiFetch } from '../../lib/api.js';
+import {
+  resolveCidImages, wrapEmailHtml, formatBytes, mailDate, canPreview,
+} from '../../lib/mail-html.js';
+
+const SCOPES = [
+  { key: 'work', label: 'Work', hint: 'Clients, colleagues, townships, engineers — newsletters and SaaS hidden' },
+  { key: 'clients', label: 'Clients', hint: 'Only senders matched to a client record' },
+  { key: 'all', label: 'All', hint: 'Everything, including bulk mail' },
+];
+
+function initials(name) {
+  const parts = String(name || '').replace(/<.*>/, '').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+const KIND_LABEL = { staff: 'Team', project: 'Project', noise: 'Bulk' };
+
+// ---------------------------------------------------------------- thread list
+
+function ThreadRow({ thread, active, onOpen }) {
+  return (
+    <button
+      type="button"
+      className={`mail-row${active ? ' is-active' : ''}${thread.unread ? ' is-unread' : ''}`}
+      onClick={() => onOpen(thread)}
+    >
+      <span className={`mail-dot${thread.unread ? ' on' : ''}`} aria-hidden="true" />
+      <span className="mail-ava">{initials(thread.from)}</span>
+      <span className="mail-row-main">
+        <span className="mail-row-top">
+          <span className="mail-from">{thread.from}</span>
+          {thread.messageCount > 1 && <span className="mail-count">{thread.messageCount}</span>}
+          <span className="mail-date">{mailDate(thread.date)}</span>
+        </span>
+        <span className="mail-subj">{thread.subject}</span>
+        <span className="mail-snip">{thread.snippet}</span>
+        <span className="mail-tags">
+          {thread.isClient && (
+            <span className="mail-tag is-client" title={thread.clientLabel || ''}>
+              {thread.clientLabel || 'Client'}
+              {thread.contactName ? ` · ${thread.contactName}` : ''}
+            </span>
+          )}
+          {!thread.isClient && KIND_LABEL[thread.kind] && (
+            <span className={`mail-tag is-${thread.kind}`}>{KIND_LABEL[thread.kind]}</span>
+          )}
+          {thread.jobs.slice(0, 3).map((j) => (
+            <span key={j} className="mail-tag is-job">{j}</span>
+          ))}
+          {thread.jobs.length > 3 && <span className="mail-tag is-job">+{thread.jobs.length - 3}</span>}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+// ------------------------------------------------------------- one message
+
+function Attachment({ att, messageId }) {
+  const [busy, setBusy] = useState(false);
+
+  // Attachments are fetched through apiFetch (which carries the Clerk token) and
+  // turned into blob: URLs — a bare <a href> or <img src> would arrive with no
+  // Authorization header and 401.
+  const load = useCallback(async () => {
+    const url = `/api/inbox/attachment?messageId=${encodeURIComponent(messageId)}`
+      + `&attachmentId=${encodeURIComponent(att.attachmentId)}`
+      + `&filename=${encodeURIComponent(att.filename)}`
+      + `&mime=${encodeURIComponent(att.mimeType)}&inline=1`;
+    const r = await apiFetch(url);
+    if (!r.ok) throw new Error(`attachment ${r.status}`);
+    return URL.createObjectURL(await r.blob());
+  }, [att, messageId]);
+
+  const open = async (download) => {
+    setBusy(true);
+    try {
+      const href = await load();
+      const a = document.createElement('a');
+      a.href = href;
+      if (download) a.download = att.filename;
+      else a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Give the tab a moment to take the URL before revoking it.
+      setTimeout(() => URL.revokeObjectURL(href), 60_000);
+    } catch {
+      alert(`Couldn’t open ${att.filename}.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <span className="mail-att">
+      <span className="mail-att-icon" aria-hidden="true">
+        {/^image\//i.test(att.mimeType) ? '▣' : att.mimeType === 'application/pdf' ? '▤' : '◈'}
+      </span>
+      <span className="mail-att-meta">
+        <span className="mail-att-name" title={att.filename}>{att.filename}</span>
+        <span className="mail-att-size">{formatBytes(att.size)}</span>
+      </span>
+      {canPreview(att.mimeType) && (
+        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => open(false)}>View</button>
+      )}
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => open(true)}>Download</button>
+    </span>
+  );
+}
+
+function MessageBody({ message, showImages, onShowImages }) {
+  const [srcDoc, setSrcDoc] = useState(null);
+  const [tall, setTall] = useState(false);
+  const blobs = useRef([]);
+
+  // Swap `cid:` refs for blob: URLs of the message's own inline parts.
+  useEffect(() => {
+    let alive = true;
+    const made = [];
+    (async () => {
+      if (!message.html) { setSrcDoc(null); return; }
+      let html = message.html;
+      if (message.inline?.length) {
+        const map = new Map();
+        await Promise.all(message.inline.map(async (p) => {
+          try {
+            const r = await apiFetch(
+              `/api/inbox/attachment?messageId=${encodeURIComponent(message.id)}`
+              + `&attachmentId=${encodeURIComponent(p.attachmentId)}`
+              + `&filename=${encodeURIComponent(p.filename)}`
+              + `&mime=${encodeURIComponent(p.mimeType)}&inline=1`,
+            );
+            if (!r.ok) return;
+            const u = URL.createObjectURL(await r.blob());
+            made.push(u);
+            map.set(p.contentId, u);
+          } catch { /* a missing signature logo is not worth failing the body over */ }
+        }));
+        html = resolveCidImages(html, message.inline, (p) => map.get(p.contentId) || '');
+      }
+      if (!alive) return;
+      blobs.current = made;
+      setSrcDoc(wrapEmailHtml(html));
+    })();
+    return () => {
+      alive = false;
+      made.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [message.id, message.html, message.inline]);
+
+  // Plain-text bodies render directly — no frame needed, and the height is
+  // correct automatically. Most client mail lands here.
+  if (!message.html) {
+    return <pre className="mail-body-text">{message.text || <em>(no content)</em>}</pre>;
+  }
+
+  return (
+    <div className="mail-body-wrap">
+      {message.blockedImages > 0 && !showImages && (
+        <div className="mail-images-blocked">
+          <span>
+            {message.blockedImages} remote image{message.blockedImages === 1 ? '' : 's'} blocked —
+            they can tell the sender when you opened this.
+          </span>
+          <button type="button" className="btn btn-sm" onClick={onShowImages}>Show images</button>
+        </div>
+      )}
+      {/* ⚠️ sandbox WITHOUT allow-scripts / allow-same-origin. The body is
+          sender-controlled HTML; this frame is the real security boundary
+          (api/_lib/gmail-read.js sanitises as a second line of defence). */}
+      <iframe
+        className={`mail-body-frame${tall ? ' is-tall' : ''}`}
+        title="Message body"
+        sandbox="allow-popups allow-popups-to-escape-sandbox"
+        srcDoc={srcDoc || ''}
+      />
+      <button type="button" className="btn btn-sm mail-expand" onClick={() => setTall((v) => !v)}>
+        {tall ? 'Collapse' : 'Expand'}
+      </button>
+    </div>
+  );
+}
+
+function Message({ message, defaultOpen }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const [showImages, setShowImages] = useState(false);
+  const who = message.from.name || message.from.email;
+
+  return (
+    <div className={`mail-msg${open ? ' is-open' : ''}`}>
+      <button type="button" className="mail-msg-head" onClick={() => setOpen((v) => !v)}>
+        <span className="mail-ava sm">{initials(who)}</span>
+        <span className="mail-msg-who">
+          <strong>{who}</strong>
+          <span className="mail-msg-to">
+            to {message.to.map((a) => a.name || a.email).join(', ') || '—'}
+            {message.cc.length > 0 && ` · cc ${message.cc.map((a) => a.name || a.email).join(', ')}`}
+          </span>
+        </span>
+        <span className="mail-msg-date">{mailDate(message.date)}</span>
+      </button>
+
+      {!open && <div className="mail-msg-peek">{message.snippet}</div>}
+
+      {open && (
+        <div className="mail-msg-body">
+          <MessageBody
+            message={message}
+            showImages={showImages}
+            onShowImages={() => setShowImages(true)}
+          />
+          {message.attachments.length > 0 && (
+            <div className="mail-atts">
+              <div className="mail-atts-label">
+                {message.attachments.length} attachment{message.attachments.length === 1 ? '' : 's'}
+              </div>
+              <div className="mail-atts-row">
+                {message.attachments.map((a) => (
+                  <Attachment key={a.attachmentId} att={a} messageId={message.id} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ the page
+
+export default function Mail() {
+  const clerk = useClerk();
+  const [scope, setScope] = useState('work');
+  const [list, setList] = useState({ status: 'loading' });
+  const [openId, setOpenId] = useState(null);
+  const [thread, setThread] = useState({ status: 'idle' });
+  const [showImages, setShowImages] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setList({ status: 'loading' });
+    (async () => {
+      try {
+        const r = await apiFetch(`/api/inbox?scope=${scope}&limit=60&days=30`, { cache: 'no-store' });
+        const data = await r.json();
+        if (!alive) return;
+        if (!data.connected) setList({ status: 'disconnected', reason: data.reason });
+        else setList({ status: 'ready', threads: data.threads || [], unreadCount: data.unreadCount || 0 });
+      } catch {
+        if (alive) setList({ status: 'error' });
+      }
+    })();
+    return () => { alive = false; };
+  }, [scope]);
+
+  const openThread = useCallback(async (row, withImages = false) => {
+    setOpenId(row.id);
+    setThread({ status: 'loading' });
+    setShowImages(withImages);
+    try {
+      const r = await apiFetch(
+        `/api/inbox/thread?id=${encodeURIComponent(row.id)}${withImages ? '&images=1' : ''}`,
+        { cache: 'no-store' },
+      );
+      const data = await r.json();
+      if (data.connected === false) setThread({ status: 'disconnected', reason: data.reason });
+      else if (!r.ok) setThread({ status: 'error' });
+      else setThread({ status: 'ready', ...data.thread, row });
+    } catch {
+      setThread({ status: 'error' });
+    }
+  }, []);
+
+  const activeRow = useMemo(
+    () => (list.threads || []).find((t) => t.id === openId) || null,
+    [list.threads, openId],
+  );
+
+  return (
+    <div className="page mail-page">
+      <div className="page-head">
+        <div>
+          <h2>Mail</h2>
+          <div className="page-sub">
+            Your own inbox — {list.status === 'ready' ? `${list.threads.length} conversations` : '…'}
+            {list.status === 'ready' && list.unreadCount > 0 && ` · ${list.unreadCount} unread`}
+          </div>
+        </div>
+        <div className="mail-scopes" role="tablist">
+          {SCOPES.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              role="tab"
+              aria-selected={scope === s.key}
+              title={s.hint}
+              className={`mail-scope${scope === s.key ? ' is-on' : ''}`}
+              onClick={() => setScope(s.key)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mail-split">
+        <div className="mail-list card">
+          {list.status === 'loading' && <div className="placeholder-note">Loading your mail…</div>}
+          {list.status === 'error' && (
+            <div className="placeholder-note">Couldn’t load your mail right now. Try refreshing.</div>
+          )}
+          {list.status === 'disconnected' && (
+            <div className="placeholder-note">
+              {list.reason === 'clerk_not_configured'
+                ? 'Gmail isn’t configured yet.'
+                : 'Connect your Google account (read-only Gmail) to see your mail here.'}
+              {list.reason !== 'clerk_not_configured' && (
+                <>
+                  <div style={{ marginTop: 10 }}>
+                    <button className="btn" onClick={() => clerk.openUserProfile()}>Connect Google</button>
+                  </div>
+                  <div className="inbox-connect-hint">
+                    Make sure to grant Gmail &amp; Calendar access. If you skipped it when you
+                    signed in, sign out and back in and select those features.
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {list.status === 'ready' && list.threads.length === 0 && (
+            <div className="placeholder-note">No {scope === 'clients' ? 'client ' : ''}mail in the last 30 days.</div>
+          )}
+          {list.status === 'ready' && list.threads.map((t) => (
+            <ThreadRow key={t.id} thread={t} active={t.id === openId} onOpen={openThread} />
+          ))}
+        </div>
+
+        <div className="mail-reader card">
+          {!openId && (
+            <div className="placeholder-note mail-empty">
+              Pick a conversation to read it here — full message, both sides, with attachments.
+            </div>
+          )}
+          {openId && thread.status === 'loading' && <div className="placeholder-note">Opening…</div>}
+          {openId && thread.status === 'error' && (
+            <div className="placeholder-note">Couldn’t open that conversation.</div>
+          )}
+          {openId && thread.status === 'ready' && (
+            <>
+              <div className="mail-reader-head">
+                <h3>{thread.subject}</h3>
+                <div className="mail-tags">
+                  {activeRow?.isClient && (
+                    <span className="mail-tag is-client">{activeRow.clientLabel || 'Client'}</span>
+                  )}
+                  {(activeRow?.jobs || []).map((j) => (
+                    <span key={j} className="mail-tag is-job">{j}</span>
+                  ))}
+                  <span className="mail-msgcount">
+                    {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}
+                  </span>
+                </div>
+                {!showImages && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => activeRow && openThread(activeRow, true)}
+                  >
+                    Load remote images
+                  </button>
+                )}
+              </div>
+              <div className="mail-msgs">
+                {thread.messages.map((m, i) => (
+                  <Message key={m.id} message={m} defaultOpen={i === thread.messages.length - 1} />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

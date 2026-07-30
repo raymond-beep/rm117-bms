@@ -83,9 +83,17 @@ function surname(str) {
   return t[t.length - 1] || null;
 }
 
-// Build a matcher from jobs (job_id, client_name, client_id) and clients
-// (id, name, email). Returns { match(sender) } where sender = { name, email }.
-export function buildMatcher(jobs, clients = []) {
+// Build a matcher from jobs (job_id, client_name, client_id), clients
+// (id, name, email) and client CONTACTS (client_id, name, email, is_active).
+// Returns { match(sender) } where sender = { name, email }.
+//
+// ⭐ Contacts are why this exists in its current form. `clients.email` holds only
+// the PRIMARY contact, but the firm's biggest clients are developers running teams
+// — a Deuel or DaSilva project manager writes from their own address. Matching on
+// clients.email alone tagged those people as "not a client", which is exactly
+// backwards: the multi-person clients are the ones where correspondence matters
+// most. Every contact's address now resolves to that client (and their jobs).
+export function buildMatcher(jobs, clients = [], contacts = []) {
   // client_id -> [job_id]
   const clientJobs = new Map();
   for (const j of jobs) {
@@ -96,11 +104,29 @@ export function buildMatcher(jobs, clients = []) {
 
   // email -> { label, jobs }
   const emailToClient = new Map();
+  const clientById = new Map();
   for (const c of clients) {
+    clientById.set(c.id, c);
     if (!c.email) continue;
     emailToClient.set(c.email.toLowerCase().trim(), {
       label: c.name || c.email,
       jobs: clientJobs.get(c.id) || [],
+    });
+  }
+
+  // Contact addresses resolve to their client. Registered AFTER the primary
+  // addresses above and only when absent, so a contact row can never shadow the
+  // canonical clients.email entry. Deactivated contacts are skipped — a PM who
+  // left the firm should stop being tagged as that developer.
+  for (const ct of contacts) {
+    const addr = (ct?.email || '').toLowerCase().trim();
+    if (!addr || ct.is_active === false) continue;
+    if (emailToClient.has(addr)) continue;
+    const owner = clientById.get(ct.client_id);
+    emailToClient.set(addr, {
+      label: owner?.name || ct.name || addr,
+      jobs: clientJobs.get(ct.client_id) || [],
+      contactName: ct.name || null,
     });
   }
 
@@ -123,7 +149,10 @@ export function buildMatcher(jobs, clients = []) {
       const email = EMAIL_ALIASES.get(raw) || raw;
       if (email && emailToClient.has(email)) {
         const hit = emailToClient.get(email);
-        return { isClient: true, label: hit.label, via: 'email', jobs: hit.jobs };
+        return {
+          isClient: true, label: hit.label, via: 'email',
+          jobs: hit.jobs, contactName: hit.contactName || null,
+        };
       }
       // Automated/SaaS/role senders never reach the fuzzy fallback — only an
       // exact email match (handled above) can flag them as a client.
@@ -143,4 +172,41 @@ export function buildMatcher(jobs, clients = []) {
       return best || { isClient: false };
     },
   };
+}
+
+const STAFF_DOMAIN = '@rm117.com';
+
+// Municipal / authority-having-jurisdiction domains. A building department or
+// zoning board is not a client, but it is unambiguously work.
+const GOV_SUFFIX = /\.(gov|us|mil)$/i;
+
+// Classify a sender for the Mail page's filter.
+//
+// ⭐ The filter used to be "show ONLY matched clients", which quietly hid a huge
+// share of an architecture firm's real correspondence: building departments,
+// zoning boards, structural engineers, surveyors, contractors and the firm's own
+// staff were all treated as junk because they aren't the people paying the bill.
+// So the logic is inverted — HIDE KNOWN NOISE, keep everything else. 'clients'
+// remains available as a deliberately narrow view.
+//
+//   client  — matched to a client record (or one of its contacts)
+//   staff   — an @rm117.com colleague
+//   project — a municipality/AHJ, or anyone else who isn't noise (engineers,
+//             contractors, surveyors, expeditors — the long tail we can't enumerate)
+//   noise   — SaaS/bulk/role/marketing senders
+export function classifySender(sender, matchResult) {
+  if (matchResult?.isClient) return 'client';
+  const email = (sender?.email || '').toLowerCase().trim();
+  if (email.endsWith(STAFF_DOMAIN)) return 'staff';
+  if (isAutomatedSender(sender)) return 'noise';
+  const domain = email.slice(email.indexOf('@') + 1);
+  if (GOV_SUFFIX.test(domain)) return 'project';
+  return 'project';
+}
+
+// Does this sender belong in the given view? `scope` is 'work' | 'clients' | 'all'.
+export function inScope(kind, scope) {
+  if (scope === 'all') return true;
+  if (scope === 'clients') return kind === 'client';
+  return kind !== 'noise'; // 'work' (default)
 }
