@@ -2606,3 +2606,26 @@ input, select, textarea { font: inherit; }
 @media (max-width: 900px) {
   .mail-bubble, .mail-turn .mail-atts-row { max-width: 92%; }
 }
+
+/* Reply box, pinned under the conversation. */
+.mail-reply {
+  border-top: 1px solid var(--divider); padding: 12px 18px 16px;
+  position: sticky; bottom: 0; background: var(--panel);
+}
+.mail-reply-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.mail-reply-to {
+  font-size: 11.5px; color: var(--muted); min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mail-reply-all { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); white-space: nowrap; cursor: pointer; }
+.mail-reply-input {
+  width: 100%; resize: vertical; min-height: 62px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--inset); color: var(--ink); padding: 10px 12px;
+  font: 13.5px/1.5 inherit;
+}
+.mail-reply-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.mail-reply-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.mail-reply-note { font-size: 11px; color: var(--muted); }
+.mail-reply-err { color: var(--danger); }
+.mail-reply-ok { color: var(--accent-ink); font-weight: 600; }

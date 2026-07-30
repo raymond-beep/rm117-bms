@@ -22,18 +22,42 @@ export function encodeHeader(value) {
 }
 
 // Gmail wants a base64url-encoded RFC 822 message.
-export function buildMimeMessage({ to, subject, text, fromName }) {
-  const boundary = `rm117_${Math.random().toString(36).slice(2)}`;
+//
+// `inReplyTo` / `references` are what make a reply JOIN its conversation rather
+// than start a new one. Gmail's own threadId is not enough: other mail clients
+// (and the recipient's server) thread on these headers, so without them a reply
+// shows as a separate thread in the client's inbox even though it looks correct
+// in ours. `references` should be the original's References header plus its
+// Message-ID; `inReplyTo` is the Message-ID being answered.
+export function buildMimeMessage({ to, cc, subject, text, fromName, inReplyTo, references }) {
   const headers = [
     fromName ? `From: ${encodeHeader(fromName)}` : null,
     `To: ${to}`,
+    cc ? `Cc: ${cc}` : null,
     `Subject: ${encodeHeader(subject)}`,
+    inReplyTo ? `In-Reply-To: ${inReplyTo}` : null,
+    references ? `References: ${references}` : null,
     'MIME-Version: 1.0',
     `Content-Type: text/plain; charset="UTF-8"`,
     'Content-Transfer-Encoding: 8bit',
   ].filter(Boolean);
-  void boundary;
   return `${headers.join('\r\n')}\r\n\r\n${text}`;
+}
+
+// "Re:" exactly once, however many times it has already been round-tripped.
+export function replySubject(subject) {
+  const s = String(subject || '').trim();
+  if (!s) return 'Re:';
+  return /^re\s*:/i.test(s) ? s : `Re: ${s}`;
+}
+
+// The References chain for a reply: whatever the original carried, plus its own
+// Message-ID. Kept as a pure function because a malformed chain silently breaks
+// threading in the RECIPIENT's client, where we would never see it.
+export function buildReferences(originalReferences, originalMessageId) {
+  const parts = String(originalReferences || '').split(/\s+/).filter(Boolean);
+  if (originalMessageId && !parts.includes(originalMessageId)) parts.push(originalMessageId);
+  return parts.join(' ');
 }
 
 export function toBase64Url(raw) {
@@ -46,7 +70,9 @@ export function toBase64Url(raw) {
 // Send as `userId`'s Google account. Throws with a readable message the UI can show —
 // notably `google_send_not_granted`, which means the staffer needs to sign out and back in
 // and accept the new Gmail permission (the scope was added after they last consented).
-export async function sendAsUser(userId, { to, subject, text, fromName }) {
+export async function sendAsUser(userId, {
+  to, cc, subject, text, fromName, inReplyTo, references, threadId,
+}) {
   const { token, error } = await getGoogleToken(userId);
   if (!token) {
     const e = new Error('Google is not connected for this account.');
@@ -54,11 +80,15 @@ export async function sendAsUser(userId, { to, subject, text, fromName }) {
     throw e;
   }
 
-  const raw = toBase64Url(buildMimeMessage({ to, subject, text, fromName }));
+  const raw = toBase64Url(buildMimeMessage({
+    to, cc, subject, text, fromName, inReplyTo, references,
+  }));
   const r = await fetch(GMAIL_SEND, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ raw }),
+    // threadId files the sent copy into the same conversation in OUR mailbox;
+    // the In-Reply-To/References headers are what thread it in THEIRS.
+    body: JSON.stringify(threadId ? { raw, threadId } : { raw }),
   });
 
   if (!r.ok) {

@@ -8,13 +8,14 @@
 // on the gmail.readonly scope already granted. Threads, not messages: a
 // five-reply exchange is one row, both halves of the conversation included.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useClerk } from '@clerk/clerk-react';
+import { useClerk, useUser } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
 import DOMPurify from 'dompurify';
 import {
   resolveCidImages, formatBytes, mailDate, canPreview, attachmentKind, htmlHasContent,
 } from '../../lib/mail-html.js';
 import { splitQuotedHtml, splitQuotedText, countQuotedReplies } from '../../lib/mail-quote.js';
+import { replyRecipients } from '../../lib/mail-html.js';
 
 // Every link in an email opens in a new tab and never hands the opener over.
 // Registered once, at module scope — addHook is global to the DOMPurify instance.
@@ -401,10 +402,101 @@ function Bubble({ message }) {
   );
 }
 
+// Reply box, pinned under the conversation.
+//
+// ⚠️ The recipient list shown here is a PREVIEW. The server recomputes it from
+// the thread and will not accept a wider one — a reply-all on a developer's
+// thread reaches their whole team, so who gets mailed is not the browser's call.
+function ReplyBox({ thread, selfEmail, onSent }) {
+  const last = thread.messages[thread.messages.length - 1];
+  const [text, setText] = useState('');
+  const [all, setAll] = useState(false);
+  const [state, setState] = useState({ status: 'idle' });
+
+  const { to, cc } = useMemo(
+    () => replyRecipients(last, selfEmail, { all }),
+    [last, selfEmail, all],
+  );
+
+  const send = async () => {
+    if (!text.trim() || state.status === 'sending') return;
+    setState({ status: 'sending' });
+    try {
+      const r = await apiFetch('/api/inbox/reply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadId: thread.id, messageId: last.id, text, replyAll: all,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) {
+        setState({ status: 'error', message: data.error || 'Could not send.' });
+        return;
+      }
+      setText('');
+      setState({ status: 'sent' });
+      onSent?.();
+      setTimeout(() => setState({ status: 'idle' }), 2500);
+    } catch {
+      setState({ status: 'error', message: 'Could not send.' });
+    }
+  };
+
+  const label = [
+    ...to.map((a) => a.name || a.email),
+    ...cc.map((a) => `${a.name || a.email} (cc)`),
+  ].join(', ');
+
+  return (
+    <div className="mail-reply">
+      <div className="mail-reply-head">
+        <span className="mail-reply-to" title={label}>To: {label || '—'}</span>
+        {(last.to.length + last.cc.length) > 1 && (
+          <label className="mail-reply-all">
+            <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
+            Reply all
+          </label>
+        )}
+      </div>
+      <textarea
+        className="mail-reply-input"
+        placeholder={`Reply to ${last.from.name || last.from.email}…`}
+        value={text}
+        rows={3}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          // ⌘/Ctrl+Enter sends; plain Enter must stay a newline, or half-written
+          // replies go out to clients.
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); }
+        }}
+      />
+      <div className="mail-reply-foot">
+        <span className="mail-reply-note">
+          {state.status === 'error' && <span className="mail-reply-err">{state.message}</span>}
+          {state.status === 'sent' && <span className="mail-reply-ok">Sent ✓</span>}
+          {state.status === 'idle' && 'Sends from your own Gmail · ⌘↵'}
+          {state.status === 'sending' && 'Sending…'}
+        </span>
+        <button
+          type="button"
+          className="btn"
+          disabled={!text.trim() || state.status === 'sending'}
+          onClick={send}
+        >
+          {state.status === 'sending' ? 'Sending…' : 'Send'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ the page
 
 export default function Mail() {
   const clerk = useClerk();
+  const { user } = useUser();
+  const selfEmail = user?.primaryEmailAddress?.emailAddress || '';
   const [scope, setScope] = useState('work');
   const [list, setList] = useState({ status: 'loading' });
   const [openId, setOpenId] = useState(null);
@@ -440,7 +532,29 @@ export default function Mail() {
       const data = await r.json();
       if (data.connected === false) setThread({ status: 'disconnected', reason: data.reason });
       else if (!r.ok) setThread({ status: 'error' });
-      else setThread({ status: 'ready', ...data.thread, row });
+      else {
+        setThread({ status: 'ready', ...data.thread, row });
+        // Best effort: needs gmail.modify. Until every staffer has re-consented
+        // this returns ok:false and unread stays display-only — reading still
+        // worked, so it must never surface as an error.
+        if (row.unread) {
+          apiFetch('/api/inbox/mark-read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ threadId: row.id }),
+          })
+            .then((mr) => mr.json())
+            .then((mres) => {
+              if (!mres?.ok) return;
+              setList((prev) => (prev.status === 'ready' ? {
+                ...prev,
+                threads: prev.threads.map((t) => (t.id === row.id ? { ...t, unread: false } : t)),
+                unreadCount: Math.max(0, prev.unreadCount - 1),
+              } : prev));
+            })
+            .catch(() => {});
+        }
+      }
     } catch {
       setThread({ status: 'error' });
     }
@@ -550,6 +664,11 @@ export default function Mail() {
               <div className="mail-msgs">
                 {thread.messages.map((m) => <Bubble key={m.id} message={m} />)}
               </div>
+              <ReplyBox
+                thread={thread}
+                selfEmail={selfEmail}
+                onSent={() => activeRow && openThread(activeRow, showImages)}
+              />
             </>
           )}
         </div>

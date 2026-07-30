@@ -6,6 +6,7 @@ import {
   sanitizeEmailHtml, isUnread, threadSubject, effectiveMime,
 } from '../api/_lib/gmail-read.js';
 import { resolveCidImages, replyRecipients, formatBytes, canPreview, attachmentKind, htmlHasContent } from '../src/lib/mail-html.js';
+import { buildMimeMessage, replySubject, buildReferences } from '../api/_lib/gmail-send.js';
 import { buildMatcher, classifySender, inScope } from '../api/_lib/client-match.js';
 import { counterparty } from '../api/inbox.js';
 
@@ -391,5 +392,46 @@ describe('walkParts — bodies too large to arrive inline', () => {
     const out = walkParts(payload);
     expect(out.html).toBe('<p>hi</p>');
     expect(out.htmlRef).toBeNull();
+  });
+});
+
+describe('reply threading headers', () => {
+  it('adds Re: exactly once', () => {
+    expect(replySubject('Checking In')).toBe('Re: Checking In');
+    expect(replySubject('Re: Checking In')).toBe('Re: Checking In');
+    expect(replySubject('RE: Checking In')).toBe('RE: Checking In');
+    expect(replySubject('')).toBe('Re:');
+  });
+
+  it('appends the original Message-ID to the References chain', () => {
+    // A malformed chain breaks threading in the RECIPIENT's client, where we
+    // would never see it — hence a tested pure function.
+    expect(buildReferences('<a@x> <b@x>', '<c@x>')).toBe('<a@x> <b@x> <c@x>');
+  });
+  it('starts a chain when the original had none', () => {
+    expect(buildReferences('', '<c@x>')).toBe('<c@x>');
+    expect(buildReferences(null, '<c@x>')).toBe('<c@x>');
+  });
+  it('does not duplicate an id already in the chain', () => {
+    expect(buildReferences('<a@x> <c@x>', '<c@x>')).toBe('<a@x> <c@x>');
+  });
+
+  it('writes In-Reply-To, References and Cc into the MIME headers', () => {
+    const raw = buildMimeMessage({
+      to: 'client@x.com', cc: 'pm@x.com', subject: 'Re: Permit',
+      text: 'Confirmed.', inReplyTo: '<c@x>', references: '<a@x> <c@x>',
+    });
+    expect(raw).toContain('To: client@x.com');
+    expect(raw).toContain('Cc: pm@x.com');
+    expect(raw).toContain('In-Reply-To: <c@x>');
+    expect(raw).toContain('References: <a@x> <c@x>');
+    expect(raw).toContain('Confirmed.');
+  });
+
+  it('omits Cc and threading headers entirely when not replying', () => {
+    const raw = buildMimeMessage({ to: 'a@b.com', subject: 'Update', text: 'Hi' });
+    expect(raw).not.toContain('Cc:');
+    expect(raw).not.toContain('In-Reply-To:');
+    expect(raw).not.toContain('References:');
   });
 });

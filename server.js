@@ -62,6 +62,8 @@ const routes = {
   '/api/inbox': () => import('./api/inbox.js'),
   '/api/inbox/thread': () => import('./api/inbox/thread.js'),
   '/api/inbox/attachment': () => import('./api/inbox/attachment.js'),
+  '/api/inbox/reply': () => import('./api/inbox/reply.js'),
+  '/api/inbox/mark-read': () => import('./api/inbox/mark-read.js'),
   '/api/calendar': () => import('./api/calendar.js'),
   '/api/payments/webhook': () => import('./api/payments/webhook.js'),
   // Outbound QBO (app → QBO): create customers + invoices. Two-way sync, Stage B.
