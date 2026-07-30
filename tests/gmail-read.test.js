@@ -5,7 +5,7 @@ import {
   decodeB64Url, headerMap, parseAddress, parseAddressList, walkParts,
   sanitizeEmailHtml, isUnread, threadSubject, effectiveMime,
 } from '../api/_lib/gmail-read.js';
-import { resolveCidImages, replyRecipients, formatBytes, canPreview, attachmentKind, wrapEmailHtml, htmlHasContent } from '../src/lib/mail-html.js';
+import { resolveCidImages, replyRecipients, formatBytes, canPreview, attachmentKind, htmlHasContent } from '../src/lib/mail-html.js';
 import { buildMatcher, classifySender, inScope } from '../api/_lib/client-match.js';
 import { counterparty } from '../api/inbox.js';
 
@@ -343,30 +343,6 @@ describe('classifySender + inScope', () => {
   });
   it('all scope hides nothing', () => {
     expect(inScope('noise', 'all')).toBe(true);
-  });
-});
-
-describe('wrapEmailHtml — the self-measuring body frame', () => {
-  it('carries the per-message token so one frame cannot resize another', () => {
-    const out = wrapEmailHtml('<p>hi</p>', 'tok-42');
-    expect(out).toContain('"tok-42"');
-    expect(out).toContain('rm117-mail');
-  });
-  it('keeps the body content', () => {
-    expect(wrapEmailHtml('<p>hello there</p>', 't')).toContain('<p>hello there</p>');
-  });
-  it('reports height to the parent rather than scrolling internally', () => {
-    const out = wrapEmailHtml('<p>x</p>', 't');
-    expect(out).toContain('postMessage');
-    expect(out).toContain('scrollHeight');
-    expect(out).toMatch(/overflow:hidden/);
-  });
-  it('posts links out instead of opening them itself', () => {
-    // The frame is granted no popup permission; the parent opens links, which is
-    // what lets sandbox stay at just allow-scripts.
-    const out = wrapEmailHtml('<a href="https://x">l</a>', 't');
-    expect(out).toContain('preventDefault');
-    expect(out).not.toContain('base target');
   });
 });
 

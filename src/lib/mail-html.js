@@ -21,62 +21,11 @@ export function resolveCidImages(html, inlineParts, urlFor) {
   );
 }
 
-// Email HTML assumes a white page and a document width. The app is themed
-// (including dark) and the body renders in a sandboxed frame with no stylesheet
-// of its own, so it gets a minimal one.
-//
-// ⭐ The injected script is what lets the frame AUTO-SIZE. A fixed-height frame
-// gave every long email its own inner scrollbar nested inside the reader pane —
-// two scrollbars fighting, and the message visibly cut off. A cross-document
-// frame cannot be measured from outside, so it measures itself and posts the
-// height out. `token` ties each message to its own frame so one message can't
-// resize another.
-//
-// It also intercepts link clicks and posts the URL to the parent instead of
-// navigating. That is deliberate: it means the frame needs NO popup permission
-// at all, so `sandbox="allow-scripts"` alone is enough — the frame gets an
-// opaque origin with no access to the app's DOM, cookies or storage, and cannot
-// open a window by itself. The parent decides what to open.
-export function wrapEmailHtml(bodyHtml, token = 'mail') {
-  const t = JSON.stringify(String(token));
-  return `<!doctype html><html><head><meta charset="utf-8">
-<style>
-  html,body{margin:0;padding:12px;background:#fff;color:#111;
-    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    word-wrap:break-word;overflow-wrap:break-word;}
-  html,body{height:auto;overflow:hidden;}
-  img{max-width:100%;height:auto;}
-  table{max-width:100%;}
-  blockquote{margin:8px 0 8px 12px;padding-left:12px;border-left:3px solid #ddd;color:#555;}
-  a{color:#0b57d0;}
-  pre{white-space:pre-wrap;word-wrap:break-word;}
-</style></head><body><div id="rm117-body">${bodyHtml}</div>
-<script>(function(){
-  var token=${t}, last=0, el=document.getElementById('rm117-body');
-  // ⚠️ Measure the CONTENT element, never document/body scrollHeight. Those are
-  // never smaller than the frame's own height, so reporting them made every
-  // measurement come back as "current height + padding" — the parent grew the
-  // frame, which grew the measurement, and the box expanded forever.
-  function send(){
-    var h=Math.ceil(el.getBoundingClientRect().height)+24;
-    if(Math.abs(h-last)>1){last=h;parent.postMessage({source:'rm117-mail',token:token,height:h},'*');}
-  }
-  send();
-  window.addEventListener('load',send);
-  window.addEventListener('resize',send);
-  // Images and remote fonts land after first paint and change the height.
-  if(window.ResizeObserver){new ResizeObserver(send).observe(el);}
-  setTimeout(send,80);setTimeout(send,400);setTimeout(send,1500);
-  // Links open via the parent — the frame itself has no popup permission.
-  document.addEventListener('click',function(e){
-    var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;
-    if(!a)return;
-    e.preventDefault();
-    parent.postMessage({source:'rm117-mail',token:token,link:a.getAttribute('href')},'*');
-  });
-})();</script>
-</body></html>`;
-}
+// NOTE: the message body used to be wrapped into a full HTML document and served
+// to a sandboxed iframe via srcdoc. That is gone — the body is now sanitised with
+// DOMPurify and rendered inline (see src/components/mail/Mail.jsx), because a
+// separate document cannot flow with the page and its height had to be
+// negotiated over postMessage, which is what kept rendering it blank.
 
 // Does this HTML actually render anything a person can see?
 //

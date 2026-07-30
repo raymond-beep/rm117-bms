@@ -7,13 +7,44 @@
 // Reads the SIGNED-IN STAFFER'S OWN mailbox (never a shared one — Ang's call),
 // on the gmail.readonly scope already granted. Threads, not messages: a
 // five-reply exchange is one row, both halves of the conversation included.
-import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useClerk } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
+import DOMPurify from 'dompurify';
 import {
-  resolveCidImages, wrapEmailHtml, formatBytes, mailDate, canPreview, attachmentKind,
-  htmlHasContent,
+  resolveCidImages, formatBytes, mailDate, canPreview, attachmentKind, htmlHasContent,
 } from '../../lib/mail-html.js';
+
+// Every link in an email opens in a new tab and never hands the opener over.
+// Registered once, at module scope — addHook is global to the DOMPurify instance.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if ('target' in node) {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
+
+// What an email is allowed to be once it is inside our page.
+//
+// The message used to render in a sandboxed iframe, which was airtight but meant
+// a separate document that could not flow with the page — its height had to be
+// negotiated over postMessage, and that negotiation is what kept breaking. Now
+// the body is sanitised and rendered inline, so it simply lays out like the rest
+// of the page and there is no height to get wrong.
+//
+// ⚠️ Losing the iframe means losing the origin boundary, so the sanitiser is now
+// the ONLY thing between sender HTML and this page — it must stay strict:
+//   - script/iframe/object/embed/form: code execution and credential phishing.
+//   - style/link: an email could otherwise restyle the whole app; inline `style`
+//     attributes are still allowed, which is where email formatting really lives.
+//   - The server-side pass (api/_lib/gmail-read.js) still runs first.
+const PURIFY_CONFIG = {
+  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'applet', 'form', 'input',
+    'button', 'textarea', 'select', 'style', 'link', 'meta', 'base', 'title'],
+  FORBID_ATTR: ['srcset', 'ping', 'formaction'],
+  ALLOW_DATA_ATTR: true,   // keeps data-blocked-src on images the server neutralised
+  USE_PROFILES: { html: true },
+};
 
 // Build the app-proxied URL for one attachment. Everything goes through
 // /api/inbox/attachment so the staffer's Google token never reaches the browser.
@@ -214,55 +245,30 @@ function AttachmentPreview({ items, index, messageId, onClose, onIndex }) {
 }
 
 function MessageBody({ message, showImages, onShowImages }) {
-  const [srcDoc, setSrcDoc] = useState(null);
-  const [height, setHeight] = useState(160);
-  const token = useId();
+  const [html, setHtml] = useState('');
 
-  // The frame measures itself and posts its height out (see wrapEmailHtml).
-  // A sandboxed frame has an opaque origin, so messages arrive with origin
-  // "null" — the per-message token is what authenticates them, not the origin.
-  useEffect(() => {
-    const onMessage = (e) => {
-      const d = e.data;
-      if (!d || d.source !== 'rm117-mail' || d.token !== token) return;
-      if (typeof d.height === 'number' && d.height > 0) {
-        setHeight(Math.min(Math.max(d.height, 80), 20000));
-      }
-      if (typeof d.link === 'string' && /^https?:\/\//i.test(d.link)) {
-        window.open(d.link, '_blank', 'noopener,noreferrer');
-      }
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, [token]);
-
-  // Swap `cid:` refs for blob: URLs of the message's own inline parts.
+  // Resolve `cid:` inline images to blob: URLs, then sanitise for the page.
   useEffect(() => {
     let alive = true;
     const made = [];
     (async () => {
-      if (!message.html) { setSrcDoc(null); return; }
-      let html = message.html;
+      if (!message.html) { setHtml(''); return; }
+      let raw = message.html;
       if (message.inline?.length) {
         const map = new Map();
         await Promise.all(message.inline.map(async (p) => {
           try {
-            const r = await apiFetch(
-              `/api/inbox/attachment?messageId=${encodeURIComponent(message.id)}`
-              + `&attachmentId=${encodeURIComponent(p.attachmentId)}`
-              + `&filename=${encodeURIComponent(p.filename)}`
-              + `&mime=${encodeURIComponent(p.mimeType)}&inline=1`,
-            );
+            const r = await apiFetch(attachmentUrl(message.id, p));
             if (!r.ok) return;
             const u = URL.createObjectURL(await r.blob());
             made.push(u);
             map.set(p.contentId, u);
           } catch { /* a missing signature logo is not worth failing the body over */ }
         }));
-        html = resolveCidImages(html, message.inline, (p) => map.get(p.contentId) || '');
+        raw = resolveCidImages(raw, message.inline, (p) => map.get(p.contentId) || '');
       }
       if (!alive) return;
-      setSrcDoc(wrapEmailHtml(html, token));
+      setHtml(DOMPurify.sanitize(raw, PURIFY_CONFIG));
     })();
     return () => {
       alive = false;
@@ -270,14 +276,10 @@ function MessageBody({ message, showImages, onShowImages }) {
     };
   }, [message.id, message.html, message.inline]);
 
-  // Plain-text bodies render directly — no frame needed, and the height is
-  // correct automatically. Most client mail lands here.
-  //
-  // We also fall back to text when the HTML renders nothing visible (an empty
-  // wrapper table, a stripped tracking pixel). Showing an empty white frame
-  // reads as a broken app; showing the text reads as the message.
-  const useHtml = htmlHasContent(message.html);
-  if (!useHtml) {
+  // Plain-text bodies render directly. We also fall back to text when the HTML
+  // renders nothing visible (an empty wrapper table, a stripped tracking pixel):
+  // an empty panel reads as a broken app, the text reads as the message.
+  if (!htmlHasContent(message.html)) {
     const body = message.text || message.snippet;
     return (
       <pre className="mail-body-text">
@@ -297,20 +299,10 @@ function MessageBody({ message, showImages, onShowImages }) {
           <button type="button" className="btn btn-sm" onClick={onShowImages}>Show images</button>
         </div>
       )}
-      {/* ⚠️ sandbox WITHOUT allow-same-origin — the frame gets an OPAQUE origin,
-          so sender HTML cannot reach the app's DOM, cookies, storage or session.
-          `allow-scripts` is present only so the frame can measure itself and
-          report its height; no popup permission is granted, because links are
-          posted out to the parent to open. The server-side sanitiser
-          (api/_lib/gmail-read.js) still strips sender scripts as a second line
-          of defence — do not remove one on the strength of the other. */}
-      <iframe
-        className="mail-body-frame"
-        title="Message body"
-        sandbox="allow-scripts"
-        style={{ height: `${height}px` }}
-        srcDoc={srcDoc || ''}
-      />
+      {/* Rendered on "paper": email HTML assumes a light background and often
+          sets its own colours, so dropping it straight onto a dark theme makes
+          light-on-light text invisible. Every mail client does the same. */}
+      <div className="mail-body-html" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );
 }

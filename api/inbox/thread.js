@@ -14,7 +14,7 @@ import { requireStaff } from '../_lib/require-staff.js';
 import { getGoogleToken } from '../_lib/clerk.js';
 import {
   gmailGet, headerMap, parseAddress, parseAddressList, walkParts,
-  sanitizeEmailHtml, isUnread, threadSubject, decodeB64Url,
+  sanitizeEmailHtml, isUnread, threadSubject, decodeB64Url, describePayload,
 } from '../_lib/gmail-read.js';
 
 export default async function handler(req, res) {
@@ -58,6 +58,16 @@ export default async function handler(req, res) {
       // `cid:` refs are left intact — the browser resolves them to blob: URLs
       // after fetching each inline part with auth (src/lib/mail-html.js).
       const clean = sanitizeEmailHtml(parts.html, { allowRemoteImages });
+
+      // Local-dev diagnostic for "the body renders blank". Lengths only —
+      // never the body itself. Off on Vercel.
+      if (!process.env.VERCEL) {
+        const visible = String(clean.html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        console.log(`[mail-debug] msg=${msg.id} text=${parts.text.length} html=${parts.html.length}`
+          + ` sanitized=${(clean.html || '').length} visibleChars=${visible.length}`
+          + ` blockedImgs=${clean.blockedImages}`
+          + ` atts=${parts.attachments.length} inline=${parts.inline.length}`);
+      }
 
       return {
         id: msg.id,

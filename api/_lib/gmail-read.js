@@ -199,6 +199,26 @@ export function effectiveMime(filename = '', declared = '') {
   return (ext && EXT_MIME[ext]) || mime || 'application/octet-stream';
 }
 
+// Compact description of a message's MIME tree, for diagnosing "the body is
+// blank" without ever logging the body. STRUCTURE ONLY — mime types, filenames,
+// sizes and whether data/attachmentId is present. No message content, so it is
+// safe to print while looking at real mail.
+export function describePayload(payload, depth = 0) {
+  if (!payload) return '(no payload)';
+  const pad = '  '.repeat(depth);
+  const b = payload.body || {};
+  const bits = [
+    payload.mimeType || '?',
+    payload.filename ? `file="${payload.filename}"` : null,
+    b.data ? `data=${b.data.length}b` : null,
+    b.attachmentId ? 'attachmentId=yes' : null,
+    b.size != null ? `size=${b.size}` : null,
+  ].filter(Boolean);
+  let out = `${pad}- ${bits.join(' ')}`;
+  for (const p of payload.parts || []) out += `\n${describePayload(p, depth + 1)}`;
+  return out;
+}
+
 // Gmail marks unread with the UNREAD label; there is no boolean on the message.
 export function isUnread(msg) {
   return (msg?.labelIds || []).includes('UNREAD');
