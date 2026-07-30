@@ -23,22 +23,55 @@ export function resolveCidImages(html, inlineParts, urlFor) {
 
 // Email HTML assumes a white page and a document width. The app is themed
 // (including dark) and the body renders in a sandboxed frame with no stylesheet
-// of its own, so it gets a minimal one — and `<base target="_blank">` so a link
-// in a client's email opens a new tab instead of trying to navigate the frame,
-// which the sandbox would block silently and look broken.
-export function wrapEmailHtml(bodyHtml) {
+// of its own, so it gets a minimal one.
+//
+// ⭐ The injected script is what lets the frame AUTO-SIZE. A fixed-height frame
+// gave every long email its own inner scrollbar nested inside the reader pane —
+// two scrollbars fighting, and the message visibly cut off. A cross-document
+// frame cannot be measured from outside, so it measures itself and posts the
+// height out. `token` ties each message to its own frame so one message can't
+// resize another.
+//
+// It also intercepts link clicks and posts the URL to the parent instead of
+// navigating. That is deliberate: it means the frame needs NO popup permission
+// at all, so `sandbox="allow-scripts"` alone is enough — the frame gets an
+// opaque origin with no access to the app's DOM, cookies or storage, and cannot
+// open a window by itself. The parent decides what to open.
+export function wrapEmailHtml(bodyHtml, token = 'mail') {
+  const t = JSON.stringify(String(token));
   return `<!doctype html><html><head><meta charset="utf-8">
-<base target="_blank">
 <style>
   html,body{margin:0;padding:12px;background:#fff;color:#111;
     font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     word-wrap:break-word;overflow-wrap:break-word;}
+  html,body{height:auto;overflow:hidden;}
   img{max-width:100%;height:auto;}
   table{max-width:100%;}
   blockquote{margin:8px 0 8px 12px;padding-left:12px;border-left:3px solid #ddd;color:#555;}
   a{color:#0b57d0;}
   pre{white-space:pre-wrap;word-wrap:break-word;}
-</style></head><body>${bodyHtml}</body></html>`;
+</style></head><body>${bodyHtml}
+<script>(function(){
+  var token=${t}, last=0;
+  function send(){
+    var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)+8;
+    if(h!==last){last=h;parent.postMessage({source:'rm117-mail',token:token,height:h},'*');}
+  }
+  send();
+  window.addEventListener('load',send);
+  window.addEventListener('resize',send);
+  // Images and remote fonts land after first paint and change the height.
+  if(window.ResizeObserver){new ResizeObserver(send).observe(document.body);}
+  setTimeout(send,80);setTimeout(send,400);setTimeout(send,1500);
+  // Links open via the parent — the frame itself has no popup permission.
+  document.addEventListener('click',function(e){
+    var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;
+    if(!a)return;
+    e.preventDefault();
+    parent.postMessage({source:'rm117-mail',token:token,link:a.getAttribute('href')},'*');
+  });
+})();</script>
+</body></html>`;
 }
 
 export function formatBytes(n) {

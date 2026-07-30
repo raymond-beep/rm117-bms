@@ -2465,11 +2465,12 @@ input, select, textarea { font: inherit; }
 }
 .mail-body-wrap { position: relative; }
 .mail-body-frame {
-  width: 100%; height: 420px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: #fff; display: block;
+  /* Height is set inline from the frame's own measurement (see wrapEmailHtml).
+     A fixed height gave every long email an inner scrollbar nested inside the
+     reader pane — two scrollbars fighting, message cut off. */
+  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: #fff; display: block; transition: height 90ms ease-out;
 }
-.mail-body-frame.is-tall { height: 78vh; }
-.mail-expand { margin-top: 6px; }
 .mail-images-blocked {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
   font-size: 12px; color: var(--muted); background: var(--inset);
@@ -2523,3 +2524,12 @@ input, select, textarea { font: inherit; }
 @media (max-width: 900px) {
   .mail-viewer-title strong { max-width: 60vw; }
 }
+
+/* Collapsed messages need to read as expandable — a one-line peek alone looks
+   like the whole message got truncated rather than folded. */
+.mail-chev {
+  flex: 0 0 auto; color: var(--muted); font-size: 15px; line-height: 1;
+  transition: transform 120ms ease; display: inline-block; width: 10px;
+}
+.mail-msg.is-open .mail-chev { transform: rotate(90deg); }
+.mail-reader-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }

@@ -7,7 +7,7 @@
 // Reads the SIGNED-IN STAFFER'S OWN mailbox (never a shared one — Ang's call),
 // on the gmail.readonly scope already granted. Threads, not messages: a
 // five-reply exchange is one row, both halves of the conversation included.
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useClerk } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
 import {
@@ -214,8 +214,26 @@ function AttachmentPreview({ items, index, messageId, onClose, onIndex }) {
 
 function MessageBody({ message, showImages, onShowImages }) {
   const [srcDoc, setSrcDoc] = useState(null);
-  const [tall, setTall] = useState(false);
-  const blobs = useRef([]);
+  const [height, setHeight] = useState(160);
+  const token = useId();
+
+  // The frame measures itself and posts its height out (see wrapEmailHtml).
+  // A sandboxed frame has an opaque origin, so messages arrive with origin
+  // "null" — the per-message token is what authenticates them, not the origin.
+  useEffect(() => {
+    const onMessage = (e) => {
+      const d = e.data;
+      if (!d || d.source !== 'rm117-mail' || d.token !== token) return;
+      if (typeof d.height === 'number' && d.height > 0) {
+        setHeight(Math.min(Math.max(d.height, 80), 20000));
+      }
+      if (typeof d.link === 'string' && /^https?:\/\//i.test(d.link)) {
+        window.open(d.link, '_blank', 'noopener,noreferrer');
+      }
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [token]);
 
   // Swap `cid:` refs for blob: URLs of the message's own inline parts.
   useEffect(() => {
@@ -243,8 +261,7 @@ function MessageBody({ message, showImages, onShowImages }) {
         html = resolveCidImages(html, message.inline, (p) => map.get(p.contentId) || '');
       }
       if (!alive) return;
-      blobs.current = made;
-      setSrcDoc(wrapEmailHtml(html));
+      setSrcDoc(wrapEmailHtml(html, token));
     })();
     return () => {
       alive = false;
@@ -269,24 +286,32 @@ function MessageBody({ message, showImages, onShowImages }) {
           <button type="button" className="btn btn-sm" onClick={onShowImages}>Show images</button>
         </div>
       )}
-      {/* ⚠️ sandbox WITHOUT allow-scripts / allow-same-origin. The body is
-          sender-controlled HTML; this frame is the real security boundary
-          (api/_lib/gmail-read.js sanitises as a second line of defence). */}
+      {/* ⚠️ sandbox WITHOUT allow-same-origin — the frame gets an OPAQUE origin,
+          so sender HTML cannot reach the app's DOM, cookies, storage or session.
+          `allow-scripts` is present only so the frame can measure itself and
+          report its height; no popup permission is granted, because links are
+          posted out to the parent to open. The server-side sanitiser
+          (api/_lib/gmail-read.js) still strips sender scripts as a second line
+          of defence — do not remove one on the strength of the other. */}
       <iframe
-        className={`mail-body-frame${tall ? ' is-tall' : ''}`}
+        className="mail-body-frame"
         title="Message body"
-        sandbox="allow-popups allow-popups-to-escape-sandbox"
+        sandbox="allow-scripts"
+        style={{ height: `${height}px` }}
         srcDoc={srcDoc || ''}
       />
-      <button type="button" className="btn btn-sm mail-expand" onClick={() => setTall((v) => !v)}>
-        {tall ? 'Collapse' : 'Expand'}
-      </button>
     </div>
   );
 }
 
-function Message({ message, defaultOpen }) {
+function Message({ message, defaultOpen, expandAll }) {
   const [open, setOpen] = useState(defaultOpen);
+
+  // "Expand all / Collapse all" from the thread header. Keyed on the counter so
+  // pressing it twice in a row still applies after a manual toggle in between.
+  useEffect(() => {
+    if (expandAll?.n) setOpen(expandAll.value);
+  }, [expandAll?.n, expandAll?.value]);
   const [showImages, setShowImages] = useState(false);
   const [previewAt, setPreviewAt] = useState(null);
   const who = message.from.name || message.from.email;
@@ -300,7 +325,9 @@ function Message({ message, defaultOpen }) {
 
   return (
     <div className={`mail-msg${open ? ' is-open' : ''}`}>
-      <button type="button" className="mail-msg-head" onClick={() => setOpen((v) => !v)}>
+      <button type="button" className="mail-msg-head" onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}>
+        <span className="mail-chev" aria-hidden="true">›</span>
         <span className="mail-ava sm">{initials(who)}</span>
         <span className="mail-msg-who">
           <strong>{who}</strong>
@@ -365,6 +392,7 @@ export default function Mail() {
   const [openId, setOpenId] = useState(null);
   const [thread, setThread] = useState({ status: 'idle' });
   const [showImages, setShowImages] = useState(false);
+  const [expandAll, setExpandAll] = useState({ value: false, n: 0 });
 
   useEffect(() => {
     let alive = true;
@@ -387,6 +415,7 @@ export default function Mail() {
     setOpenId(row.id);
     setThread({ status: 'loading' });
     setShowImages(withImages);
+    setExpandAll({ value: false, n: 0 });
     try {
       const r = await apiFetch(
         `/api/inbox/thread?id=${encodeURIComponent(row.id)}${withImages ? '&images=1' : ''}`,
@@ -490,19 +519,35 @@ export default function Mail() {
                     {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}
                   </span>
                 </div>
-                {!showImages && (
-                  <button
-                    type="button"
-                    className="btn btn-sm"
-                    onClick={() => activeRow && openThread(activeRow, true)}
-                  >
-                    Load remote images
-                  </button>
-                )}
+                <div className="mail-reader-actions">
+                  {thread.messages.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => setExpandAll((s) => ({ value: !s.value, n: s.n + 1 }))}
+                    >
+                      {expandAll.value ? 'Collapse all' : 'Expand all'}
+                    </button>
+                  )}
+                  {!showImages && (
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={() => activeRow && openThread(activeRow, true)}
+                    >
+                      Load remote images
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="mail-msgs">
                 {thread.messages.map((m, i) => (
-                  <Message key={m.id} message={m} defaultOpen={i === thread.messages.length - 1} />
+                  <Message
+                    key={m.id}
+                    message={m}
+                    defaultOpen={i === thread.messages.length - 1}
+                    expandAll={expandAll}
+                  />
                 ))}
               </div>
             </>
