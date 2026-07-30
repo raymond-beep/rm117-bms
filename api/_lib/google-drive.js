@@ -217,6 +217,15 @@ export function resolveFilesSentFolderId(jobId) {
   return resolveSubfolderId(jobId, (name) => name === CLIENT_SUBFOLDER);
 }
 
+// The job's "Files Received" folder — where the firm already keeps what CLIENTS
+// and consultants send in. Attachments filed off an email land here, so a survey
+// a client emailed ends up in the same place as one they handed over on a USB
+// stick, instead of living only inside one person's mailbox.
+const RECEIVED_SUBFOLDER = (process.env.RECEIVED_SUBFOLDER || 'Files Received').trim().toLowerCase();
+export function resolveFilesReceivedFolderId(jobId) {
+  return resolveSubfolderId(jobId, (name) => name === RECEIVED_SUBFOLDER);
+}
+
 // The job's "Proposal(s)" folder — where the firm files proposals (kept distinct
 // from Files Sent). Matches "proposal" or "proposals" first, then any name that
 // contains "proposal" as a fallback.
