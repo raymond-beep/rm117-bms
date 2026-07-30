@@ -62,9 +62,37 @@ export function mailDate(value, now = new Date()) {
     sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: '2-digit' });
 }
 
+// What kind of thing is this attachment: 'pdf' | 'image' | 'other'?
+//
+// ⚠️ The declared MIME type is NOT reliable. Plenty of mail clients send a PDF as
+// `application/octet-stream` (and some send no type at all), which is exactly what
+// a real drawing set from a contractor looked like — seven PDFs, every one of them
+// generic, so a mime-only check offered no preview on the one message where it
+// mattered most. The filename extension is the more trustworthy signal in practice,
+// so it wins whenever the declared type is missing or generic.
+const GENERIC_MIME = /^(application\/(octet-stream|binary|force-download|x-download)|binary\/octet-stream|)$/i;
+const EXT_PDF = /\.pdf$/i;
+const EXT_IMAGE = /\.(png|jpe?g|gif|webp|bmp)$/i;
+
+export function attachmentKind(filename = '', mimeType = '') {
+  const mime = String(mimeType || '').toLowerCase().split(';')[0].trim();
+  if (!GENERIC_MIME.test(mime)) {
+    if (mime === 'application/pdf') return 'pdf';
+    // SVG is an image but is scriptable — never previewed.
+    if (/^image\/(png|jpeg|jpg|gif|webp|bmp)$/.test(mime)) return 'image';
+    // A declared type we don't preview (zip, dwg, svg, …) still gets the
+    // extension check below only if the type was generic — so fall through to
+    // 'other' here rather than second-guessing an explicit declaration.
+    if (mime) return 'other';
+  }
+  if (EXT_PDF.test(filename)) return 'pdf';
+  if (EXT_IMAGE.test(filename)) return 'image';
+  return 'other';
+}
+
 // Which attachments we are willing to show without a download.
-export function canPreview(mimeType) {
-  return /^(image\/(png|jpeg|jpg|gif|webp|bmp)|application\/pdf)$/i.test(mimeType || '');
+export function canPreview(mimeType, filename = '') {
+  return attachmentKind(filename, mimeType) !== 'other';
 }
 
 // Build the quoted original for a reply, the way every mail client does.

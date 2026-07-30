@@ -169,6 +169,27 @@ export function sanitizeEmailHtml(html, { allowRemoteImages = false } = {}) {
 // through apiFetch and swaps in a blob: URL — the same pattern ProposalDocs.jsx
 // uses for signed proposal PDFs.
 
+// Resolve the Content-Type to actually serve an attachment with.
+//
+// ⚠️ Load-bearing for in-app preview. Many mail clients declare a PDF as
+// `application/octet-stream`; serving that back makes the browser DOWNLOAD the
+// file no matter what Content-Disposition says, so an in-app viewer would show
+// nothing. When the declared type is generic we infer from the extension.
+const EXT_MIME = {
+  pdf: 'application/pdf',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp',
+  txt: 'text/plain',
+};
+const GENERIC_MIME = /^(application\/(octet-stream|binary|force-download|x-download)|binary\/octet-stream|)$/i;
+
+export function effectiveMime(filename = '', declared = '') {
+  const mime = String(declared || '').toLowerCase().split(';')[0].trim();
+  if (mime && !GENERIC_MIME.test(mime)) return mime;
+  const ext = String(filename).toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  return (ext && EXT_MIME[ext]) || mime || 'application/octet-stream';
+}
+
 // Gmail marks unread with the UNREAD label; there is no boolean on the message.
 export function isUnread(msg) {
   return (msg?.labelIds || []).includes('UNREAD');

@@ -11,8 +11,44 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useClerk } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
 import {
-  resolveCidImages, wrapEmailHtml, formatBytes, mailDate, canPreview,
+  resolveCidImages, wrapEmailHtml, formatBytes, mailDate, canPreview, attachmentKind,
 } from '../../lib/mail-html.js';
+
+// Build the app-proxied URL for one attachment. Everything goes through
+// /api/inbox/attachment so the staffer's Google token never reaches the browser.
+function attachmentUrl(messageId, att, inline = true) {
+  return `/api/inbox/attachment?messageId=${encodeURIComponent(messageId)}`
+    + `&attachmentId=${encodeURIComponent(att.attachmentId)}`
+    + `&filename=${encodeURIComponent(att.filename)}`
+    + `&mime=${encodeURIComponent(att.mimeType || '')}${inline ? '&inline=1' : ''}`;
+}
+
+// Fetch an attachment as a blob: URL. A bare <img src> or <iframe src> would
+// arrive with no Authorization header and 401 — same reason ProposalDocs.jsx
+// fetches signed proposals as blobs.
+function useAttachmentBlob(messageId, att) {
+  const [state, setState] = useState({ status: 'idle' });
+  useEffect(() => {
+    if (!att) { setState({ status: 'idle' }); return undefined; }
+    let alive = true;
+    let made = null;
+    setState({ status: 'loading' });
+    (async () => {
+      try {
+        const r = await apiFetch(attachmentUrl(messageId, att));
+        if (!r.ok) throw new Error(`attachment ${r.status}`);
+        const url = URL.createObjectURL(await r.blob());
+        made = url;
+        if (!alive) { URL.revokeObjectURL(url); return; }
+        setState({ status: 'ready', url });
+      } catch {
+        if (alive) setState({ status: 'error' });
+      }
+    })();
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [messageId, att]);
+  return state;
+}
 
 const SCOPES = [
   { key: 'work', label: 'Work', hint: 'Clients, colleagues, townships, engineers — newsletters and SaaS hidden' },
@@ -70,56 +106,109 @@ function ThreadRow({ thread, active, onOpen }) {
 
 // ------------------------------------------------------------- one message
 
-function Attachment({ att, messageId }) {
+const KIND_ICON = { pdf: '▤', image: '▣', other: '◈' };
+
+function Attachment({ att, messageId, onPreview }) {
   const [busy, setBusy] = useState(false);
+  const kind = attachmentKind(att.filename, att.mimeType);
 
-  // Attachments are fetched through apiFetch (which carries the Clerk token) and
-  // turned into blob: URLs — a bare <a href> or <img src> would arrive with no
-  // Authorization header and 401.
-  const load = useCallback(async () => {
-    const url = `/api/inbox/attachment?messageId=${encodeURIComponent(messageId)}`
-      + `&attachmentId=${encodeURIComponent(att.attachmentId)}`
-      + `&filename=${encodeURIComponent(att.filename)}`
-      + `&mime=${encodeURIComponent(att.mimeType)}&inline=1`;
-    const r = await apiFetch(url);
-    if (!r.ok) throw new Error(`attachment ${r.status}`);
-    return URL.createObjectURL(await r.blob());
-  }, [att, messageId]);
-
-  const open = async (download) => {
+  const download = async () => {
     setBusy(true);
     try {
-      const href = await load();
+      const r = await apiFetch(attachmentUrl(messageId, att, false));
+      if (!r.ok) throw new Error(`attachment ${r.status}`);
+      const href = URL.createObjectURL(await r.blob());
       const a = document.createElement('a');
       a.href = href;
-      if (download) a.download = att.filename;
-      else a.target = '_blank';
+      a.download = att.filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
-      // Give the tab a moment to take the URL before revoking it.
-      setTimeout(() => URL.revokeObjectURL(href), 60_000);
+      setTimeout(() => URL.revokeObjectURL(href), 30_000);
     } catch {
-      alert(`Couldn’t open ${att.filename}.`);
+      alert(`Couldn’t download ${att.filename}.`);
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <span className="mail-att">
-      <span className="mail-att-icon" aria-hidden="true">
-        {/^image\//i.test(att.mimeType) ? '▣' : att.mimeType === 'application/pdf' ? '▤' : '◈'}
-      </span>
+    <span className={`mail-att is-${kind}`}>
+      <span className="mail-att-icon" aria-hidden="true">{KIND_ICON[kind]}</span>
       <span className="mail-att-meta">
         <span className="mail-att-name" title={att.filename}>{att.filename}</span>
         <span className="mail-att-size">{formatBytes(att.size)}</span>
       </span>
-      {canPreview(att.mimeType) && (
-        <button type="button" className="btn btn-sm" disabled={busy} onClick={() => open(false)}>View</button>
+      {canPreview(att.mimeType, att.filename) && (
+        <button type="button" className="btn btn-sm" onClick={() => onPreview(att)}>View</button>
       )}
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => open(true)}>Download</button>
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={download}>Download</button>
     </span>
+  );
+}
+
+// Full-screen viewer for a PDF or image attachment, in the app.
+//
+// Drawing sets arrive as a pile of PDFs — the message that prompted this had
+// seven — so it steps through them with ← / → rather than making you close and
+// reopen. PDFs use the browser's own PDF viewer inside the frame (zoom, page
+// nav, print all come free); images render directly.
+function AttachmentPreview({ items, index, messageId, onClose, onIndex }) {
+  const att = items[index];
+  const blob = useAttachmentBlob(messageId, att);
+  const kind = attachmentKind(att?.filename, att?.mimeType);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowRight' && index < items.length - 1) onIndex(index + 1);
+      else if (e.key === 'ArrowLeft' && index > 0) onIndex(index - 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [index, items.length, onClose, onIndex]);
+
+  if (!att) return null;
+
+  return (
+    <div className="mail-viewer" role="dialog" aria-modal="true" aria-label={att.filename}>
+      <div className="mail-viewer-bar">
+        <div className="mail-viewer-title">
+          <strong title={att.filename}>{att.filename}</strong>
+          <span className="mail-viewer-sub">
+            {formatBytes(att.size)}
+            {items.length > 1 && ` · ${index + 1} of ${items.length}`}
+          </span>
+        </div>
+        <div className="mail-viewer-actions">
+          {items.length > 1 && (
+            <>
+              <button type="button" className="btn btn-sm" disabled={index === 0}
+                onClick={() => onIndex(index - 1)}>‹ Prev</button>
+              <button type="button" className="btn btn-sm" disabled={index === items.length - 1}
+                onClick={() => onIndex(index + 1)}>Next ›</button>
+            </>
+          )}
+          {blob.status === 'ready' && (
+            <>
+              <a className="btn btn-sm" href={blob.url} target="_blank" rel="noreferrer">New tab</a>
+              <a className="btn btn-sm" href={blob.url} download={att.filename}>Download</a>
+            </>
+          )}
+          <button type="button" className="btn btn-sm" onClick={onClose}>Close ✕</button>
+        </div>
+      </div>
+      <div className="mail-viewer-body">
+        {blob.status === 'loading' && <div className="placeholder-note">Loading {att.filename}…</div>}
+        {blob.status === 'error' && <div className="placeholder-note">Couldn’t open this attachment.</div>}
+        {blob.status === 'ready' && kind === 'image' && (
+          <img className="mail-viewer-img" src={blob.url} alt={att.filename} />
+        )}
+        {blob.status === 'ready' && kind === 'pdf' && (
+          <iframe className="mail-viewer-frame" title={att.filename} src={blob.url} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -199,7 +288,15 @@ function MessageBody({ message, showImages, onShowImages }) {
 function Message({ message, defaultOpen }) {
   const [open, setOpen] = useState(defaultOpen);
   const [showImages, setShowImages] = useState(false);
+  const [previewAt, setPreviewAt] = useState(null);
   const who = message.from.name || message.from.email;
+
+  // Only previewable attachments are steppable in the viewer — paging into a
+  // .zip you can't render would be a dead end.
+  const previewable = useMemo(
+    () => message.attachments.filter((a) => canPreview(a.mimeType, a.filename)),
+    [message.attachments],
+  );
 
   return (
     <div className={`mail-msg${open ? ' is-open' : ''}`}>
@@ -231,12 +328,29 @@ function Message({ message, defaultOpen }) {
               </div>
               <div className="mail-atts-row">
                 {message.attachments.map((a) => (
-                  <Attachment key={a.attachmentId} att={a} messageId={message.id} />
+                  <Attachment
+                    key={a.attachmentId}
+                    att={a}
+                    messageId={message.id}
+                    onPreview={(att) => setPreviewAt(previewable.findIndex(
+                      (p) => p.attachmentId === att.attachmentId,
+                    ))}
+                  />
                 ))}
               </div>
             </div>
           )}
         </div>
+      )}
+
+      {previewAt !== null && previewAt >= 0 && (
+        <AttachmentPreview
+          items={previewable}
+          index={previewAt}
+          messageId={message.id}
+          onIndex={setPreviewAt}
+          onClose={() => setPreviewAt(null)}
+        />
       )}
     </div>
   );

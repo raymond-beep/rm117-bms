@@ -3,9 +3,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   decodeB64Url, headerMap, parseAddress, parseAddressList, walkParts,
-  sanitizeEmailHtml, isUnread, threadSubject,
+  sanitizeEmailHtml, isUnread, threadSubject, effectiveMime,
 } from '../api/_lib/gmail-read.js';
-import { resolveCidImages, replyRecipients, formatBytes, canPreview } from '../src/lib/mail-html.js';
+import { resolveCidImages, replyRecipients, formatBytes, canPreview, attachmentKind } from '../src/lib/mail-html.js';
 import { buildMatcher, classifySender, inScope } from '../api/_lib/client-match.js';
 import { counterparty } from '../api/inbox.js';
 
@@ -183,10 +183,60 @@ describe('attachment display helpers', () => {
     expect(formatBytes(3 * 1024 * 1024)).toBe('3.0 MB');
   });
   it('previews images and PDFs only', () => {
-    expect(canPreview('application/pdf')).toBe(true);
-    expect(canPreview('image/png')).toBe(true);
-    expect(canPreview('application/zip')).toBe(false);
-    expect(canPreview('image/svg+xml')).toBe(false); // scriptable — download only
+    expect(canPreview('application/pdf', 'a.pdf')).toBe(true);
+    expect(canPreview('image/png', 'a.png')).toBe(true);
+    expect(canPreview('application/zip', 'a.zip')).toBe(false);
+    expect(canPreview('image/svg+xml', 'a.svg')).toBe(false); // scriptable — download only
+  });
+});
+
+describe('attachmentKind — the declared MIME type is not trustworthy', () => {
+  it('uses an explicit type when there is one', () => {
+    expect(attachmentKind('x.pdf', 'application/pdf')).toBe('pdf');
+    expect(attachmentKind('x.png', 'image/png')).toBe('image');
+  });
+
+  // The real case: a contractor's drawing set arrived as 7 PDFs, every one
+  // declared application/octet-stream, so a mime-only check offered no preview.
+  it('falls back to the extension when the type is generic', () => {
+    expect(attachmentKind('Floor Plans with Notes.pdf', 'application/octet-stream')).toBe('pdf');
+    expect(attachmentKind('Cross Section.PDF', 'binary/octet-stream')).toBe('pdf');
+    expect(attachmentKind('detail.jpg', 'application/octet-stream')).toBe('image');
+  });
+  it('falls back to the extension when there is no type at all', () => {
+    expect(attachmentKind('plan.pdf', '')).toBe('pdf');
+    expect(attachmentKind('plan.pdf', undefined)).toBe('pdf');
+  });
+  it('handles a charset parameter on the type', () => {
+    expect(attachmentKind('a.pdf', 'application/pdf; charset=binary')).toBe('pdf');
+  });
+  it('never previews a scriptable SVG, by type or extension', () => {
+    expect(attachmentKind('logo.svg', 'image/svg+xml')).toBe('other');
+    expect(attachmentKind('logo.svg', 'application/octet-stream')).toBe('other');
+  });
+  it('leaves genuinely unknown files alone', () => {
+    expect(attachmentKind('model.dwg', 'application/octet-stream')).toBe('other');
+    expect(attachmentKind('set.zip', 'application/zip')).toBe('other');
+    expect(attachmentKind('noext', '')).toBe('other');
+  });
+});
+
+describe('effectiveMime — what the server actually serves', () => {
+  it('rewrites a generic PDF so the browser renders instead of downloading', () => {
+    // Serving application/octet-stream makes the browser download no matter what
+    // Content-Disposition says, which would leave the in-app viewer blank.
+    expect(effectiveMime('Boiler Plate Example.pdf', 'application/octet-stream')).toBe('application/pdf');
+  });
+  it('keeps an explicit type', () => {
+    expect(effectiveMime('a.pdf', 'application/pdf')).toBe('application/pdf');
+    expect(effectiveMime('a.bin', 'application/zip')).toBe('application/zip');
+  });
+  it('infers images', () => {
+    expect(effectiveMime('shot.JPEG', '')).toBe('image/jpeg');
+    expect(effectiveMime('shot.png', 'application/octet-stream')).toBe('image/png');
+  });
+  it('falls back to octet-stream for the genuinely unknown', () => {
+    expect(effectiveMime('model.dwg', '')).toBe('application/octet-stream');
   });
 });
 

@@ -10,11 +10,13 @@
 // in-app PDF/image preview; as a download otherwise.
 import { requireStaff } from '../_lib/require-staff.js';
 import { getGoogleToken } from '../_lib/clerk.js';
-import { gmailGet } from '../_lib/gmail-read.js';
+import { gmailGet, effectiveMime } from '../_lib/gmail-read.js';
 
 // Only these render inline. Anything else downloads — an inline text/html
 // attachment from an unknown sender would be same-origin script execution.
-const INLINE_SAFE = /^(image\/(png|jpeg|jpg|gif|webp|bmp|svg\+xml)|application\/pdf|text\/plain)$/i;
+// ⚠️ SVG is deliberately NOT here: it is an image to a user but a scriptable
+// document to a browser, and this is served from the app's own origin.
+const INLINE_SAFE = /^(image\/(png|jpeg|jpg|gif|webp|bmp)|application\/pdf|text\/plain)$/i;
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
@@ -41,13 +43,13 @@ export default async function handler(req, res) {
     );
     const buf = Buffer.from(String(att.data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 
-    // Trust the request's mime only far enough to decide inline vs download;
-    // an SVG is inline-safe but still scriptable, so it is never same-origin
-    // rendered — the UI puts previews in a sandboxed frame.
-    const mime = url.searchParams.get('mime') || '';
-    const inline = wantInline && INLINE_SAFE.test(mime || 'application/octet-stream');
+    // Resolve the real type before deciding anything: a PDF declared as
+    // application/octet-stream would otherwise be served as a download and the
+    // in-app viewer would render an empty frame.
+    const mime = effectiveMime(filename, url.searchParams.get('mime') || '');
+    const inline = wantInline && INLINE_SAFE.test(mime);
 
-    res.setHeader('Content-Type', mime || 'application/octet-stream');
+    res.setHeader('Content-Type', mime);
     res.setHeader('Content-Length', String(buf.length));
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'");
