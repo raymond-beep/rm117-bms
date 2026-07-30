@@ -50,18 +50,22 @@ export function wrapEmailHtml(bodyHtml, token = 'mail') {
   blockquote{margin:8px 0 8px 12px;padding-left:12px;border-left:3px solid #ddd;color:#555;}
   a{color:#0b57d0;}
   pre{white-space:pre-wrap;word-wrap:break-word;}
-</style></head><body>${bodyHtml}
+</style></head><body><div id="rm117-body">${bodyHtml}</div>
 <script>(function(){
-  var token=${t}, last=0;
+  var token=${t}, last=0, el=document.getElementById('rm117-body');
+  // ⚠️ Measure the CONTENT element, never document/body scrollHeight. Those are
+  // never smaller than the frame's own height, so reporting them made every
+  // measurement come back as "current height + padding" — the parent grew the
+  // frame, which grew the measurement, and the box expanded forever.
   function send(){
-    var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight)+8;
-    if(h!==last){last=h;parent.postMessage({source:'rm117-mail',token:token,height:h},'*');}
+    var h=Math.ceil(el.getBoundingClientRect().height)+24;
+    if(Math.abs(h-last)>1){last=h;parent.postMessage({source:'rm117-mail',token:token,height:h},'*');}
   }
   send();
   window.addEventListener('load',send);
   window.addEventListener('resize',send);
   // Images and remote fonts land after first paint and change the height.
-  if(window.ResizeObserver){new ResizeObserver(send).observe(document.body);}
+  if(window.ResizeObserver){new ResizeObserver(send).observe(el);}
   setTimeout(send,80);setTimeout(send,400);setTimeout(send,1500);
   // Links open via the parent — the frame itself has no popup permission.
   document.addEventListener('click',function(e){
@@ -72,6 +76,25 @@ export function wrapEmailHtml(bodyHtml, token = 'mail') {
   });
 })();</script>
 </body></html>`;
+}
+
+// Does this HTML actually render anything a person can see?
+//
+// A body can be non-empty as a STRING and still show nothing — an empty
+// wrapper table, a stripped tracking pixel, `<div></div>`. Rendering that
+// produced a blank white box with no explanation, so the caller uses this to
+// fall back to the plain-text part instead of showing an empty frame.
+export function htmlHasContent(html) {
+  if (!html) return false;
+  const s = String(html);
+  if (/<(img|video|table|hr)\b/i.test(s)) return true;
+  const text = s
+    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > 0;
 }
 
 export function formatBytes(n) {

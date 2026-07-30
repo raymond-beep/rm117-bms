@@ -12,6 +12,7 @@ import { useClerk } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
 import {
   resolveCidImages, wrapEmailHtml, formatBytes, mailDate, canPreview, attachmentKind,
+  htmlHasContent,
 } from '../../lib/mail-html.js';
 
 // Build the app-proxied URL for one attachment. Everything goes through
@@ -271,8 +272,18 @@ function MessageBody({ message, showImages, onShowImages }) {
 
   // Plain-text bodies render directly — no frame needed, and the height is
   // correct automatically. Most client mail lands here.
-  if (!message.html) {
-    return <pre className="mail-body-text">{message.text || <em>(no content)</em>}</pre>;
+  //
+  // We also fall back to text when the HTML renders nothing visible (an empty
+  // wrapper table, a stripped tracking pixel). Showing an empty white frame
+  // reads as a broken app; showing the text reads as the message.
+  const useHtml = htmlHasContent(message.html);
+  if (!useHtml) {
+    const body = message.text || message.snippet;
+    return (
+      <pre className="mail-body-text">
+        {body || <em>(this message has no readable body)</em>}
+      </pre>
+    );
   }
 
   return (

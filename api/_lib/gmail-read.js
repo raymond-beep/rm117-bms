@@ -77,7 +77,8 @@ export function parseAddressList(value = '') {
 // inline parts separate from real attachments so a signature logo doesn't show
 // up in the attachment strip as if the client sent you a file.
 export function walkParts(payload) {
-  const out = { text: '', html: '', attachments: [], inline: [] };
+  // textRef / htmlRef: see the large-body note on the text/html branches below.
+  const out = { text: '', html: '', attachments: [], inline: [], textRef: null, htmlRef: null };
   if (!payload) return out;
 
   const visit = (part) => {
@@ -109,14 +110,22 @@ export function walkParts(payload) {
       return;
     }
 
+    // ⚠️ LARGE BODIES DO NOT ARRIVE INLINE. Above roughly a couple of hundred KB
+    // Gmail omits `body.data` and gives an `attachmentId` instead, which has to be
+    // fetched separately — the same mechanism as a real attachment but with no
+    // filename. Decoding `body.data` alone therefore yielded an EMPTY STRING on
+    // exactly the long, image-heavy threads people most want to read, and the
+    // message rendered as a blank box. Record the ref so the caller can fetch it.
     if (mime === 'text/plain' && !filename) {
       const t = decodeB64Url(part.body?.data);
       if (t && !out.text) out.text = t;
+      else if (!t && part.body?.attachmentId && !out.textRef) out.textRef = part.body.attachmentId;
       return;
     }
     if (mime === 'text/html' && !filename) {
       const h = decodeB64Url(part.body?.data);
       if (h && !out.html) out.html = h;
+      else if (!h && part.body?.attachmentId && !out.htmlRef) out.htmlRef = part.body.attachmentId;
     }
   };
 

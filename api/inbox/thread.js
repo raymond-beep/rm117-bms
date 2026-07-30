@@ -14,7 +14,7 @@ import { requireStaff } from '../_lib/require-staff.js';
 import { getGoogleToken } from '../_lib/clerk.js';
 import {
   gmailGet, headerMap, parseAddress, parseAddressList, walkParts,
-  sanitizeEmailHtml, isUnread, threadSubject,
+  sanitizeEmailHtml, isUnread, threadSubject, decodeB64Url,
 } from '../_lib/gmail-read.js';
 
 export default async function handler(req, res) {
@@ -35,9 +35,25 @@ export default async function handler(req, res) {
   try {
     const thread = await gmailGet(`/threads/${encodeURIComponent(threadId)}?format=full`, token);
 
-    const messages = (thread.messages || []).map((msg) => {
+    // Fetch any body that was too large to arrive inline (see walkParts).
+    const fetchPart = async (messageId, attachmentId) => {
+      try {
+        const a = await gmailGet(
+          `/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`,
+          token,
+        );
+        return decodeB64Url(a.data);
+      } catch {
+        return '';
+      }
+    };
+
+    const messages = await Promise.all((thread.messages || []).map(async (msg) => {
       const h = headerMap(msg.payload);
       const parts = walkParts(msg.payload);
+
+      if (!parts.html && parts.htmlRef) parts.html = await fetchPart(msg.id, parts.htmlRef);
+      if (!parts.text && parts.textRef) parts.text = await fetchPart(msg.id, parts.textRef);
 
       // `cid:` refs are left intact — the browser resolves them to blob: URLs
       // after fetching each inline part with auth (src/lib/mail-html.js).
@@ -75,7 +91,7 @@ export default async function handler(req, res) {
           contentId: a.contentId,
         })),
       };
-    });
+    }));
 
     res.status(200).json({
       connected: true,

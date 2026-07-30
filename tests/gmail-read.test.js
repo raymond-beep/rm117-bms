@@ -5,7 +5,7 @@ import {
   decodeB64Url, headerMap, parseAddress, parseAddressList, walkParts,
   sanitizeEmailHtml, isUnread, threadSubject, effectiveMime,
 } from '../api/_lib/gmail-read.js';
-import { resolveCidImages, replyRecipients, formatBytes, canPreview, attachmentKind, wrapEmailHtml } from '../src/lib/mail-html.js';
+import { resolveCidImages, replyRecipients, formatBytes, canPreview, attachmentKind, wrapEmailHtml, htmlHasContent } from '../src/lib/mail-html.js';
 import { buildMatcher, classifySender, inScope } from '../api/_lib/client-match.js';
 import { counterparty } from '../api/inbox.js';
 
@@ -367,5 +367,53 @@ describe('wrapEmailHtml — the self-measuring body frame', () => {
     const out = wrapEmailHtml('<a href="https://x">l</a>', 't');
     expect(out).toContain('preventDefault');
     expect(out).not.toContain('base target');
+  });
+});
+
+describe('htmlHasContent — never render an empty frame', () => {
+  it('sees real text', () => {
+    expect(htmlHasContent('<div><p>Hello Ray</p></div>')).toBe(true);
+  });
+  it('sees images and tables even with no text', () => {
+    expect(htmlHasContent('<div><img src="x"></div>')).toBe(true);
+    expect(htmlHasContent('<table><tr><td></td></tr></table>')).toBe(true);
+  });
+  it('rejects markup that renders nothing', () => {
+    // These produced a blank white box with no explanation.
+    expect(htmlHasContent('<div></div>')).toBe(false);
+    expect(htmlHasContent('<div>&nbsp;&nbsp;</div>')).toBe(false);
+    expect(htmlHasContent('  \n ')).toBe(false);
+    expect(htmlHasContent('')).toBe(false);
+    expect(htmlHasContent(null)).toBe(false);
+  });
+  it('ignores text hidden inside style/script blocks', () => {
+    expect(htmlHasContent('<style>p{color:red}</style>')).toBe(false);
+  });
+});
+
+describe('walkParts — bodies too large to arrive inline', () => {
+  it('records a ref when Gmail omits body.data for the html part', () => {
+    // Above ~a couple hundred KB Gmail sends an attachmentId instead of data.
+    // Decoding data alone returned '' and the message rendered as a blank box.
+    const payload = {
+      mimeType: 'multipart/alternative',
+      parts: [
+        { mimeType: 'text/plain', body: { attachmentId: 'big-text', size: 900000 } },
+        { mimeType: 'text/html', body: { attachmentId: 'big-html', size: 900000 } },
+      ],
+    };
+    const out = walkParts(payload);
+    expect(out.html).toBe('');
+    expect(out.htmlRef).toBe('big-html');
+    expect(out.textRef).toBe('big-text');
+  });
+  it('prefers inline data and records no ref when data is present', () => {
+    const payload = {
+      mimeType: 'text/html',
+      body: { data: Buffer.from('<p>hi</p>').toString('base64url'), attachmentId: 'unused' },
+    };
+    const out = walkParts(payload);
+    expect(out.html).toBe('<p>hi</p>');
+    expect(out.htmlRef).toBeNull();
   });
 });
