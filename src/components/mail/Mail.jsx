@@ -14,6 +14,7 @@ import DOMPurify from 'dompurify';
 import {
   resolveCidImages, formatBytes, mailDate, canPreview, attachmentKind, htmlHasContent,
 } from '../../lib/mail-html.js';
+import { splitQuotedHtml, splitQuotedText, countQuotedReplies } from '../../lib/mail-quote.js';
 
 // Every link in an email opens in a new tab and never hands the opener over.
 // Registered once, at module scope — addHook is global to the DOMPurify instance.
@@ -244,15 +245,23 @@ function AttachmentPreview({ items, index, messageId, onClose, onIndex }) {
   );
 }
 
-function MessageBody({ message, showImages, onShowImages }) {
-  const [html, setHtml] = useState('');
+// The firm's own side of the conversation. Domain, not the signed-in user: what
+// matters when reading a thread is "us" versus "the client", so a colleague's
+// reply belongs on the same side as your own.
+const STAFF_DOMAIN = '@rm117.com';
+const isOurs = (message) => String(message?.from?.email || '').endsWith(STAFF_DOMAIN);
 
-  // Resolve `cid:` inline images to blob: URLs, then sanitise for the page.
+function MessageBody({ message, showImages, onShowImages }) {
+  const [parts, setParts] = useState({ visible: '', quoted: '' });
+  const [showQuoted, setShowQuoted] = useState(false);
+
+  // Resolve `cid:` inline images to blob: URLs, sanitise, then split the quoted
+  // history off the part that was actually written.
   useEffect(() => {
     let alive = true;
     const made = [];
     (async () => {
-      if (!message.html) { setHtml(''); return; }
+      if (!message.html) { setParts({ visible: '', quoted: '' }); return; }
       let raw = message.html;
       if (message.inline?.length) {
         const map = new Map();
@@ -268,7 +277,7 @@ function MessageBody({ message, showImages, onShowImages }) {
         raw = resolveCidImages(raw, message.inline, (p) => map.get(p.contentId) || '');
       }
       if (!alive) return;
-      setHtml(DOMPurify.sanitize(raw, PURIFY_CONFIG));
+      setParts(splitQuotedHtml(DOMPurify.sanitize(raw, PURIFY_CONFIG)));
     })();
     return () => {
       alive = false;
@@ -276,102 +285,108 @@ function MessageBody({ message, showImages, onShowImages }) {
     };
   }, [message.id, message.html, message.inline]);
 
-  // Plain-text bodies render directly. We also fall back to text when the HTML
-  // renders nothing visible (an empty wrapper table, a stripped tracking pixel):
-  // an empty panel reads as a broken app, the text reads as the message.
+  // Plain text: same split, no sanitising needed.
   if (!htmlHasContent(message.html)) {
-    const body = message.text || message.snippet;
+    const { visible, quoted } = splitQuotedText(message.text || message.snippet);
     return (
-      <pre className="mail-body-text">
-        {body || <em>(this message has no readable body)</em>}
-      </pre>
+      <>
+        <pre className="mail-body-text">
+          {visible || <em>(this message has no readable body)</em>}
+        </pre>
+        {quoted && (
+          <QuotedToggle
+            open={showQuoted}
+            count={countQuotedReplies(quoted)}
+            onToggle={() => setShowQuoted((v) => !v)}
+          >
+            <pre className="mail-body-text is-quoted">{quoted}</pre>
+          </QuotedToggle>
+        )}
+      </>
     );
   }
 
   return (
-    <div className="mail-body-wrap">
+    <>
       {message.blockedImages > 0 && !showImages && (
         <div className="mail-images-blocked">
           <span>
-            {message.blockedImages} remote image{message.blockedImages === 1 ? '' : 's'} blocked —
-            they can tell the sender when you opened this.
+            {message.blockedImages} remote image{message.blockedImages === 1 ? '' : 's'} blocked
           </span>
-          <button type="button" className="btn btn-sm" onClick={onShowImages}>Show images</button>
+          <button type="button" className="btn btn-sm" onClick={onShowImages}>Show</button>
         </div>
       )}
-      {/* Rendered on "paper": email HTML assumes a light background and often
-          sets its own colours, so dropping it straight onto a dark theme makes
-          light-on-light text invisible. Every mail client does the same. */}
-      <div className="mail-body-html" dangerouslySetInnerHTML={{ __html: html }} />
+      <div className="mail-body-html" dangerouslySetInnerHTML={{ __html: parts.visible }} />
+      {parts.quoted && (
+        <QuotedToggle
+          open={showQuoted}
+          count={countQuotedReplies(parts.quoted)}
+          onToggle={() => setShowQuoted((v) => !v)}
+        >
+          <div className="mail-body-html is-quoted" dangerouslySetInnerHTML={{ __html: parts.quoted }} />
+        </QuotedToggle>
+      )}
+    </>
+  );
+}
+
+// The "•••" every mail client uses. Nothing is deleted — occasionally the quoted
+// chain holds something never restated, and losing it would mean opening Gmail.
+function QuotedToggle({ open, count, onToggle, children }) {
+  return (
+    <div className="mail-quoted">
+      <button type="button" className="mail-quoted-btn" onClick={onToggle} aria-expanded={open}>
+        <span className="mail-dots">•••</span>
+        {open
+          ? 'Hide quoted text'
+          : `${count} earlier ${count === 1 ? 'reply' : 'replies'} quoted`}
+      </button>
+      {open && children}
     </div>
   );
 }
 
-function Message({ message, defaultOpen, expandAll }) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  // "Expand all / Collapse all" from the thread header. Keyed on the counter so
-  // pressing it twice in a row still applies after a manual toggle in between.
-  useEffect(() => {
-    if (expandAll?.n) setOpen(expandAll.value);
-  }, [expandAll?.n, expandAll?.value]);
+function Bubble({ message }) {
   const [showImages, setShowImages] = useState(false);
   const [previewAt, setPreviewAt] = useState(null);
+  const mine = isOurs(message);
   const who = message.from.name || message.from.email;
 
-  // Only previewable attachments are steppable in the viewer — paging into a
-  // .zip you can't render would be a dead end.
   const previewable = useMemo(
     () => message.attachments.filter((a) => canPreview(a.mimeType, a.filename)),
     [message.attachments],
   );
 
   return (
-    <div className={`mail-msg${open ? ' is-open' : ''}`}>
-      <button type="button" className="mail-msg-head" onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}>
-        <span className="mail-chev" aria-hidden="true">›</span>
-        <span className="mail-ava sm">{initials(who)}</span>
-        <span className="mail-msg-who">
-          <strong>{who}</strong>
-          <span className="mail-msg-to">
-            to {message.to.map((a) => a.name || a.email).join(', ') || '—'}
-            {message.cc.length > 0 && ` · cc ${message.cc.map((a) => a.name || a.email).join(', ')}`}
-          </span>
-        </span>
-        <span className="mail-msg-date">{mailDate(message.date)}</span>
-      </button>
+    <div className={`mail-turn${mine ? ' is-mine' : ''}`}>
+      <div className="mail-bubble">
+        <MessageBody
+          message={message}
+          showImages={showImages}
+          onShowImages={() => setShowImages(true)}
+        />
+      </div>
 
-      {!open && <div className="mail-msg-peek">{message.snippet}</div>}
-
-      {open && (
-        <div className="mail-msg-body">
-          <MessageBody
-            message={message}
-            showImages={showImages}
-            onShowImages={() => setShowImages(true)}
-          />
-          {message.attachments.length > 0 && (
-            <div className="mail-atts">
-              <div className="mail-atts-label">
-                {message.attachments.length} attachment{message.attachments.length === 1 ? '' : 's'}
-              </div>
-              <div className="mail-atts-row">
-                {message.attachments.map((a) => (
-                  <Attachment
-                    key={a.attachmentId}
-                    att={a}
-                    messageId={message.id}
-                    onPreview={(att) => setPreviewAt(previewable.findIndex(
-                      (p) => p.attachmentId === att.attachmentId,
-                    ))}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+      {message.attachments.length > 0 && (
+        <div className="mail-atts-row">
+          {message.attachments.map((a) => (
+            <Attachment
+              key={a.attachmentId}
+              att={a}
+              messageId={message.id}
+              onPreview={(att) => setPreviewAt(
+                previewable.findIndex((p) => p.attachmentId === att.attachmentId),
+              )}
+            />
+          ))}
         </div>
       )}
+
+      <div className="mail-turn-meta">
+        {mine ? who : who}
+        {message.cc.length > 0 && <span className="mail-turn-cc"> · cc {message.cc.length}</span>}
+        {' · '}{mailDate(message.date)}
+      </div>
 
       {previewAt !== null && previewAt >= 0 && (
         <AttachmentPreview
@@ -395,7 +410,6 @@ export default function Mail() {
   const [openId, setOpenId] = useState(null);
   const [thread, setThread] = useState({ status: 'idle' });
   const [showImages, setShowImages] = useState(false);
-  const [expandAll, setExpandAll] = useState({ value: false, n: 0 });
 
   useEffect(() => {
     let alive = true;
@@ -418,7 +432,6 @@ export default function Mail() {
     setOpenId(row.id);
     setThread({ status: 'loading' });
     setShowImages(withImages);
-    setExpandAll({ value: false, n: 0 });
     try {
       const r = await apiFetch(
         `/api/inbox/thread?id=${encodeURIComponent(row.id)}${withImages ? '&images=1' : ''}`,
@@ -522,17 +535,8 @@ export default function Mail() {
                     {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}
                   </span>
                 </div>
-                <div className="mail-reader-actions">
-                  {thread.messages.length > 1 && (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => setExpandAll((s) => ({ value: !s.value, n: s.n + 1 }))}
-                    >
-                      {expandAll.value ? 'Collapse all' : 'Expand all'}
-                    </button>
-                  )}
-                  {!showImages && (
+                {!showImages && (
+                  <div className="mail-reader-actions">
                     <button
                       type="button"
                       className="btn btn-sm"
@@ -540,18 +544,11 @@ export default function Mail() {
                     >
                       Load remote images
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
               <div className="mail-msgs">
-                {thread.messages.map((m, i) => (
-                  <Message
-                    key={m.id}
-                    message={m}
-                    defaultOpen={i === thread.messages.length - 1}
-                    expandAll={expandAll}
-                  />
-                ))}
+                {thread.messages.map((m) => <Bubble key={m.id} message={m} />)}
               </div>
             </>
           )}

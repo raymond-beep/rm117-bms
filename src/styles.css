@@ -2539,8 +2539,7 @@ input, select, textarea { font: inherit; }
    colours, so dropping it onto a dark theme makes light-on-light text invisible.
    Every mail client renders on paper for the same reason. */
 .mail-body-html {
-  background: #fff; color: #111; border: 1px solid var(--border);
-  border-radius: var(--radius-sm); padding: 14px 16px;
+  color: #111;
   font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   overflow-x: auto; word-wrap: break-word; overflow-wrap: break-word;
   /* Keep a wide marketing table from stretching the whole page. */
@@ -2555,3 +2554,55 @@ input, select, textarea { font: inherit; }
 .mail-body-html pre { white-space: pre-wrap; word-wrap: break-word; }
 /* Images the server neutralised keep their layout box but load nothing. */
 .mail-body-html img[data-blocked-src] { min-width: 1px; min-height: 1px; }
+
+/* ── Chat-style thread ─────────────────────────────────────────────────────
+   Every reply embeds the whole conversation so far, so a 13-message thread
+   means the last message physically contains the other 12. With the quoted
+   history folded away (src/lib/mail-quote.js) most replies are a line or two —
+   which is what makes a message-app layout readable here. */
+.mail-turn { margin: 14px 0; display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; }
+.mail-turn.is-mine { align-items: flex-end; }
+
+.mail-bubble {
+  /* "Paper": email HTML assumes a light background and sets its own colours,
+     so both bubbles stay light or the sender's own text goes invisible. */
+  background: #fff; color: #111;
+  border: 1px solid var(--border); border-radius: 14px;
+  padding: 11px 14px; max-width: min(78%, 620px);
+  box-shadow: var(--shadow); overflow-x: auto;
+}
+.mail-turn.is-mine .mail-bubble {
+  background: var(--accent-soft); border-color: transparent;
+  border-bottom-right-radius: 4px;
+}
+.mail-turn:not(.is-mine) .mail-bubble { border-bottom-left-radius: 4px; }
+
+.mail-turn-meta { font-size: 11px; color: var(--muted); margin: 4px 2px 0; }
+.mail-turn-cc { opacity: 0.8; }
+.mail-turn .mail-atts-row { margin-top: 7px; max-width: min(78%, 620px); }
+.mail-turn.is-mine .mail-atts-row { justify-content: flex-end; }
+
+.mail-bubble .mail-body-text {
+  background: transparent; padding: 0; color: inherit;
+  font: 13.5px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.mail-bubble .mail-body-html > *:first-child { margin-top: 0; }
+.mail-bubble .mail-body-html > *:last-child { margin-bottom: 0; }
+
+/* The "•••" — nothing is deleted, only folded. */
+.mail-quoted { margin-top: 8px; }
+.mail-quoted-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(0, 0, 0, 0.05); border: 0; border-radius: 9px;
+  padding: 2px 9px; cursor: pointer; font: inherit; font-size: 11px; color: #555;
+}
+.mail-quoted-btn:hover { background: rgba(0, 0, 0, 0.1); }
+.mail-dots { letter-spacing: 1px; line-height: 1; }
+.mail-body-html.is-quoted, .mail-body-text.is-quoted {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid #e6e6e6;
+  color: #555; font-size: 12.5px;
+}
+
+@media (max-width: 900px) {
+  .mail-bubble, .mail-turn .mail-atts-row { max-width: 92%; }
+}
