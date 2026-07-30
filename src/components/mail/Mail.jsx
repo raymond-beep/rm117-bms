@@ -16,6 +16,7 @@ import {
 } from '../../lib/mail-html.js';
 import { splitQuotedHtml, splitQuotedText, countQuotedReplies } from '../../lib/mail-quote.js';
 import { replyRecipients } from '../../lib/mail-html.js';
+import { searchRecords } from '../../lib/search.js';
 
 // Every link in an email opens in a new tab and never hands the opener over.
 // Registered once, at module scope — addHook is global to the DOMPurify instance.
@@ -532,6 +533,227 @@ function ReplyBox({ thread, selfEmail, onSent }) {
   );
 }
 
+// "File to job" — the step that ties an email to the work.
+//
+// ⚠️ The job list is SUGGESTED, never applied on its own. The suggestion comes
+// from the client match (sender → client → their jobs), which is right often
+// enough to be useful and wrong often enough that it must not decide: "Deuel"
+// names five different projects. A person confirms before anything is filed —
+// the same rule the Drive → app sync runs on, where a wrong link is worse than
+// no link.
+function FileToJob({ thread, row, onFiled }) {
+  const [open, setOpen] = useState(false);
+  const [filed, setFiled] = useState(null);      // null = not loaded yet
+  const [picked, setPicked] = useState(() => new Set(row?.jobs || []));
+  const [jobs, setJobs] = useState([]);
+  const [query, setQuery] = useState('');
+  const [saveAttachments, setSaveAttachments] = useState(true);
+  const [visibleToClient, setVisibleToClient] = useState(false);
+  const [state, setState] = useState({ status: 'idle' });
+
+  // What is already filed for this thread?
+  useEffect(() => {
+    let alive = true;
+    setFiled(null);
+    apiFetch(`/api/inbox/file?threadId=${encodeURIComponent(thread.id)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive) return;
+        setFiled(d.filed ? d : { filed: false, jobs: [] });
+        if (d.filed) {
+          setPicked(new Set(d.jobs || []));
+          setVisibleToClient(Boolean(d.thread?.visible_to_client));
+        } else {
+          setPicked(new Set(row?.jobs || []));
+        }
+      })
+      .catch(() => { if (alive) setFiled({ filed: false, jobs: [] }); });
+    return () => { alive = false; };
+  }, [thread.id, row?.jobs]);
+
+  // Jobs are only fetched when the panel opens — the Mail page has no other
+  // reason to pull 160 of them.
+  useEffect(() => {
+    if (!open || jobs.length) return;
+    apiFetch('/api/jobs')
+      .then((r) => r.json())
+      .then((d) => setJobs(Array.isArray(d) ? d : (d.jobs || [])))
+      .catch(() => {});
+  }, [open, jobs.length]);
+
+  const results = useMemo(() => {
+    if (!query.trim()) {
+      // No query: offer the suggested jobs plus anything already picked.
+      const ids = new Set([...(row?.jobs || []), ...picked]);
+      return jobs.filter((j) => ids.has(j.job_id));
+    }
+    const hits = searchRecords(query, jobs, [], 12).filter((h) => h.kind === 'job');
+    return hits.map((h) => jobs.find((j) => j.job_id === h.id)).filter(Boolean);
+  }, [query, jobs, row?.jobs, picked]);
+
+  const toggle = (jobId) => setPicked((prev) => {
+    const next = new Set(prev);
+    if (next.has(jobId)) next.delete(jobId); else next.add(jobId);
+    return next;
+  });
+
+  const file = async () => {
+    if (!picked.size) return;
+    setState({ status: 'saving' });
+    try {
+      const r = await apiFetch('/api/inbox/file', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          threadId: thread.id,
+          jobIds: [...picked],
+          saveAttachments,
+          visibleToClient,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setState({ status: 'error', message: d.error || 'Could not file.' }); return; }
+      setState({ status: 'done', result: d });
+      setFiled({ filed: true, jobs: [...picked], thread: { visible_to_client: visibleToClient } });
+      setOpen(false);
+      onFiled?.(d);
+    } catch {
+      setState({ status: 'error', message: 'Could not file.' });
+    }
+  };
+
+  const unfile = async () => {
+    setState({ status: 'saving' });
+    try {
+      await apiFetch(`/api/inbox/file?threadId=${encodeURIComponent(thread.id)}`, { method: 'DELETE' });
+      setFiled({ filed: false, jobs: [] });
+      setPicked(new Set(row?.jobs || []));
+      setState({ status: 'idle' });
+    } catch {
+      setState({ status: 'error', message: 'Could not unfile.' });
+    }
+  };
+
+  const isFiled = filed?.filed;
+
+  return (
+    <div className="mail-file">
+      <div className="mail-file-bar">
+        {isFiled ? (
+          <>
+            <span className="mail-filed-badge">✓ Filed</span>
+            {(filed.jobs || []).map((j) => <span key={j} className="mail-tag is-job">{j}</span>)}
+            {filed.thread?.visible_to_client && (
+              <span className="mail-tag is-shared" title="This client can see the messages they were on">
+                Shared with client
+              </span>
+            )}
+            <button type="button" className="btn btn-sm" onClick={() => setOpen((v) => !v)}>Edit</button>
+            <button type="button" className="btn btn-sm" onClick={unfile}>Unfile</button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn btn-sm" onClick={() => setOpen((v) => !v)}>
+              File to job…
+            </button>
+            {(row?.jobs || []).length > 0 && (
+              <span className="mail-file-hint">
+                Suggested: {(row.jobs || []).join(', ')}
+              </span>
+            )}
+          </>
+        )}
+        {state.status === 'error' && <span className="mail-reply-err">{state.message}</span>}
+        {state.status === 'done' && state.result && (
+          <span className="mail-reply-ok">
+            Filed{state.result.attachmentsSaved?.length
+              ? ` · ${state.result.attachmentsSaved.length} file(s) → Drive`
+              : ''}
+          </span>
+        )}
+      </div>
+
+      {state.status === 'done' && state.result?.attachmentsSkipped?.length > 0 && (
+        <div className="mail-file-warn">
+          {state.result.attachmentsSkipped.map((s, i) => (
+            <div key={i}>
+              {s.filename ? `${s.filename}: ` : ''}
+              {s.reason === 'no_files_received_folder'
+                ? `${s.detail} Create it in Drive and file again to save the attachments.`
+                : s.reason}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <div className="mail-file-panel">
+          <input
+            className="mail-file-search"
+            placeholder="Search jobs by Job ID or client…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            autoFocus
+          />
+          <div className="mail-file-results">
+            {results.length === 0 && (
+              <div className="mail-file-empty">
+                {query.trim() ? 'No matching jobs.' : 'Search for a job to file this against.'}
+              </div>
+            )}
+            {results.map((j) => (
+              <label key={j.job_id} className="mail-file-job">
+                <input
+                  type="checkbox"
+                  checked={picked.has(j.job_id)}
+                  onChange={() => toggle(j.job_id)}
+                />
+                <span className="mail-file-jobid">{j.job_id}</span>
+                <span className="mail-file-jobname">{j.client_name || j.address || ''}</span>
+              </label>
+            ))}
+          </div>
+
+          <label className="mail-file-opt">
+            <input
+              type="checkbox"
+              checked={saveAttachments}
+              onChange={(e) => setSaveAttachments(e.target.checked)}
+            />
+            Save attachments to the job&rsquo;s Drive &ldquo;Files Received&rdquo;
+          </label>
+          <label className="mail-file-opt">
+            <input
+              type="checkbox"
+              checked={visibleToClient}
+              onChange={(e) => setVisibleToClient(e.target.checked)}
+            />
+            Visible to the client in their portal
+            <span className="mail-file-sub">
+              They only ever see messages they were personally on.
+            </span>
+          </label>
+
+          <div className="mail-file-actions">
+            <span className="mail-file-count">
+              {picked.size} job{picked.size === 1 ? '' : 's'} selected
+            </span>
+            <button type="button" className="btn btn-sm" onClick={() => setOpen(false)}>Cancel</button>
+            <button
+              type="button"
+              className="btn"
+              disabled={!picked.size || state.status === 'saving'}
+              onClick={file}
+            >
+              {state.status === 'saving' ? 'Filing…' : isFiled ? 'Update' : 'File'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ the page
 
 export default function Mail() {
@@ -690,6 +912,7 @@ export default function Mail() {
                     {thread.messageCount} message{thread.messageCount === 1 ? '' : 's'}
                   </span>
                 </div>
+                <FileToJob thread={thread} row={activeRow} />
                 {!showImages && (
                   <div className="mail-reader-actions">
                     <button
