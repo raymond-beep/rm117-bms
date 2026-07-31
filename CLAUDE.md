@@ -103,11 +103,22 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `src/components/shell/portal-login.jsx` | The client sign-in screen (email → 6-digit code). ⚠️ **`shouldShowClientLogin` decides which door renders** — staff and clients share one Vercel deployment, so a client at `portal.rm117.com` would otherwise land on the staff Google screen with no way forward. Hostname decides; `?staff=1` is the staff escape hatch and **persists in sessionStorage** because the query string is gone after the first click |
 | **`PORTAL_LOGIN.md`** | **Canonical doc for portal sign-in** — both doors, the security details that are easy to break, the infra (domain/DNS/Resend), local-dev console fallback, and the **Phase C step-by-step for adding the "Client Login" button to the Wix site** (the one remaining task; it cannot be automated — Wix has no REST API for editing a classic Editor site's header or nav) |
 | `api/_lib/portal-auth.js` | The one place portal authorization lives. **Two identity paths, cookie first:** magic-link session → `clients` row; else Clerk → staff (or a legacy Clerk-linked client). `getClientJob` scopes every job read by `client_id` |
-| `api/portal/[action].js` | All portal routes. Client-facing: `me`/`files`/`download`/`messages`/`send`. **Public:** `enter` (the magic-link landing — it *is* the login; redirects so the token leaves the URL) + `signout`. **Staff-only:** `invite` (mint a link), `links`, `revoke`, **`draft`** (compose the client update email and **send NOTHING** — this is what the confirm dialog shows), **`notify`** (actually sends), **`history`** (what a client was told, verbatim). `buildPortalJobs` builds the payload incl. the per-job billing summary. ⚠️ **`draft` must stay side-effect-free** — the magic link is minted only on `notify`, so opening the dialog and closing it leaves nothing behind (an early version minted on preview and revoked the client's working link) |
+| `api/portal/[action].js` | All portal routes. Client-facing: `me`/`files`/`download`/**`correspondence`** (shared email threads). ⚠️ **`messages`/`send` were REMOVED 2026-07-31** with the portal chat — see Mail + Correspondence below. **Public:** `enter` (the magic-link landing — it *is* the login; redirects so the token leaves the URL) + `signout`. **Staff-only:** `invite` (mint a link), `links`, `revoke`, **`draft`** (compose the client update email and **send NOTHING** — this is what the confirm dialog shows), **`notify`** (actually sends), **`history`** (what a client was told, verbatim). `buildPortalJobs` builds the payload incl. the per-job billing summary. ⚠️ **`draft` must stay side-effect-free** — the magic link is minted only on `notify`, so opening the dialog and closing it leaves nothing behind (an early version minted on preview and revoked the client's working link) |
 | `src/components/shell/portal-gate.jsx` | Resolves the magic-link cookie **above** the Clerk gates in the shell — without it a client would land on the staff Google sign-in screen. Staff have no portal cookie, so they skip the probe entirely |
 | `src/rm117-portal-v1.jsx` | The client portal. **One project → card switcher** (homeowner); **several → `PortfolioTable`** (developer: every project, stage, next-up, balance on one screen). `BillingStrip` shows contract total / paid / outstanding. **"Next up" is DERIVED** from the next rung of the client ladder — see `api/_lib/portal-ladder.js` |
 | `src/components/portal/StaffPortalPreview.jsx` | Staff-side "see the portal as this client" (`/portal`). Its `ClientPicker` is a **type-to-search box over client names AND Job IDs** (2026-07-25) — it replaced a native `<select>` that had grown to 97 options. The portal is the one screen keyed by CLIENT while the rest of the app (and the whole office) speaks Job ID, so `searchPortalClients` (`src/lib/search.js`) resolves every hit down to the client whose portal opens, **deduped** — a developer matching on name + 3 jobs is offered once. A job with `client_id` NULL is listed but greyed out and unselectable, with the reason, because ~29 Drive imports have no client and silence would read as "not found" |
 | `src/lib/search.js` | Pure ranked matcher, no React/network: `searchRecords` powers the top-bar global search (⌘K); `searchPortalClients` powers the portal-preview picker. Ranking rules (exact Job ID first, prefix over substring, name over address, live work over completed) are unit-tested in `tests/search.test.js` |
+| **Mail + Correspondence** (`/mail`) | Read, reply to, file and compose the firm's real email inside the app. UI `src/components/mail/Mail.jsx` + `src/components/job-editor/CorrespondenceTab.jsx`; API `api/inbox.js` + `api/inbox/*`; libs `api/_lib/gmail-read.js`, `gmail-send.js`, `client-match.js`, `correspondence.js`. Full detail in the section below + **`MAIL.md`** |
+| `api/_lib/gmail-read.js` | MIME walking, sanitising, `effectiveMime`, `describePayload` — **plus `gmailGet()` (retries 429/5xx) and `mapGmail()` (bounded fan-out)**. ⚠️ **Never `Promise.all` over Gmail messages** — see the invariant below |
+| `api/inbox.js` | Thread list. Scope filter (Work/Clients/All), thread grouping, unread, `counterparty()`. Requests `List-Unsubscribe`/`Precedence`/`Auto-Submitted` so bulk mail can identify itself |
+| `api/inbox/thread.js` / `attachment.js` | One full thread (bodies + attachment manifests) / streams one attachment, proxied so the Google token never reaches the browser |
+| `api/inbox/reply.js` | Reply/reply-all as the staffer. **Recipients recomputed server-side**; the UI may only DROP them. Handles the case where the FIRM sent the last message |
+| `api/inbox/file.js` | File/unfile a thread against jobs; attachments → the job's Drive "Files Received" (**first job only**). Aborts rather than filing a blank body |
+| `api/inbox/compose.js` | **Start a new email from a job.** ⚠️ Takes **CONTACT IDS, never addresses** — the security model, see the invariant below. Files the thread as it sends |
+| `api/inbox/correspondence.js` | GET a job's whole history — filed threads + portal "Notify client" sends, merged by `api/_lib/correspondence.js`. ⭐ **Uses NO Gmail token**, which is what makes filing worth doing |
+| `api/inbox/mark-read.js` | Clears Gmail's UNREAD label. ⛔ **Needs `gmail.modify`, not yet granted to anyone** — returns a clean `scope_not_granted` and unread stays display-only |
+| `api/inbox/share-preview.js` | "What will the client actually see?" — the mandatory preview behind sharing a thread |
+| `src/lib/mail-html.js` / `mail-quote.js` | Sanitising helpers, `replyRecipients`, `attachmentKind` / splits written text from quoted history + signature |
 | `scripts/import-sheet.js` | One-time Sheet → Supabase migration (Phase 2) |
 | `scripts/link-jobs-to-clients.js` | Link unlinked jobs to existing clients (dry-run default) |
 | `scripts/create-clients-for-unlinked.js` | Create clients for unlinked jobs w/ real names (dry-run default) |
@@ -139,7 +150,10 @@ Drive broker). `QBO_REFRESH_TOKEN` is optional locally — the rotating token li
 Full schema in **SCHEMA.md**. Core tables: `jobs`, `payments`, `invoices`, `proposals`, `letters`,
 `templates`, `forefront_commissions`, `staff`, `job_phase_events`, `field_notes`, `qbo_tokens`
 (migration `0006`: singleton rotating QBO refresh token). Client tier
-(Phase 7): `clients`, `threads`, `messages`, `file_records`, `notifications`.
+(Phase 7): `clients`, `file_records`, `notifications`. **Correspondence** (migrations 0020+0021):
+`mail_threads`, `mail_thread_jobs`, `mail_messages`, `mail_attachments`.
+⚠️ **`threads` + `messages` are the RETIRED portal chat — empty, unused, and deliberately left in
+place** (dropping them would be an irreversible migration to delete nothing). Do not build on them.
 - **`jobs(job_id)` FKs use `ON UPDATE CASCADE`** (migration `0007`) so a Job ID rename moves all child
   rows atomically — this is what makes `api/jobs/rename.js` (the "Correct Job ID" tool) safe.
 - **`proposals` / `letters`** = saved document drafts (fields-only): the generator's form state in a
@@ -251,8 +265,10 @@ client-facing `LADDER`. `tests/phase-model.test.js` asserts the first three agre
     `qbo_tokens` row (rotates); `.env` + Vercel hold `QBO_CLIENT_ID/SECRET/REALM_ID` + `QBO_CONNECT_KEY`.
   - **✅ DONE (2026-07-05):** rotated the `95YW…` Development secret (was shown in a screenshot) → new `BS20…`; updated `.env` + Vercel Production + redeployed + verified a live token refresh. (Vercel *Preview* still needs the new value added via the dashboard.)
 - **DocuSign:** proposals sent for e-signature; status tracked in `proposals`.
-- **Email bridge:** outbound notify on new portal message; inbound parse appends client replies
-  to the thread (validate Resend inbound parsing before Phase 7).
+- **Email:** the firm's client communication lives in **Gmail**, and the app now reads/writes it
+  directly (see Mail + Correspondence). The old plan — an inbound Resend parse appending client
+  replies to an in-app thread — was **dropped with the portal chat**: clients reply to the real
+  email thread in their own mail client, so there is nothing to bridge.
 - **Calendar:** dashboard reads the user's Google Calendar + shared `COMPANY_CALENDAR_ID`; Ang
   adds the company calendar to Apple Calendar for native two-way sync.
 
@@ -309,7 +325,79 @@ and a mis-typed escape hatch.
   (client). `pdf-lib` is present but for the document generators (letters/proposals), not Drawing QA.
   `tldraw` was removed. Handoff detail: **`DRAWING_QA.md`** at repo root.
 
+## Mail + Correspondence (the firm's email, inside the app)
+**LIVE in production 2026-07-31** (merges `724f42d` + `d0b9d69`). Canonical doc = **`MAIL.md`** —
+read it before touching any of this.
+
+**Why it exists:** the firm's client communication lives **entirely in Gmail**. Measured on the live
+DB, the in-app alternatives had **0 rows** — the portal chat (`threads`/`messages`) never carried a
+single message because `handleSend` notified nobody in either direction, and `notifications` was
+empty too. So the app did not have four competing client-comms systems; it had **one people use and
+three that were built and never entered daily work**. The conclusion: stop asking anyone to move.
+**Gmail is the transport; the JOB is where it gets organised.**
+
+- **`/mail`** reads the **signed-in staffer's own mailbox** (never a shared one — Ang's call):
+  threads with SENT included, full bodies with quoted history folded away, in-app PDF/image viewing,
+  reply/reply-all as the staffer, filing against one or more jobs, and sharing a whole thread with a
+  client behind a mandatory preview.
+- **Job → Correspondence tab** shows that job's whole history (filed threads + Notify-client sends)
+  and can **compose** a new email. The tab key is still `messages` so saved state/deep links keep
+  working — same reason `/bms` and `/delegation` kept their routes through a rename.
+- **Clients** see shared threads in the portal, whole, with **no composer** — they reply by email to
+  the real thread.
+- ⛔ **`gmail.modify` is granted to nobody**, so **mark-as-read and Save-as-draft do not work.** Each
+  staffer must sign out, back in, and accept the Gmail permission. Verified via Google tokeninfo, not
+  inferred — check the granted scope list before ever debugging those endpoints.
+- ❌ **No search, no pagination** (30 days, 60 threads): a conversation older than that is currently
+  unreachable from the app.
+
 ## Invariants (do not break)
+- ⭐ **NEVER `Promise.all` over Gmail messages — use `mapGmail()`.** Gmail caps *concurrent* requests
+  per user, separately from any quota. Every per-message fan-out used to be `Promise.all` +
+  `.catch(() => null)` over ~120 messages, so 429s were swallowed as "that message doesn't exist":
+  **5 lost on a cold run and 36 on a second run moments later**, and the same mailbox reported 20,
+  then 40, then 36 conversations with nothing in the log and nothing on screen. `mapGmail()` runs six
+  at a time and **rejects** instead of returning a short list, so a hole must be handled rather than
+  inherited invisibly; `gmailGet()` retries 429/5xx but fails fast on 401/403 so a missing scope
+  reports immediately. A silently short inbox is the worst possible failure for this feature.
+- ⭐ **Compose takes CONTACT IDS, never addresses — that is the whole security model.** A reply is
+  safe because the server recomputes recipients from the message being answered, so the UI can only
+  DROP an address, never add one. A NEW message has no such anchor, so accepting `to` from the request
+  body would hand any authenticated staff session an **open relay sending as a real person at a real
+  firm**. `resolveRecipients()` maps ids against `client_contacts` for the job's client, so the
+  reachable set is exactly "contacts someone already added"; deactivated contacts are excluded, and a
+  job with no client is refused outright.
+- **Filing is ALWAYS a staff action, never a sync, and the app must not pre-accept its own guesses.**
+  The Mail page *suggests* jobs from the client match; a person confirms. Suggestions start
+  **unticked** — pre-ticking them made "confirm" a rubber stamp, and the fast path filed a Munsee
+  thread against four DaSilva jobs while putting the drawings in **Florham Park's** Drive folder.
+  A thread may belong to **several jobs**, but **attachments go to the FIRST job only**.
+- **Clients see the WHOLE thread, never a filtered slice** (Ray, 2026-07-30). Three of seven messages,
+  with replies referencing things they cannot see, reads as broken. **So the safety is a PREVIEW, not
+  a filter:** ticking "visible to client" loads the real conversation and flags every message the
+  client was never on, which a person excludes in one click. No client linked ⇒ sharing is **BLOCKED**,
+  not degraded. ⚠️ **Migration 0020's comment describes an automatic `participants` filter — that was
+  SUPERSEDED before it shipped. Never restore it**: it would punch holes in a conversation a person
+  already reviewed and approved in full.
+- **Threading needs `In-Reply-To` + `References`, not just Gmail's `threadId`.** The threadId only
+  files the sent copy in OUR mailbox; other clients thread on the headers. Without them a reply looks
+  correct to us and appears as a **NEW conversation in the client's inbox** — a failure invisible from
+  this end. Verify sends by reading the sent copy's raw headers, never by eye.
+- **Bulk mail is judged by its OWN headers** (`List-Unsubscribe`, `List-Id`, `Precedence`,
+  `Auto-Submitted`), never a domain list — which could only catch senders someone thought to
+  enumerate, while the real inbox was full of ones nobody would. That fix took the "Work" scope from
+  **60 threads to 13** with no real correspondent lost. ⚠️ Deliberately **not** subject/body keyword
+  matching: a permit expediter chasing a deadline writes exactly like a marketer, and wrongly hiding
+  one real email costs far more than showing ten newsletters. An exact client-address match still
+  outranks bulk headers; bulk only beats the surname *guess*.
+- **The body is rendered inline, sanitised with DOMPurify** (it was a sandboxed iframe, whose height
+  had to be negotiated over postMessage and kept breaking). ⚠️ That trade removed the origin boundary,
+  so **DOMPurify's config must stay strict** — `style`/`link` blocked so an email cannot restyle the
+  app, inline `style` attributes kept because that is where email formatting lives.
+- **The declared MIME type is not trustworthy.** A contractor's drawing set arrived as 7 PDFs, every
+  one `application/octet-stream`; `attachmentKind()`/`effectiveMime()` fall back to the extension.
+- **Large bodies do not arrive inline** — above ~a couple hundred KB Gmail omits `body.data` and
+  returns an `attachmentId` to fetch separately, so long threads rendered blank.
 - Job ID `YY_NNN_[FF_]LastName` must match the QuickBooks Customer Display Name exactly.
 - **`FF_` and `FE_` are DIFFERENT work types — one letter apart, never interchangeable.**
   `FF_` = **Forefront** (`jobs.is_forefront`; carries a commission — `ff_commission` /

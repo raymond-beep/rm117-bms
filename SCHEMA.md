@@ -17,8 +17,10 @@
 ## Relationships at a glance
 - `clients` 1 ──< `jobs`  via `jobs.client_id`  (who is billed)
 - `clients` 1 ──< `jobs`  via `jobs.referred_by_id`  (who referred the work IN — nullable)
-- `jobs` 1 ──< `payments`, `invoices`, `proposals`, `forefront_commissions`, `threads`, `file_records`
-- `threads` 1 ──< `messages`
+- `jobs` 1 ──< `payments`, `invoices`, `proposals`, `forefront_commissions`, `file_records`
+- `jobs` >──< `mail_threads` (many-to-many via `mail_thread_jobs`)
+- `mail_threads` 1 ──< `mail_messages` 1 ──< `mail_attachments`
+- ⚠️ `threads` 1 ──< `messages` — the RETIRED portal chat, empty; do not build on it
 - `staff` and `clients` are the two identity tables (Clerk-backed).
 
 > **Inbound referrals only.** `referred_by_id` records the contractor/partner who brought us
@@ -293,7 +295,14 @@ ink. Same server-side write permission (own row, or admin). Blank text deletes t
 
 ## Client-tier tables (built/used from Phase 7)
 
-### `threads`
+### `threads` — ⚠️ RETIRED (the in-portal chat)
+⛔ **Do not build on this.** The per-job portal chat was removed 2026-07-31. It had **0 rows** after a
+year, and the reason was in its own code: the send handler ended with *"Email notification to the
+other party is a later slice"*, so it notified nobody in either direction — a client who wrote there
+was announced to no one. Replaced by real email; see **Correspondence** below.
+The table is deliberately **left in place**, empty and harmless: dropping it would be an irreversible
+migration to delete nothing.
+
 One message thread per job.
 | Field | Type | Notes |
 |-------|------|-------|
@@ -303,8 +312,11 @@ One message thread per job.
 | `created_at` | timestamptz | |
 | `updated_at` | timestamptz | bumped on each new message |
 
-### `messages`
-Individual messages within a thread. Authored by staff or client; mirrored over the email bridge.
+### `messages` — ⚠️ RETIRED (see `threads` above)
+⛔ Empty and unused since 2026-07-31. The email bridge this describes was never built and is not
+planned: clients reply to the real Gmail thread in their own mail client.
+
+Individual messages within a thread.
 | Field | Type | Notes |
 |-------|------|-------|
 | `id` | uuid PK | |
@@ -390,6 +402,76 @@ hold several live links (a re-send); revoke one by setting `revoked_at`, and eve
 
 ---
 
+## Correspondence tables (migrations `0020` + `0021`, live 2026-07-31)
+
+The firm's client communication lives in **Gmail**. These tables are not a copy of a mailbox — they
+are the record of **what the firm decided belongs to a job**, plus enough text that a colleague can
+read a conversation without access to the mailbox it arrived in. That last part is the whole point;
+see `MAIL.md`.
+
+⚠️ Nothing here is populated by a sync. **Filing is always a staff action.** A subject line and a
+sender are not enough to decide a thread belongs to a job, and a wrong link is worse than no link —
+the same rule the Drive → app sync runs on.
+
+### `mail_threads`
+One row per Gmail thread the firm filed.
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `gmail_thread_id` | text UNIQUE | the thread in Gmail |
+| `subject` | text | |
+| `client_id` | uuid FK → clients.id | `on delete set null` |
+| `last_message_at` | timestamptz | |
+| `message_count` | integer | |
+| `visible_to_client` | boolean | ⚠️ **defaults FALSE.** Filing is internal; sharing with the client is a *separate* decision a person makes |
+| `shared_at` / `shared_by` | timestamptz / text | when + who shared it |
+| `filed_by` / `filed_at` | text / timestamptz | |
+
+### `mail_thread_jobs`
+**A thread can belong to SEVERAL jobs** — this is why correspondence is not a column on `jobs`. The
+firm's biggest clients are developers, and one email routinely covers three of their projects;
+forcing a single job would make staff pick a winner and lose the rest.
+| Field | Type | Notes |
+|-------|------|-------|
+| `thread_id` | uuid FK → mail_threads.id | `on delete cascade` |
+| `job_id` | text FK → jobs.job_id | **`on update cascade`** so "Correct Job ID" never orphans correspondence (migration 0007's rule) |
+| `added_by` / `added_at` | text / timestamptz | |
+| PK | (`thread_id`, `job_id`) | |
+
+### `mail_messages`
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `thread_id` | uuid FK → mail_threads.id | `on delete cascade` |
+| `gmail_message_id` | text | unique per thread |
+| `from_name` / `from_email` | text | |
+| `participants` | text[] | every address on the message, lowercased |
+| `sent_at` | timestamptz | nullable — an unparseable Date header |
+| `body_text` / `body_html` | text | the copy a colleague reads |
+| `has_attachments` | boolean | |
+| `hidden_from_client` | boolean | migration `0021` — the ONLY message-level exclusion, set deliberately by a staffer in the share preview |
+
+⚠️ **`participants` is NOT a client-visibility filter.** Migration 0020's comment describes one, but
+that design was **superseded by the share preview before it shipped**: clients see the WHOLE thread
+minus only `hidden_from_client` messages. Never turn `participants` into a runtime filter — it would
+punch holes in a conversation a person already reviewed and approved in full.
+
+### `mail_attachments`
+Attachment **files are not stored here** — they go to the job's Drive *Files Received*, where the firm
+already keeps what clients send. This is the manifest plus the Drive id, so nothing is duplicated and
+nothing is orphaned if a file is later moved.
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `message_id` | uuid FK → mail_messages.id | `on delete cascade` |
+| `filename` / `mime_type` / `size_bytes` | text / text / bigint | |
+| `drive_file_id` / `drive_folder` | text | null if the upload never happened — the UI says so rather than offering a dead link |
+| `saved_at` | timestamptz | |
+
+⚠️ **Attachments go to the FIRST job only** when a thread is filed against several. Copying one survey
+into three developer projects would have the app inventing duplicates in the firm's Drive that nobody
+would clean up.
+
 ## Row-level security (RLS)
 
 **Staff (`staff.role in ('admin','staff')`):**
@@ -398,10 +480,12 @@ hold several live links (a re-send); revoke one by setting `revoked_at`, and eve
 - (Field-level financial restriction for non-admin staff is architected for later, not enforced in V1.)
 
 **Client (`client` role, Phase 7+):**
-- Read-only, scoped by Job-ID ownership, on **only**: `jobs`, `file_records`, `threads`, `messages`
-  for jobs where `jobs.client_id` matches the logged-in client.
-- Write access limited to: posting `messages` to their own threads, and (stretch) creating
-  `file_records` for uploads into their own job's *Files Received*.
+- Read-only, scoped by Job-ID ownership, on **only**: `jobs`, `file_records`, and **shared**
+  correspondence (`mail_threads` where `visible_to_client`, and its `mail_messages` excluding
+  `hidden_from_client`) for jobs where `jobs.client_id` matches the logged-in client.
+- **Clients have NO write access.** The one place they could write — posting to the portal chat —
+  was removed 2026-07-31; they reply by email instead. (Stretch, unbuilt: creating `file_records`
+  for uploads into their own job's *Files Received*.)
 - No access to `payments`, `invoices`, `proposals`, `forefront_commissions`, `templates`, `staff`,
   or any other client's rows.
 
