@@ -265,13 +265,23 @@ lives).
 - No search / no pagination (30 days, 60 threads).
 
 ### ⚠️ STILL UNVERIFIED — the one real remaining risk
-- **Sending a reply.** Nothing has ever left Gmail from this app. Safe test:
-  email yourself from Gmail, wait for it in the Mail list, reply in the app.
-  Confirms send-as-you, `In-Reply-To`/`References` threading and the Sent folder
-  without touching a client. ⚠️ Threading is the part that fails INVISIBLY from
-  this end — a reply missing those headers looks correct in our mailbox and
-  arrives as a NEW conversation in the client's inbox. Check the raw headers of
-  the sent copy, not just that it appeared.
+**Sending a reply.** Nothing has ever left Gmail from this app.
+
+⚠️ **"Email yourself" does NOT work as the test** — it was the recipe here and it
+is impossible. A message from you to you has no reply recipient (we filter
+ourselves out, correctly), so the composer shows "0 recipients" and Send stays
+disabled. Attempting it on 2026-07-31 is what uncovered the "firm spoke last" bug
+above, but it cannot exercise the send path.
+
+**The working safe test: send the seed from an address you control that is NOT
+`@rm117.com`** (a personal Gmail, or your phone on another account) to
+`raymond@rm117.com`. Wait for it in the Mail list, then reply in the app. That
+gives a real external recipient without involving a client.
+
+⚠️ **Check the raw headers of the sent copy, not just that it arrived.** Threading
+is the part that fails INVISIBLY from this end: a reply missing `In-Reply-To` /
+`References` looks perfectly correct in our own mailbox and shows up as a NEW
+conversation in the recipient's inbox.
 
 ### Re-consent needed for mark-as-read
 `gmail.modify` is configured in Google Cloud Console + Clerk but **not granted**
