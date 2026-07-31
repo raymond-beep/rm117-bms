@@ -1142,6 +1142,12 @@ the test data was deleted, so threads/messages tables are back to empty.
   `23_047_Needle_Ripley`). See CHECKLIST → "Portal data refinement" for the long-tail list.
 
 ### ⏭ NEXT: build the Messages tab (in-portal; email bridge deferred)
+> ⛔⛔ **THIS WHOLE SECTION IS DEAD — DO NOT FOLLOW IT.** The per-job portal chat described below was
+> built, went **0 rows in a year**, and was **REMOVED 2026-07-31**. Point 4 is why it failed: the email
+> bridge was left for "LATER", so the thing notified nobody in either direction and a client who wrote
+> there was announced to no one. Replaced by real Gmail — see **`MAIL.md`**. The `threads`/`messages`
+> tables remain only as empty tombstones. Kept here as a record of what was tried, not a plan.
+
 Tables already exist (empty): **`threads`** (id, job_id, subject, created_at, updated_at) and
 **`messages`** (id, thread_id, sender_type `staff|client`, sender_id uuid nullable, body, via `portal|email`,
 created_at). One thread per job. Build plan:
