@@ -1,6 +1,6 @@
 // Dashboard "My week" widget — each person's own Weekly-Planner row for the current
-// week, read-only, at a glance (Angelena's ask: "each row is a person — can they see
-// their schedule on the dashboard?"). Also surfaces the shared "Everyone" lane so a
+// week, at a glance (Angelena's ask: "each row is a person — can they see their
+// schedule on the dashboard?"), with their own items tickable here. Also surfaces the shared "Everyone" lane so a
 // firm-wide item (a studio measure-up, an all-hands) reaches every dashboard without
 // anyone opening the planner tab.
 //
@@ -8,8 +8,14 @@
 // showed a mini ink canvas with a typed-notes overlay, and both of those data sources
 // are gone. It now renders the same tasks the planner does, with their done state.
 //
-// Still READ-ONLY — editing (and ticking) lives in the full planner (/delegation),
-// which the "Open planner" link goes to. Boxes here show state; they don't take input.
+// You can TICK YOUR OWN items here (Ray's call 2026-07-31) — the dashboard is where
+// people land, so making them open the planner just to check something off was the
+// long way round. Adding, renaming and reordering still live in the planner.
+//
+// ⚠️ The shared "Everyone" lane stays read-only here even for admins. It is a
+// firm-wide item, and ticking one off from a glance widget is a bigger action than
+// the surface implies; the planner is the place to do it deliberately. The server
+// enforces all of this regardless (`canModifyTask` — own row, or admin).
 import React, { useEffect, useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { Link } from 'react-router-dom';
@@ -24,8 +30,9 @@ const REFRESH_MS = 30000; // the planner polls at 4s; a dashboard glance can be 
 const STUDIO_ROW = '__studio__';
 
 // One row's strip: five day columns of checklist items. `label` badges the shared
-// lane; `emptyText` shows only when the row has nothing at all this week.
-function Strip({ tasks, label, variant, emptyText }) {
+// lane; `emptyText` shows only when the row has nothing at all this week. Pass
+// `onToggle` to make the boxes live; without it they render as static glyphs.
+function Strip({ tasks, label, variant, emptyText, onToggle }) {
   const byDay = new Map();
   for (const t of tasks) {
     const arr = byDay.get(t.day_index) || [];
@@ -41,12 +48,22 @@ function Strip({ tasks, label, variant, emptyText }) {
             const items = byDay.get(d) || [];
             return (
               <div key={d} className="myweek-taskcell">
-                {items.map((t) => (
+                {items.map((t) => (onToggle ? (
+                  <label key={t.id} className={`myweek-task is-live${t.done ? ' is-done' : ''}`}>
+                    <input
+                      type="checkbox"
+                      className="myweek-taskinput"
+                      checked={Boolean(t.done)}
+                      onChange={(e) => onToggle(t, e.target.checked)}
+                    />
+                    <span className="myweek-tasktext">{t.text}</span>
+                  </label>
+                ) : (
                   <div key={t.id} className={`myweek-task${t.done ? ' is-done' : ''}`}>
                     <span className="myweek-taskbox" aria-hidden="true">{t.done ? '☑' : '☐'}</span>
                     <span className="myweek-tasktext">{t.text}</span>
                   </div>
-                ))}
+                )))}
               </div>
             );
           })}
@@ -61,7 +78,7 @@ export default function MyWeekWidget() {
   const { user } = useUser();
   const myEmail = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
   // Defaults to the current week on every mount; ‹ › peek at other weeks (handy on a
-  // Friday to see what's next). The full planner still owns editing.
+  // Friday to see what's next). Ticking works here; the planner owns everything else.
   const thisWeekKey = isoDate(mondayOf(new Date()));
   const [weekKey, setWeekKey] = useState(thisWeekKey);
   const isThisWeek = weekKey === thisWeekKey;
@@ -95,6 +112,28 @@ export default function MyWeekWidget() {
     const t = setInterval(load, REFRESH_MS);
     return () => { alive = false; clearInterval(t); };
   }, [myEmail, weekKey]);
+
+  // Optimistic so a tick feels instant on a dashboard; rolled back if the write
+  // fails, because a box that springs back is honest and one that lies is not.
+  const toggle = async (task, done) => {
+    setState((s) => ({
+      ...s,
+      myTasks: s.myTasks.map((t) => (t.id === task.id ? { ...t, done } : t)),
+    }));
+    try {
+      const r = await apiFetch('/api/delegation', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: task.id, done }),
+      });
+      if (!r.ok) throw new Error('failed');
+    } catch {
+      setState((s) => ({
+        ...s,
+        myTasks: s.myTasks.map((t) => (t.id === task.id ? { ...t, done: task.done } : t)),
+      }));
+    }
+  };
 
   const dayDates = DAYS.map((_, i) => addDays(parseISO(weekKey), i).getDate());
   const studioHasContent = state.studioTasks.length > 0;
@@ -147,7 +186,11 @@ export default function MyWeekWidget() {
             <Strip tasks={state.studioTasks} label="Everyone" variant="studio" />
           )}
           {state.onRoster && (
-            <Strip tasks={state.myTasks} emptyText="Nothing on your planner this week yet." />
+            <Strip
+              tasks={state.myTasks}
+              emptyText="Nothing on your planner this week yet."
+              onToggle={toggle}
+            />
           )}
         </div>
       )}

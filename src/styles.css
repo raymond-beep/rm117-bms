@@ -2876,3 +2876,6 @@ input, select, textarea { font: inherit; }
 .corr-compose-body { resize: vertical; line-height: 1.5; }
 .corr-compose-subject:focus, .corr-compose-body:focus { outline: none; border-color: var(--accent); }
 .corr-compose-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+/* Own-row items are tickable straight from the dashboard; the Everyone lane is not. */
+.myweek-task.is-live { cursor: pointer; }
+.myweek-taskinput { flex: none; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
