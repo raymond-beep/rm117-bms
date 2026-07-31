@@ -12,6 +12,7 @@ import { useAuth, useClerk, useUser } from '@clerk/clerk-react';
 import { shortDate, fileSize, money } from './lib/format.js';
 import { CLIENT_LADDER } from './lib/portal-ladder.js';
 import { hasPortalHint } from './components/shell/portal-gate.jsx';
+import { splitQuotedText, countQuotedReplies } from './lib/mail-quote.js';
 
 const fmtMsgTime = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
@@ -589,6 +590,30 @@ function DocumentsPanel({ job }) {
 // against their job — and replies the way they already do: in their own mail
 // client, to the actual thread. There is deliberately no composer here. A second
 // place to write would recreate exactly the split this removed.
+// Each message in a thread quotes the whole conversation beneath it, so shown raw
+// a five-reply thread repeats the first email five times and the new words drown.
+// Folded, with an expander — this hides nothing the client cannot reach, and every
+// quoted line is already on screen as its own message above. NOT a filter: the
+// client still gets the whole thread (Ray's rule); this is only about legibility.
+function CorrBody({ text }) {
+  const [show, setShow] = useState(false);
+  if (!text) return null;
+  const { visible, quoted } = splitQuotedText(text);
+  return (
+    <>
+      <div className="cp-msg-bubble">{visible || text}</div>
+      {quoted && (
+        <>
+          <button type="button" className="cp-corr-quoted" onClick={() => setShow((v) => !v)}>
+            {show ? 'Hide earlier messages' : `••• ${countQuotedReplies(quoted)} earlier ${countQuotedReplies(quoted) === 1 ? 'message' : 'messages'}`}
+          </button>
+          {show && <div className="cp-msg-bubble is-quoted">{quoted}</div>}
+        </>
+      )}
+    </>
+  );
+}
+
 function CorrespondencePanel({ job }) {
   const { getToken } = useAuth();
   const [state, setState] = useState({ status: 'loading' });
@@ -641,7 +666,7 @@ function CorrespondencePanel({ job }) {
             {t.messages.map((m) => (
               <div key={m.id} className="cp-corr-msg">
                 <div className="cp-msg-meta">{m.from} · {fmtMsgTime(m.at)}</div>
-                <div className="cp-msg-bubble">{m.text}</div>
+                <CorrBody text={m.text} />
                 {m.attachments.length > 0 && (
                   // Filenames only — clients never get Drive access, and these
                   // files are in the job's "Files Received" folder.

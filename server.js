@@ -41,9 +41,10 @@ const routes = {
   '/api/portal/preview': () => import('./api/portal/[action].js'),
   '/api/portal/files': () => import('./api/portal/[action].js'),
   '/api/portal/download': () => import('./api/portal/[action].js'),
-  '/api/portal/messages': () => import('./api/portal/[action].js'),
+  // The shared-email view that replaced the retired portal chat. (The old
+  // /api/portal/messages + /send routes were removed with it.)
+  '/api/portal/correspondence': () => import('./api/portal/[action].js'),
   '/api/jobs/design-phases': () => import('./api/jobs/design-phases.js'),
-  '/api/portal/send': () => import('./api/portal/[action].js'),
   '/api/portal/pay': () => import('./api/portal/[action].js'),
   '/api/portal/enter': () => import('./api/portal/[action].js'),
   '/api/portal/signout': () => import('./api/portal/[action].js'),

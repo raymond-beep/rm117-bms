@@ -2824,3 +2824,10 @@ input, select, textarea { font: inherit; }
 .cp-corr-msg .cp-msg-bubble { max-width: 100%; }
 .cp-corr-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .cp-corr-att { font-size: 11px; color: var(--muted); }
+.cp-corr-quoted {
+  margin-top: 6px; border: 1px solid var(--border); border-radius: 999px;
+  background: transparent; color: var(--muted); cursor: pointer;
+  font: inherit; font-size: 11px; padding: 1px 9px;
+}
+.cp-corr-quoted:hover { border-color: var(--primary); color: var(--primary); }
+.cp-msg-bubble.is-quoted { margin-top: 6px; background: transparent; border: 1px solid var(--divider); color: var(--muted); font-size: 12px; }
