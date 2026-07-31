@@ -2732,3 +2732,123 @@ input, select, textarea { font: inherit; }
 .mail-share-date { margin-left: auto; font-size: 10.5px; color: var(--muted); }
 .mail-share-snip { color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mail-share-atts { font-size: 10.5px; color: var(--muted); }
+
+/* ── Correspondence (JobEditor tab) ──────────────────────────────────────────
+   The per-job history of filed email threads + client updates sent. Replaces
+   the retired portal chat, whose .cp-msg bubbles are still used by the
+   client-side panel below. Deliberately a document, not a chat: this is a
+   record to read, so it favours density and scannability over speech bubbles. */
+.corr-summary {
+  font-size: 11.5px; color: var(--muted); margin: 0 0 10px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--divider);
+}
+.corr-summary-warn { color: var(--danger); font-weight: 600; }
+.corr-timeline { display: flex; flex-direction: column; gap: 8px; }
+
+.corr-entry {
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--panel); overflow: hidden;
+}
+.corr-entry.is-notify { background: var(--inset); }
+.corr-entry.is-failed { border-color: var(--danger); }
+
+.corr-entry-head { display: flex; align-items: flex-start; gap: 8px; padding: 9px 11px; }
+.corr-disclose {
+  border: 0; background: none; cursor: pointer; padding: 0;
+  color: var(--muted); font-size: 12px; line-height: 1.4; width: 12px; flex: none;
+}
+.corr-disclose:hover { color: var(--accent); }
+.corr-entry-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.corr-entry-title strong { font-size: 13px; line-height: 1.35; word-break: break-word; }
+.corr-meta { font-size: 11px; color: var(--muted); }
+
+.corr-badges { display: flex; gap: 5px; flex: none; }
+.corr-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 7px;
+  color: var(--muted); white-space: nowrap;
+}
+/* Shared-with-client is the one badge that must catch the eye: it is the
+   difference between an internal note and something a client can read. */
+.corr-badge.is-shared { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.corr-badge.is-sent { border-color: var(--ok, #1a7f4b); color: var(--ok, #1a7f4b); }
+.corr-badge.is-failed { border-color: var(--danger); color: var(--danger); }
+.corr-badge.is-hidden { border-style: dashed; }
+
+.corr-alsofiled { padding: 0 11px 8px 31px; font-size: 11px; color: var(--muted); }
+.corr-alsofiled code {
+  font-size: 10.5px; background: var(--inset); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 4px; margin-left: 4px;
+}
+
+.corr-messages { border-top: 1px solid var(--divider); padding: 4px 11px 10px 31px; }
+.corr-msg { padding: 9px 0; }
+.corr-msg + .corr-msg { border-top: 1px dashed var(--divider); }
+.corr-msg-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 4px; }
+.corr-msg-head strong { font-size: 12px; }
+.corr-msg-email { font-size: 11px; color: var(--muted); }
+.corr-msg-body {
+  font-size: 12.5px; line-height: 1.55; color: var(--ink);
+  white-space: pre-wrap; word-break: break-word;
+}
+.corr-error { font-size: 11.5px; color: var(--danger); margin-top: 5px; }
+/* Quoted history, folded by default — every message in a thread repeats the whole
+   conversation below it, so shown inline a five-reply thread buries the new words. */
+.corr-quoted-toggle {
+  margin-top: 6px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--inset); color: var(--muted); cursor: pointer;
+  font: inherit; font-size: 11px; padding: 1px 9px; line-height: 1.7;
+}
+.corr-quoted-toggle:hover { border-color: var(--accent); color: var(--accent-ink); }
+.corr-msg-body.is-quoted {
+  margin-top: 6px; padding-left: 9px; border-left: 2px solid var(--divider);
+  color: var(--muted); font-size: 12px;
+}
+
+.corr-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.corr-att {
+  font-size: 11.5px; color: var(--accent-ink); text-decoration: none;
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; background: var(--inset);
+}
+.corr-att:hover { border-color: var(--accent); }
+/* An attachment with no Drive id would otherwise look clickable and go nowhere. */
+.corr-att.is-missing { color: var(--muted); cursor: default; text-decoration: line-through; }
+
+/* ── Correspondence (client portal panel) ────────────────────────────────────
+   Reuses the .cp-msg bubbles the retired chat used, so a shared thread reads
+   the way clients already expect, minus the composer. */
+.cp-corr-thread { text-align: left; padding: 10px 0; }
+.cp-corr-thread + .cp-corr-thread { border-top: 1px solid var(--divider); }
+.cp-corr-subject { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; }
+.cp-corr-msg { margin-bottom: 10px; }
+.cp-corr-msg .cp-msg-bubble { max-width: 100%; }
+.cp-corr-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.cp-corr-att { font-size: 11px; color: var(--muted); }
+.cp-corr-quoted {
+  margin-top: 6px; border: 1px solid var(--border); border-radius: 999px;
+  background: transparent; color: var(--muted); cursor: pointer;
+  font: inherit; font-size: 11px; padding: 1px 9px;
+}
+.cp-corr-quoted:hover { border-color: var(--primary); color: var(--primary); }
+.cp-msg-bubble.is-quoted { margin-top: 6px; background: transparent; border: 1px solid var(--divider); color: var(--muted); font-size: 12px; }
+
+/* ── Compose (new email from a job) ─────────────────────────────────────────── */
+.corr-compose-open { margin-bottom: 12px; }
+.corr-compose-blocked {
+  font-size: 11.5px; color: var(--muted); margin-bottom: 12px;
+  border: 1px dashed var(--border); border-radius: 6px; padding: 8px 10px;
+}
+.corr-compose {
+  border: 1px solid var(--accent); border-radius: 8px; padding: 10px;
+  margin-bottom: 12px; background: var(--panel);
+}
+.corr-compose-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.corr-compose-to { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-bottom: 8px; }
+.corr-compose-subject, .corr-compose-body {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px;
+  border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px;
+  background: var(--inset); color: var(--ink); margin-bottom: 8px;
+}
+.corr-compose-body { resize: vertical; line-height: 1.5; }
+.corr-compose-subject:focus, .corr-compose-body:focus { outline: none; border-color: var(--accent); }
+.corr-compose-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }

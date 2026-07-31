@@ -41,9 +41,10 @@ const routes = {
   '/api/portal/preview': () => import('./api/portal/[action].js'),
   '/api/portal/files': () => import('./api/portal/[action].js'),
   '/api/portal/download': () => import('./api/portal/[action].js'),
-  '/api/portal/messages': () => import('./api/portal/[action].js'),
+  // The shared-email view that replaced the retired portal chat. (The old
+  // /api/portal/messages + /send routes were removed with it.)
+  '/api/portal/correspondence': () => import('./api/portal/[action].js'),
   '/api/jobs/design-phases': () => import('./api/jobs/design-phases.js'),
-  '/api/portal/send': () => import('./api/portal/[action].js'),
   '/api/portal/pay': () => import('./api/portal/[action].js'),
   '/api/portal/enter': () => import('./api/portal/[action].js'),
   '/api/portal/signout': () => import('./api/portal/[action].js'),
@@ -66,6 +67,8 @@ const routes = {
   '/api/inbox/mark-read': () => import('./api/inbox/mark-read.js'),
   '/api/inbox/file': () => import('./api/inbox/file.js'),
   '/api/inbox/share-preview': () => import('./api/inbox/share-preview.js'),
+  '/api/inbox/correspondence': () => import('./api/inbox/correspondence.js'),
+  '/api/inbox/compose': () => import('./api/inbox/compose.js'),
   '/api/calendar': () => import('./api/calendar.js'),
   '/api/payments/webhook': () => import('./api/payments/webhook.js'),
   // Outbound QBO (app → QBO): create customers + invoices. Two-way sync, Stage B.

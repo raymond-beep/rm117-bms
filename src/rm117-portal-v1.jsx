@@ -12,6 +12,7 @@ import { useAuth, useClerk, useUser } from '@clerk/clerk-react';
 import { shortDate, fileSize, money } from './lib/format.js';
 import { CLIENT_LADDER } from './lib/portal-ladder.js';
 import { hasPortalHint } from './components/shell/portal-gate.jsx';
+import { splitQuotedText, countQuotedReplies } from './lib/mail-quote.js';
 
 const fmtMsgTime = (iso) =>
   iso ? new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
@@ -141,7 +142,7 @@ export default function ClientPortal({ client, jobs = [], preview = false, promp
 
             <div className="cp-panels">
               <DocumentsPanel job={selected} />
-              <MessagesPanel job={selected} />
+              <CorrespondencePanel job={selected} />
             </div>
           </>
         )}
@@ -577,88 +578,106 @@ function DocumentsPanel({ job }) {
   );
 }
 
-// Messaging — backend (thread + email bridge) not built yet. On-brand empty state.
-// One thread per job. Client messages render right ("You"), staff left ("RM117").
-// Same component powers the staff preview — there the caller is staff, so a sent
-// message posts as staff (a legitimate reply). Email bridge is a later slice.
-function MessagesPanel({ job }) {
+// Correspondence — the email conversations RM117 chose to share with this client.
+//
+// This REPLACES the old in-portal chat, which was retired (Ray, 2026-07-30). That
+// chat had never carried a single message, and worse, it notified nobody in either
+// direction: a client who typed into it was announced to no one, and a staff reply
+// likewise. A closed loop with no doorbell is worse than no feature, because it
+// looks like a way to reach your architect.
+//
+// So the client sees the REAL conversation instead — the same email thread, filed
+// against their job — and replies the way they already do: in their own mail
+// client, to the actual thread. There is deliberately no composer here. A second
+// place to write would recreate exactly the split this removed.
+// Each message in a thread quotes the whole conversation beneath it, so shown raw
+// a five-reply thread repeats the first email five times and the new words drown.
+// Folded, with an expander — this hides nothing the client cannot reach, and every
+// quoted line is already on screen as its own message above. NOT a filter: the
+// client still gets the whole thread (Ray's rule); this is only about legibility.
+function CorrBody({ text }) {
+  const [show, setShow] = useState(false);
+  if (!text) return null;
+  const { visible, quoted } = splitQuotedText(text);
+  return (
+    <>
+      <div className="cp-msg-bubble">{visible || text}</div>
+      {quoted && (
+        <>
+          <button type="button" className="cp-corr-quoted" onClick={() => setShow((v) => !v)}>
+            {show ? 'Hide earlier messages' : `••• ${countQuotedReplies(quoted)} earlier ${countQuotedReplies(quoted) === 1 ? 'message' : 'messages'}`}
+          </button>
+          {show && <div className="cp-msg-bubble is-quoted">{quoted}</div>}
+        </>
+      )}
+    </>
+  );
+}
+
+function CorrespondencePanel({ job }) {
   const { getToken } = useAuth();
-  const [messages, setMessages] = useState([]);
-  const [status, setStatus] = useState('loading');
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
-  const bodyRef = useRef(null);
+  const [state, setState] = useState({ status: 'loading' });
   const jobId = job?.job_id;
 
-  const load = useCallback(async () => {
-    if (!jobId) return;
-    try {
-      const token = await getToken();
-      const r = await fetch(`/api/portal/messages?job_id=${encodeURIComponent(jobId)}`, {
-        cache: 'no-store',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      const d = await r.json();
-      setMessages(d.messages || []);
-      setStatus('ready');
-    } catch {
-      setStatus('error');
-    }
+  useEffect(() => {
+    if (!jobId) return undefined;
+    let alive = true;
+    setState({ status: 'loading' });
+    (async () => {
+      try {
+        const token = await getToken();
+        const r = await fetch(`/api/portal/correspondence?job_id=${encodeURIComponent(jobId)}`, {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const d = await r.json();
+        if (!alive) return;
+        setState(r.ok ? { status: 'ready', threads: d.threads || [] } : { status: 'error' });
+      } catch {
+        if (alive) setState({ status: 'error' });
+      }
+    })();
+    return () => { alive = false; };
   }, [jobId, getToken]);
 
-  useEffect(() => { setStatus('loading'); setMessages([]); load(); }, [load]);
-  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [messages]);
-
-  const send = async () => {
-    const text = draft.trim();
-    if (!text || sending) return;
-    setSending(true);
-    try {
-      const token = await getToken();
-      const r = await fetch('/api/portal/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ job_id: jobId, body: text }),
-      });
-      if (!r.ok) throw new Error('send failed');
-      const { message } = await r.json();
-      setMessages((m) => [...m, message]);
-      setDraft('');
-    } catch {
-      alert('Your message could not be sent. Please try again.');
-    } finally {
-      setSending(false);
-    }
-  };
+  const threads = state.threads || [];
 
   return (
     <div className="cp-card cp-panel cp-messages">
       <div className="cp-panel-head">
-        <h3>Messages</h3>
+        <h3>Correspondence</h3>
         <span className="cp-panel-tag">{job ? job.job_id : ''}</span>
       </div>
-      <div className="cp-panel-body cp-msg-body" ref={bodyRef}>
-        {status === 'loading' && <div className="cp-panel-empty">Loading messages…</div>}
-        {status === 'error' && <div className="cp-panel-empty">Couldn’t load messages. Try refreshing.</div>}
-        {status === 'ready' && messages.length === 0 && (
-          <div className="cp-panel-empty">No messages yet. Send a note to your project team below.</div>
+      <div className="cp-panel-body cp-msg-body">
+        {state.status === 'loading' && <div className="cp-panel-empty">Loading…</div>}
+        {state.status === 'error' && <div className="cp-panel-empty">Couldn’t load this. Try refreshing.</div>}
+        {state.status === 'ready' && threads.length === 0 && (
+          // Says what this IS, not just that it's empty — otherwise a client reads
+          // "nothing here" as "my architect isn't talking to me".
+          <div className="cp-panel-empty">
+            No shared conversations yet. When RM117 shares an email thread about this
+            project, the whole conversation appears here. To get in touch, just reply
+            to any email from the team.
+          </div>
         )}
-        {status === 'ready' && messages.map((m) => (
-          <div key={m.id} className={`cp-msg ${m.sender_type === 'client' ? 'mine' : 'them'}`}>
-            <div className="cp-msg-meta">{m.sender_type === 'client' ? 'You' : 'RM117'} · {fmtMsgTime(m.created_at)}</div>
-            <div className="cp-msg-bubble">{m.body}</div>
+        {state.status === 'ready' && threads.map((t) => (
+          <div key={t.id} className="cp-corr-thread">
+            <div className="cp-corr-subject">{t.subject}</div>
+            {t.messages.map((m) => (
+              <div key={m.id} className="cp-corr-msg">
+                <div className="cp-msg-meta">{m.from} · {fmtMsgTime(m.at)}</div>
+                <CorrBody text={m.text} />
+                {m.attachments.length > 0 && (
+                  // Filenames only — clients never get Drive access, and these
+                  // files are in the job's "Files Received" folder.
+                  <div className="cp-corr-atts">
+                    {m.attachments.map((f) => <span key={f} className="cp-corr-att">📎 {f}</span>)}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         ))}
-      </div>
-      <div className="cp-composer">
-        <input
-          className="cp-composer-input"
-          placeholder="Write a message…"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-        />
-        <button className="cp-composer-send" onClick={send} disabled={sending || !draft.trim()}>Send</button>
       </div>
     </div>
   );
