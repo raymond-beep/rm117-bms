@@ -1,6 +1,9 @@
 # Mail + Correspondence — canonical doc
 
-**Branch `mail-inbox` · 15 commits · NOT merged, NOT deployed · 429 tests green**
+**`mail-inbox` MERGED to main and DEPLOYED 2026-07-31** (`724f42d`).
+**Follow-on branch `mail-correspondence-view` · 452 tests green · not yet merged** —
+the per-job Correspondence view, the client-facing shared view, compose, and the
+retirement of the portal chat.
 Last worked: 2026-07-31.
 
 Read this first when picking the feature back up.
@@ -71,6 +74,23 @@ notify path WAS proven end-to-end in July.
 where it gets organised.**
 
 ---
+
+## Feature status
+
+| Piece | State |
+|---|---|
+| Read threads / bodies / attachments | ✅ live in production |
+| Reply + reply-all as the staffer | ✅ live, verified by header check |
+| File a thread against job(s) → Drive | ✅ live, verified against Drive |
+| Share a whole thread with a client | ✅ live (staff side) |
+| Noise classifier (header-based) | ✅ live |
+| **Per-job Correspondence view** | ✅ built, branch `mail-correspondence-view` |
+| **Client-facing shared threads** | ✅ built, same branch (replaces the portal chat) |
+| **Compose a new email from a job** | ✅ built + verified, same branch |
+| **Portal chat retired** | ✅ removed, same branch |
+| Save as draft | ⛔ blocked — needs `gmail.modify`, same as mark-as-read |
+| Mark-as-read | ⛔ blocked — needs `gmail.modify` re-consent |
+| Search / pagination | ❌ not built (30 days, 60 threads) |
 
 ## What is built and working
 
@@ -221,6 +241,61 @@ Result: **Work 60 → 13 threads**, with every real correspondent still present
 as `project` — it has no List-Unsubscribe, correctly, and hiding security notices
 by default would be worse.
 
+## The per-job Correspondence view (and why the chat had to go)
+
+`GET /api/inbox/correspondence?jobId=` merges filed Gmail threads with the portal
+"Notify client" sends into one timeline, and the JobEditor's **Correspondence** tab
+renders it (the tab key is still `messages` so saved state/deep links keep working,
+same reason `/bms` kept its route through a rename).
+
+⭐ **It uses NO Gmail token.** Filing copies message text into Supabase precisely so
+a colleague can read a client conversation without access to the mailbox it arrived
+in — and until this endpoint existed nothing read that copy back, so the promise
+behind filing was unproven. This is the read side.
+
+**The portal chat is gone** (Ray, 2026-07-30). `MessagesTab`, `MessagesPanel`,
+`findOrCreateThread`, `GET /api/portal/messages` and `POST /api/portal/send` are
+deleted. It had 0 rows in `threads` and 0 in `messages`, and the reason was in its
+own code: `handleSend` ended with *"Email notification to the other party is a later
+slice"*. It notified nobody in either direction, so a client who wrote there was
+announced to no one — worse than no feature, because it looks like a way to reach
+your architect. The `threads`/`messages` TABLES stay: empty, harmless, and dropping
+them would be an irreversible migration to delete nothing.
+
+Clients now get `GET /api/portal/correspondence?job_id=` — the whole shared thread,
+minus only messages a staffer explicitly excluded, with **no composer**; they reply
+by email to the real conversation.
+
+⚠️ **Migration 0020's comment describes an automatic `participants` filter for the
+client view. That design was SUPERSEDED by the share preview before it shipped.**
+Do not restore it: it would silently punch holes in a conversation a person already
+reviewed and approved in full. Ray's rule is the WHOLE thread.
+
+Attachments are **filenames only** for clients — they never receive Drive
+permissions, and these files live in the job's "Files Received" folder, which the
+portal's download broker does not serve.
+
+## Compose — the recipient rule IS the security model
+
+`POST /api/inbox/compose` starts a new conversation from a job.
+
+⚠️ **The caller sends CONTACT IDS, never addresses.** A reply is safe because the
+server recomputes recipients from the message being answered, so the UI can only
+DROP an address, never add one. A new message has no such anchor — so "send `to`
+from the request body" would hand any authenticated staff session an open relay
+running as a real person at a real firm. The server resolves ids against
+`client_contacts` for the job's client, so the reachable set is exactly the contacts
+someone already added. `resolveRecipients()` is a separately tested pure function
+because of what it guards. Deactivated contacts are excluded.
+
+A job with **no client is refused** — no contact list means no safe recipient set.
+
+Sending **files the thread against the job immediately**, which does not break
+"filing is always a staff action, never a sync": that rule exists because inferring
+a job from a subject line is a guess, and here the staffer opened the job and wrote
+the mail from it. A filing failure is logged but never surfaced as a send failure,
+or someone sends the same mail twice.
+
 ## Filing suggests — it does not pre-accept
 
 The File-to-job dialog **starts with nothing ticked**. It used to pre-tick every
@@ -266,20 +341,17 @@ lives).
 blocked on a Google consent that degrades cleanly and that nothing else depends
 on. There is no known code blocker to merging.
 
-### Not yet built
-- **Correspondence view in the JobEditor**, replacing the dead `MessagesTab` —
-  filed threads + Notify-client sends in one timeline per job. `GET
-  /api/inbox/file?jobId=` already returns the filed threads for a job.
-- **Client-facing view** of shared threads in the portal (respecting
-  `visible_to_client` + `hidden_from_client`).
-- **Compose** a new thread from a job/client, contacts pre-filled from
-  `client_contacts`, plus **Save as draft** (`gmail.modify` covers drafts).
-- **Retire the portal chat**: `MessagesTab` (JobEditor), `MessagesPanel`
-  (`src/rm117-portal-v1.jsx`), and the `portal/messages` + `portal/send` actions.
-  Ray's call 2026-07-30. Tables stay in the DB, harmless.
-- Noise classifier is loose: marketing from real-looking personal addresses
-  ("Elise Knaack", "AI with Mariah") lands in Work as `project`.
-- No search / no pagination (30 days, 60 threads).
+### Still not built
+- **Save as draft** — needs `gmail.modify`, so it is blocked behind the same
+  re-consent as mark-as-read. Nothing else is waiting on it.
+- **Search / pagination.** The list is 30 days and 60 threads. On Ray's mailbox
+  that is ~13 threads after the noise filter, so it has not bitten yet — but a
+  conversation older than 30 days is currently unreachable from the app.
+- **Attachments on compose.** Compose sends text only. Sending a drawing set still
+  means Gmail or the Drive "Files Sent" flow.
+- **A client cannot reply inside the portal, on purpose.** They reply by email to
+  the real thread. A composer there would recreate the split the chat retirement
+  removed.
 
 ### How to re-test sending safely
 
