@@ -86,12 +86,21 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const {
-    threadId, jobIds = [], clientId = null,
+    threadId, jobIds = [], clientId: clientIdIn = null,
     saveAttachments = true, visibleToClient = false,
+    hiddenMessageIds = [],
   } = req.body || {};
   if (!threadId) return res.status(400).json({ error: 'threadId is required' });
   if (!Array.isArray(jobIds) || !jobIds.length) {
     return res.status(400).json({ error: 'Pick at least one job to file this against' });
+  }
+
+  // The portal is keyed by CLIENT while the rest of the app speaks Job ID, so
+  // derive the client from the job unless one was given explicitly.
+  let clientId = clientIdIn;
+  if (!clientId) {
+    const { data: job } = await db.from('jobs').select('client_id').eq('job_id', jobIds[0]).maybeSingle();
+    clientId = job?.client_id || null;
   }
 
   const { token, error } = await getGoogleToken(userId);
@@ -152,6 +161,9 @@ export default async function handler(req, res) {
     if (lErr) return res.status(500).json({ error: lErr.message });
 
     // Store the message text. Re-filing updates in place (unique thread+message).
+    // `hidden_from_client` records the outcome of the share preview: the whole
+    // thread is shown by default, and excluding a message is the deliberate act.
+    const hidden = new Set(Array.isArray(hiddenMessageIds) ? hiddenMessageIds : []);
     const rows = parsed.map((p) => ({
       thread_id: thread.id,
       gmail_message_id: p.msg.id,
@@ -162,6 +174,7 @@ export default async function handler(req, res) {
       body_text: p.parts.text || null,
       body_html: sanitizeEmailHtml(p.parts.html, { allowRemoteImages: false }).html || null,
       has_attachments: p.parts.attachments.length > 0,
+      hidden_from_client: hidden.has(p.msg.id),
     }));
     const { data: saved, error: mErr } = await db.from('mail_messages')
       .upsert(rows, { onConflict: 'thread_id,gmail_message_id' })
@@ -224,6 +237,7 @@ export default async function handler(req, res) {
       jobs: jobIds,
       messages: rows.length,
       visibleToClient: Boolean(visibleToClient),
+      hiddenFromClient: rows.filter((r) => r.hidden_from_client).length,
       attachmentsSaved,
       attachmentsSkipped,
     });

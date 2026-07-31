@@ -549,6 +549,8 @@ function FileToJob({ thread, row, onFiled }) {
   const [query, setQuery] = useState('');
   const [saveAttachments, setSaveAttachments] = useState(true);
   const [visibleToClient, setVisibleToClient] = useState(false);
+  const [preview, setPreview] = useState({ status: 'idle' });
+  const [hidden, setHidden] = useState(() => new Set());
   const [state, setState] = useState({ status: 'idle' });
 
   // What is already filed for this thread?
@@ -591,6 +593,30 @@ function FileToJob({ thread, row, onFiled }) {
     return hits.map((h) => jobs.find((j) => j.job_id === h.id)).filter(Boolean);
   }, [query, jobs, row?.jobs, picked]);
 
+  // ⚠️ Ticking "visible to the client" LOADS THE PREVIEW immediately — you
+  // cannot turn sharing on without the actual conversation in front of you.
+  // That is the whole safety model for showing a whole thread: not a filter, a
+  // person looking first. Same shape as portal/draft, which composes the client
+  // update email and sends nothing so the confirm dialog can show the real one.
+  useEffect(() => {
+    if (!visibleToClient || !picked.size) { setPreview({ status: 'idle' }); return undefined; }
+    let alive = true;
+    setPreview({ status: 'loading' });
+    const job = [...picked][0];
+    apiFetch(`/api/inbox/share-preview?threadId=${encodeURIComponent(thread.id)}`
+      + `&jobId=${encodeURIComponent(job)}`)
+      .then((r) => r.json())
+      .then((d) => { if (alive) setPreview(d.error ? { status: 'error', message: d.error } : { status: 'ready', ...d }); })
+      .catch(() => { if (alive) setPreview({ status: 'error', message: 'Could not build the preview.' }); });
+    return () => { alive = false; };
+  }, [visibleToClient, picked, thread.id]);
+
+  const toggleHidden = (id) => setHidden((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
   const toggle = (jobId) => setPicked((prev) => {
     const next = new Set(prev);
     if (next.has(jobId)) next.delete(jobId); else next.add(jobId);
@@ -609,6 +635,7 @@ function FileToJob({ thread, row, onFiled }) {
           jobIds: [...picked],
           saveAttachments,
           visibleToClient,
+          hiddenMessageIds: visibleToClient ? [...hidden] : [],
         }),
       });
       const d = await r.json();
@@ -734,6 +761,79 @@ function FileToJob({ thread, row, onFiled }) {
             </span>
           </label>
 
+          {visibleToClient && (
+            <div className="mail-share-preview">
+              {preview.status === 'loading' && (
+                <div className="mail-file-empty">Building the client&rsquo;s view…</div>
+              )}
+              {preview.status === 'error' && (
+                <div className="mail-reply-err">{preview.message}</div>
+              )}
+              {preview.status === 'ready' && (
+                <>
+                  <div className="mail-share-head">
+                    <strong>What {preview.client?.name || 'the client'} will see</strong>
+                    <span>
+                      {preview.messageCount - hidden.size} of {preview.messageCount} messages
+                    </span>
+                  </div>
+
+                  {preview.unknownClient && (
+                    <div className="mail-share-warn">
+                      This job has no client linked, so nobody can be told what is new to
+                      them. Link a client before sharing.
+                    </div>
+                  )}
+
+                  {!preview.unknownClient && preview.notOnCount > 0 && (
+                    <div className="mail-share-warn">
+                      <strong>{preview.notOnCount}</strong> of these messages{' '}
+                      {preview.notOnCount === 1 ? 'was' : 'were'} never sent to{' '}
+                      {preview.client?.name || 'this client'} — internal replies, or other
+                      parties. Sharing shows {preview.notOnCount === 1 ? 'it' : 'them'} for the
+                      first time.
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        onClick={() => setHidden(new Set(
+                          preview.messages.filter((m) => !m.clientWasOn).map((m) => m.id),
+                        ))}
+                      >
+                        Exclude those {preview.notOnCount}
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="mail-share-list">
+                    {preview.messages.map((m) => {
+                      const off = hidden.has(m.id);
+                      return (
+                        <label key={m.id} className={`mail-share-msg${off ? ' is-off' : ''}${m.clientWasOn ? '' : ' is-new'}`}>
+                          <input type="checkbox" checked={!off} onChange={() => toggleHidden(m.id)} />
+                          <span className="mail-share-msg-main">
+                            <span className="mail-share-msg-top">
+                              <strong>{m.from.name || m.from.email}</strong>
+                              {!m.clientWasOn && (
+                                <span className="mail-share-flag">not sent to them</span>
+                              )}
+                              <span className="mail-share-date">{mailDate(m.date)}</span>
+                            </span>
+                            <span className="mail-share-snip">{m.snippet}</span>
+                            {m.attachments.length > 0 && (
+                              <span className="mail-share-atts">
+                                {m.attachments.length} attachment{m.attachments.length === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="mail-file-actions">
             <span className="mail-file-count">
               {picked.size} job{picked.size === 1 ? '' : 's'} selected
@@ -742,7 +842,10 @@ function FileToJob({ thread, row, onFiled }) {
             <button
               type="button"
               className="btn"
-              disabled={!picked.size || state.status === 'saving'}
+              disabled={
+                !picked.size || state.status === 'saving'
+                || (visibleToClient && (preview.status === 'loading' || preview.unknownClient))
+              }
               onClick={file}
             >
               {state.status === 'saving' ? 'Filing…' : isFiled ? 'Update' : 'File'}
