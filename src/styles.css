@@ -366,11 +366,16 @@ input, select, textarea { font: inherit; }
 .myweek-lane-studio .myweek-strip { border-color: var(--accent); }
 /* The notes layer (in flow) defines the strip height so it grows to fit long notes; the
    ink canvas absolutely fills whatever height that is (ink is normalized, so it rescales). */
-.myweek-canvaswrap { position: absolute; inset: 0; }
-.myweek-canvas { display: block; }
 /* Notes overlay the light paper, so their text stays dark in both themes. */
-.myweek-notes { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(5, 1fr); pointer-events: none; }
-.myweek-notecell { padding: 6px 8px; font-family: var(--ui); font-size: 12px; line-height: 1.3; color: #1c1c1a; white-space: pre-wrap; word-break: break-word; }
+/* Read-only checklist mirror of the planner row (was an ink canvas + notes overlay). */
+.myweek-taskrow { align-items: stretch; }
+.myweek-taskcell { padding: 6px 8px; display: flex; flex-direction: column; gap: 2px; min-height: 64px; min-width: 0; }
+.myweek-task { display: flex; align-items: flex-start; gap: 5px; }
+.myweek-taskbox { flex: none; font-size: 11px; line-height: 1.4; color: var(--ink3); }
+.myweek-tasktext { font-size: 11.5px; line-height: 1.35; color: var(--ink); word-break: break-word; overflow-wrap: anywhere; }
+.myweek-task.is-done .myweek-tasktext { text-decoration: line-through; color: var(--ink3); }
+.myweek-task.is-done .myweek-taskbox { color: var(--accent-ink); }
+.myweek-count { font-size: 11px; color: var(--ink3); margin: 0 0 6px 2px; }
 .myweek-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--ui); font-size: 12.5px; line-height: 1.4; color: #9a968b; pointer-events: none; text-align: center; padding: 0 16px; }
 
 /* ---------- Stat strip (data cards: delta + sparkline / progress / pips / ring) ---------- */
@@ -2177,17 +2182,6 @@ input, select, textarea { font: inherit; }
 .deleg-namecell, .deleg-headcorner { position: sticky; left: 0; z-index: 3; }
 .deleg-headrow { position: sticky; top: 0; z-index: 4; }
 .deleg-headcorner { z-index: 5; } /* top-left corner above both */
-/* Apple Pencil: while inking, iPadOS otherwise treats the stroke as a text drag —
-   it selects the name labels / notes and pops the Copy·Look Up callout, which cuts
-   the stroke off. Kill selection + the touch callout across the board; the Type-mode
-   textareas below opt back in so typed notes stay editable/selectable. */
-.deleg-grid { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.deleg-canvas { -webkit-touch-callout: none; }
-/* During an active stroke (.inking, toggled imperatively in Delegation.jsx) kill all
-   touch gestures across the planner so iPadOS can't cancel the Pencil pointer. Only
-   while drawing — between strokes touch-action returns to auto so finger-scroll works. */
-.deleg.inking, .deleg.inking * { touch-action: none; }
-.deleg-notes.typing .deleg-notecell.edit { -webkit-user-select: text; user-select: text; }
 .deleg-headrow, .deleg-row { display: grid; grid-template-columns: 120px 1fr; }
 .deleg-row { border-top: 1px solid var(--border); }
 .deleg-days { display: grid; grid-template-columns: repeat(5, 1fr); }
@@ -2210,11 +2204,8 @@ input, select, textarea { font: inherit; }
 .deleg-row.studio .deleg-name { color: var(--accent-ink); }
 .deleg-studiohint { font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-ink); opacity: .75; }
 
-.deleg-canvaswrap { position: relative; }
 /* Ink canvas fills the wrap; the notes layer (in flow) defines the row height, so the
    canvas grows with it. JS sets the exact px width/height (DPR-aware) via inline style. */
-.deleg-canvas { position: absolute; top: 0; left: 0; z-index: 0; display: block; }
-
 .deleg-foot { color: var(--ink3); font-size: 13px; margin: 14px 2px 0; }
 
 @media (max-width: 640px) {
@@ -2222,33 +2213,66 @@ input, select, textarea { font: inherit; }
   .deleg-day { padding: 8px 6px; flex-direction: column; gap: 0; }
 }
 
-/* Delegation — mode toggle (Pen / Type) + per-cell typed notes overlay */
-.deleg-tools { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.deleg-modes { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.deleg-mode { font: inherit; font-size: 13px; padding: 6px 12px; background: var(--panel); color: var(--ink2); border: 0; cursor: pointer; }
-.deleg-mode + .deleg-mode { border-left: 1px solid var(--border); }
-.deleg-mode.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
-.deleg-colors.dim { opacity: .4; pointer-events: none; }
+/* ── Weekly Planner — per-day CHECKLISTS ─────────────────────────────────────
+   Replaced the ink canvas + typed-notes overlay 2026-07-31. Gone with them: the
+   pen/type mode toggle, the colour swatches, the zoom control, and the .inking
+   touch-action lockdown — all of which existed only to make hand-writing work. */
+.deleg-daycells { align-items: stretch; }
+.deleg-cell {
+  border-left: 1px solid var(--border);
+  padding: 7px 8px 8px;
+  display: flex; flex-direction: column; gap: 3px;
+  min-height: 92px;               /* keeps empty cells aligned to the day headers */
+  min-width: 0;                   /* lets long task text wrap instead of widening the grid */
+}
+.deleg-cell:first-child { border-left: 0; }
+.deleg-cell.is-today { background: var(--accent-soft); }
 
-/* Zoom control — enlarge the board for easier hand-writing (pinch on iPad). */
-.deleg-zoom { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
-.deleg-zoombtn { font: inherit; font-size: 16px; line-height: 1; width: 32px; padding: 6px 0; background: var(--panel); color: var(--ink2); border: 0; cursor: pointer; }
-.deleg-zoombtn:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent-ink); }
-.deleg-zoombtn:disabled { opacity: .35; cursor: default; }
-.deleg-zoomlevel { font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; min-width: 46px; padding: 6px 4px; background: var(--panel); color: var(--ink2); border: 0; border-left: 1px solid var(--border); border-right: 1px solid var(--border); cursor: pointer; }
-.deleg-zoomlevel:hover { color: var(--ink); }
+.deleg-tasks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+.deleg-task { display: flex; align-items: flex-start; gap: 4px; border-radius: 4px; padding: 1px 2px; }
+.deleg-task:hover { background: rgba(0, 0, 0, 0.035); }
+.deleg-taskmain { display: flex; align-items: flex-start; gap: 6px; flex: 1; min-width: 0; cursor: pointer; }
+.deleg-taskbox { margin: 2px 0 0; flex: none; accent-color: var(--accent); cursor: pointer; }
+.deleg-taskbox:disabled { cursor: default; }
+.deleg-tasktext {
+  font-size: 12.5px; line-height: 1.35; color: var(--ink);
+  word-break: break-word; overflow-wrap: anywhere;
+}
+/* Done: the box is checked by the input itself; the text is struck through and
+   dimmed so a finished day reads as finished at a glance without hiding anything. */
+.deleg-task.is-done .deleg-tasktext { text-decoration: line-through; color: var(--ink3); }
 
-/* Notes sit in a 5-column overlay aligned to the canvas day columns. In pen mode
-   the layer is click-through (ink draws over text); in type mode it takes clicks. */
-/* In normal flow (above the canvas) so the tallest note grows the row; canvas fills it.
-   min-height (= the row's base height at the current zoom) is set inline from JS. */
-.deleg-notes { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(5, 1fr); pointer-events: none; }
-.deleg-notes.typing { pointer-events: auto; }
-.deleg-notecell { border-left: 1px solid transparent; padding: 7px 8px; font-family: var(--ui); font-size: 12.5px; line-height: 1.3; color: #1c1c1a; white-space: pre-wrap; word-break: break-word; }
-.deleg-notecell.edit { border: 0; background: transparent; resize: none; outline: none; overflow: hidden; }
-.deleg-notecell.edit::placeholder { color: #b7b3a8; }
-.deleg-notes.typing .deleg-notecell.edit { cursor: text; }
-.deleg-notes.typing .deleg-notecell.edit:focus { background: rgba(27, 99, 224, 0.06); box-shadow: inset 0 0 0 1.5px var(--accent); border-radius: 4px; }
+/* Edit / remove stay hidden until the row is hovered or keyboard-focused — 25 cells
+   each showing two icon buttons would bury the actual content. */
+.deleg-taskactions { display: flex; gap: 1px; opacity: 0; flex: none; transition: opacity .12s; }
+.deleg-task:hover .deleg-taskactions,
+.deleg-task:focus-within .deleg-taskactions { opacity: 1; }
+.deleg-taskbtn {
+  font: inherit; font-size: 11px; line-height: 1; padding: 2px 4px;
+  border: 0; background: none; color: var(--ink3); cursor: pointer; border-radius: 3px;
+}
+.deleg-taskbtn:hover { color: var(--accent-ink); background: var(--panel); }
+.deleg-taskbtn.is-del:hover { color: var(--danger); }
+
+.deleg-taskedit {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px;
+  padding: 2px 5px; border: 1px solid var(--accent); border-radius: 4px;
+  background: var(--panel); color: var(--ink); outline: none;
+}
+
+.deleg-cellcount { font-size: 10.5px; color: var(--ink3); margin-top: 1px; }
+
+/* The add field is deliberately quiet until focused — five of these per row, 30 on
+   the board, so a bordered input in every cell would read as a form to fill in. */
+.deleg-add {
+  margin-top: auto; width: 100%; box-sizing: border-box;
+  font: inherit; font-size: 12px; padding: 3px 5px;
+  border: 1px dashed transparent; border-radius: 4px;
+  background: transparent; color: var(--ink); outline: none;
+}
+.deleg-add::placeholder { color: var(--ink3); }
+.deleg-cell:hover .deleg-add { border-color: var(--border); }
+.deleg-add:focus { border-style: solid; border-color: var(--accent); background: var(--panel); }
 
 /* ---- Client portal: splash + sign-in ----
    `.portal-splash` / `.portal-brand` were referenced by portal-gate.jsx and auth-gate.jsx

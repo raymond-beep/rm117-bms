@@ -1,43 +1,36 @@
-// Delegation Board (/delegation) — the digital version of Angelena's weekly
-// hand-drawn delegation sheet. A Mon–Fri × employee grid of Apple-Pencil ink, one
-// board per week (keyed by the Monday date). Everyone sees the same board live
-// (polled), so nobody has to ask Angelena what they're on.
+// Weekly Planner (/delegation) — the digital version of Angelena's weekly
+// hand-drawn delegation sheet. A Mon–Fri × employee grid, one board per week
+// (keyed by the Monday date). Everyone sees the same board live (polled), so
+// nobody has to ask Angelena what they're on.
 //
-// Ink is captured natively (Pointer Events → HTML5 canvas) — no tldraw / licensed
-// canvas SDK. Strokes are stored as normalized 0..1 point arrays so they scale
-// across iPad and desktop. Row-level write permission (you draw only your own row;
-// Angelena draws any) is enforced server-side in api/delegation.js; the UI just
-// mirrors it. Data: /api/delegation.
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+// Each cell is a CHECKLIST: items you tick off, struck through once done.
+//
+// ⚠️ **THE PEN WAS REMOVED 2026-07-31** (Ray's call). Ink was Angelena's request
+// and she never used it — `delegation_strokes` held 2 rows in the board's whole
+// life, against 31 typed notes, every one hers, and she was already writing them
+// as one item per line. So this is less a new feature than the board finally
+// matching what it was being used for. Migration 0022 turned all 68 of those lines
+// into tasks; the ink tables are left in place, unread.
+//
+// Gone with it: the Pointer-Events canvas, the pen/type mode toggle, the colour
+// swatches, and the board zoom — zoom existed purely to make cells big enough to
+// HAND-WRITE in, and real text needs no help. Also gone: the whole ink-sync
+// cooldown, because a poll can no longer interrupt a pen stroke. The one sync
+// guard that remains is "don't clobber a field someone is typing in".
+//
+// Row-level write permission (your own row; Angelena any row) is enforced
+// server-side in api/delegation.js — the UI only mirrors it. Data: /api/delegation.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { apiFetch } from '../../lib/api.js';
-import { DAYS, PAPER, GRIDLINE, drawStroke, isoDate, addDays, mondayOf, parseISO, weekLabel } from '../../lib/delegation-render.js';
+import { DAYS, isoDate, addDays, mondayOf, parseISO, weekLabel } from '../../lib/delegation-render.js';
 
-const ROW_H = 150;          // CSS px height of each employee's drawing strip (at 100% zoom)
-// Zoom — the boxes are small to hand-write in (esp. on iPad), so the whole board can
-// be scaled up. We scale the actual cell size (canvas grows, re-renders crisp from the
-// normalized points) rather than CSS-transforming the raster, so ink stays sharp at any
-// zoom. iPad = two-finger pinch (Procreate-style, isolated from the single-Pencil draw
-// path); desktop = the −/+ buttons or ⌘/Ctrl-scroll.
-const ZOOM_MIN = 1;
-const ZOOM_MAX = 3;
-const ZOOM_STEP = 0.5;
-const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
-// Shared "Everyone" lane pinned at the top of the board — a firm-wide row (e.g. a
-// measure-up for the whole studio) that admins fill once instead of writing it into
-// all five people's boxes. Reserved row_owner_email, admin-write only, everyone reads
-// it. Keep in sync with STUDIO_ROW in api/delegation.js.
+// Shared "Everyone" lane pinned at the top of the board — a firm-wide item (e.g. a
+// measure-up for the whole studio) that admins add once instead of writing it into
+// all five people's boxes. Reserved row_owner_email, admin-write only, everyone
+// reads it. ⭐ Keep in sync with STUDIO_ROW in api/delegation.js + MyWeekWidget.jsx.
 const STUDIO_ROW = '__studio__';
-const POLL_MS = 4000;       // live-sync cadence (see architecture note in the API)
-const INK_SYNC_COOLDOWN_MS = 2500; // after the last pen lift, hold off sync repaints this long
-
-// Pen colors — a small fixed swatch set (no full color wheel for v1).
-const COLORS = [
-  { name: 'Black', hex: '#111111' },
-  { name: 'Blue', hex: '#1d4ed8' },
-  { name: 'Red', hex: '#dc2626' },
-  { name: 'Green', hex: '#16a34a' },
-];
+const POLL_MS = 4000; // live-sync cadence
 
 export default function Delegation() {
   const { user } = useUser();
@@ -45,214 +38,17 @@ export default function Delegation() {
 
   const [weekKey, setWeekKey] = useState(() => isoDate(mondayOf(new Date())));
   const [members, setMembers] = useState([]);
-  const [strokes, setStrokes] = useState([]);
-  const [notes, setNotes] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [me, setMe] = useState({ email: myEmail, is_admin: false });
-  const [color, setColor] = useState(COLORS[0].hex);
-  const [mode, setMode] = useState('pen'); // 'pen' (draw ink) | 'type' (edit cell notes)
   const [status, setStatus] = useState('loading'); // loading | ready | error
   const [error, setError] = useState('');
-  const [zoom, setZoom] = useState(1); // 1..3 — scales the whole board (crisp; see ROW_H note)
-  const zoomRef = useRef(zoom);
-  zoomRef.current = zoom;
 
-  // Refs let the 4s poll skip clobbering an in-flight draw / unsaved edit.
-  const drawingRef = useRef(false);
+  // Lets the poll skip clobbering a field someone is typing in, or a write that
+  // hasn't come back yet.
   const editingRef = useRef(false);
   const pendingRef = useRef(0);
-  const lastInkRef = useRef(0); // ms timestamp of the last pen lift (for the sync cooldown)
   const weekRef = useRef(weekKey);
   weekRef.current = weekKey;
-
-  // While a stroke is live, clamp touch-action to none across the whole planner so
-  // iPadOS can't start a scroll/zoom gesture off a palm shift — that gesture is what
-  // fires a pointercancel on the Pencil and leaves a dead spot until you lift + retouch.
-  // Toggled imperatively (a classList write, no setState) so it never re-renders the
-  // canvases mid-stroke. Between strokes the class is off, so finger-scroll still works.
-  const pageRef = useRef(null);
-
-  // Deferred state updates: a stroke's save response (temp→real id swap) re-renders
-  // and repaints all five row canvases. If it lands mid-way through the NEXT stroke it
-  // hitches the main thread and drops Pencil moves — the "rare dead spot". So while a
-  // stroke is live we queue any such setState here and flush it the instant the pen
-  // lifts. The optimistic temp stroke already renders identically, so nothing is lost
-  // visually in the meantime.
-  const deferredRef = useRef([]);
-  const runDeferred = useCallback(() => {
-    const q = deferredRef.current;
-    deferredRef.current = [];
-    for (const fn of q) fn();
-  }, []);
-  // While a stroke is live, clamp touch-action to none across the whole planner so
-  // iPadOS can't start a scroll/zoom gesture off a palm shift, then flush deferred
-  // updates on lift. Toggled imperatively (a classList write, no setState) so it never
-  // re-renders the canvases mid-stroke; between strokes the class is off so scroll works.
-  const setInking = useCallback((active) => {
-    pageRef.current?.classList.toggle('inking', active);
-    if (!active) runDeferred();
-  }, [runDeferred]);
-
-  // --- Zoom plumbing -------------------------------------------------------
-  // The board lives in a horizontally-scrollable viewport; `zoom` widens the grid
-  // (CSS var --dz) and taller rows (rowHeight prop) so each cell physically grows.
-  // A zoom change re-anchors the horizontal scroll to a focal point (the pinch
-  // midpoint, or the viewport center for the buttons) so the spot you zoomed into
-  // stays put. The scroll is applied in a layout effect, after the new width lands.
-  const scrollRef = useRef(null);
-  const gridRef = useRef(null);
-  const pendingScrollRef = useRef(null); // { left, top } to apply after a zoom relayout
-  // Live-pinch preview: while two fingers are down we DON'T call setZoom (that would
-  // re-render + reallocate all five canvas backing stores every frame, and writing
-  // scrollLeft each frame fights iOS momentum + the shrinking scrollWidth clamp — the
-  // zoom-OUT jitter). Instead we scale the grid with an imperative CSS transform
-  // (compositor-only) and commit the real crisp zoom + re-anchored scroll ONCE on lift.
-  const pinchCommitRef = useRef(null);  // { zoom, left, top } to land on gesture end
-  const previewingRef = useRef(false);  // a transform preview is currently applied
-
-  const applyScroll = useCallback((left, top) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollLeft = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, left));
-    el.scrollTop = Math.max(0, Math.min(el.scrollHeight - el.clientHeight, top));
-  }, []);
-
-  // Zoom to `next`, keeping the content under `focalClientX` fixed on screen.
-  const zoomAround = useCallback((next, focalClientX) => {
-    const nz = clampZoom(next);
-    if (nz === zoomRef.current) { pendingScrollRef.current = null; return; } // at a bound — nothing to do
-    const el = scrollRef.current;
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      const fx = (focalClientX == null ? rect.left + rect.width / 2 : focalClientX) - rect.left;
-      const cur = zoomRef.current || 1;
-      const originBase = (el.scrollLeft + fx) / cur;                       // content x in 100%-zoom px
-      pendingScrollRef.current = { left: originBase * nz - fx, top: el.scrollTop };
-    }
-    setZoom(nz);
-  }, []);
-
-  // Apply the re-anchored scroll after the widened layout is in the DOM, and — if a
-  // pinch preview was live — drop the imperative transform now. This runs in the same
-  // commit as the re-rendered crisp layout (the child RowCanvas resize is a layout
-  // effect too, so canvases are already at the new size), so there's no flash between
-  // the scaled preview and the crisp result.
-  useLayoutEffect(() => {
-    if (pendingScrollRef.current) {
-      applyScroll(pendingScrollRef.current.left, pendingScrollRef.current.top);
-      pendingScrollRef.current = null;
-    }
-    if (previewingRef.current && gridRef.current) {
-      gridRef.current.style.transform = '';
-      gridRef.current.style.willChange = '';
-      previewingRef.current = false;
-    }
-  }, [zoom, applyScroll]);
-
-  // iPad: two-finger pinch = zoom + pan (Procreate-style). It's a pure touch-event
-  // gesture on the scroll viewport, so it never reaches the canvas draw path (which
-  // only ever draws with a pen / single pointer) — the palm-rejection logic is
-  // untouched. Desktop trackpad/mouse: ⌘/Ctrl + wheel. Both re-anchor to the focal.
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const distOf = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-    const midXOf = (t) => (t[0].clientX + t[1].clientX) / 2;
-    const midYOf = (t) => (t[0].clientY + t[1].clientY) / 2;
-    let pinch = null;   // gesture anchor snapshot
-    let raf = 0;
-    let pending = null; // latest { curDist, curMidX, curMidY } awaiting a frame
-
-    // Each frame we compute where a committed (zoom, scrollLeft, scrollTop) WOULD land
-    // the content, then reproduce that purely with a transform on the frozen-scroll grid
-    // — no setZoom, no canvas realloc, no scroll writes. The translate is exactly
-    // (startScroll − targetScroll): with scroll held at its start value, that offset makes
-    // the transformed content sit where the committed scroll would put it, so releasing
-    // (which applies targetScroll + drops the transform) produces no jump.
-    const flush = () => {
-      raf = 0;
-      if (!pinch || !pending) return;
-      // X: focal-anchored zoom+pan (the axis that widens with zoom).
-      const originBase = (pinch.startScrollLeft + (pinch.startMidX - pinch.rectLeft)) / pinch.startZoom;
-      const nz = clampZoom(pinch.startZoom * (pending.curDist / pinch.startDist));
-      const left = originBase * nz - (pending.curMidX - pinch.rectLeft);
-      // Y: straight pan with the fingers (rows grow downward; no vertical focal anchor).
-      const top = pinch.startScrollTop - (pending.curMidY - pinch.startMidY);
-      const g = gridRef.current;
-      if (g) {
-        const scale = nz / pinch.startZoom;
-        const tx = pinch.startScrollLeft - left;
-        const ty = pinch.startScrollTop - top;
-        g.style.transformOrigin = '0 0';
-        g.style.willChange = 'transform';
-        g.style.transform = `translate3d(${tx}px, ${ty}px, 0) scale(${scale})`;
-        previewingRef.current = true;
-      }
-      pinchCommitRef.current = { zoom: nz, left, top };
-    };
-    // Land the gesture: apply the real zoom + scroll (crisp), drop the transform.
-    const commitPinch = () => {
-      const c = pinchCommitRef.current;
-      pinchCommitRef.current = null;
-      if (!c) return;
-      if (c.zoom === zoomRef.current) {
-        // Pure pan (or ended back at the same zoom): no relayout — convert the transform
-        // into real scroll and drop it now.
-        applyScroll(c.left, c.top);
-        if (gridRef.current) { gridRef.current.style.transform = ''; gridRef.current.style.willChange = ''; }
-        previewingRef.current = false;
-      } else {
-        // Zoom changed: commit crisp. The layout effect applies the re-anchored scroll and
-        // clears the transform in the same frame the new size renders (no flash).
-        pendingScrollRef.current = { left: c.left, top: c.top };
-        setZoom(c.zoom);
-      }
-    };
-    const onStart = (e) => {
-      if (e.touches.length !== 2) return;
-      const rect = el.getBoundingClientRect();
-      pinch = {
-        startDist: distOf(e.touches) || 1,
-        startMidX: midXOf(e.touches),
-        startMidY: midYOf(e.touches),
-        startZoom: zoomRef.current,
-        startScrollLeft: el.scrollLeft,
-        startScrollTop: el.scrollTop,
-        rectLeft: rect.left,
-      };
-    };
-    const onMove = (e) => {
-      if (!pinch || e.touches.length < 2) return;
-      e.preventDefault(); // own the gesture: no native page pinch-zoom / scroll
-      pending = { curDist: distOf(e.touches), curMidX: midXOf(e.touches), curMidY: midYOf(e.touches) };
-      if (!raf) raf = requestAnimationFrame(flush);
-    };
-    const onEnd = (e) => {
-      if (e.touches.length >= 2) return;
-      if (pinch && previewingRef.current) commitPinch();
-      pinch = null;
-      pending = null;
-      if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    };
-    const onWheel = (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return; // trackpad pinch / ⌘-scroll only
-      e.preventDefault();
-      zoomAround(zoomRef.current * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX);
-    };
-
-    el.addEventListener('touchstart', onStart, { passive: true });
-    el.addEventListener('touchmove', onMove, { passive: false });
-    el.addEventListener('touchend', onEnd);
-    el.addEventListener('touchcancel', onEnd);
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => {
-      el.removeEventListener('touchstart', onStart);
-      el.removeEventListener('touchmove', onMove);
-      el.removeEventListener('touchend', onEnd);
-      el.removeEventListener('touchcancel', onEnd);
-      el.removeEventListener('wheel', onWheel);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [zoomAround, applyScroll]);
 
   const load = useCallback(async (wk, { quiet } = {}) => {
     if (!quiet) setStatus('loading');
@@ -261,19 +57,12 @@ export default function Delegation() {
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Failed to load');
       if (weekRef.current !== wk) return; // week changed mid-flight; drop stale result
-      // While the user is mid-stroke, mid-edit, a save is pending, OR they lifted the
-      // pen only a moment ago (writing a sentence = many strokes with sub-second gaps),
-      // apply NOTHING. Any setState here re-renders all five row canvases and hitches
-      // the live pen — that's the "it stops writing every time it syncs" symptom (very
-      // visible with a second device mirroring the board). The cooldown keeps continuous
-      // writing repaint-free; sync resumes once the user pauses ~INK_SYNC_COOLDOWN_MS.
-      // setStatus('ready') below is a no-op re-render bailout when already 'ready'.
-      const recentlyInking = Date.now() - lastInkRef.current < INK_SYNC_COOLDOWN_MS;
-      if (!drawingRef.current && !editingRef.current && pendingRef.current === 0 && !recentlyInking) {
+      // Don't overwrite what someone is mid-way through typing, and don't race a
+      // save that hasn't landed — the poll would briefly show the old value back.
+      if (!editingRef.current && pendingRef.current === 0) {
         setMembers(data.members || []);
         setMe(data.me || { email: myEmail, is_admin: false });
-        setStrokes(data.strokes || []);
-        setNotes(data.notes || []);
+        setTasks(data.tasks || []);
       }
       setStatus('ready');
     } catch (e) {
@@ -281,44 +70,39 @@ export default function Delegation() {
     }
   }, [myEmail]);
 
-  // Load on week change.
   useEffect(() => { load(weekKey); }, [weekKey, load]);
 
-  // Live sync: quietly re-fetch the current week on an interval.
   useEffect(() => {
     const t = setInterval(() => load(weekRef.current, { quiet: true }), POLL_MS);
     return () => clearInterval(t);
   }, [load]);
 
-  const strokesByRow = useMemo(() => {
+  // Tasks indexed by "rowEmail|dayIndex" for O(1) per-cell lookup.
+  const tasksByCell = useMemo(() => {
     const m = new Map();
-    for (const s of strokes) {
-      const arr = m.get(s.row_owner_email) || [];
-      arr.push(s);
-      m.set(s.row_owner_email, arr);
+    for (const t of tasks) {
+      const key = `${t.row_owner_email}|${t.day_index}`;
+      const arr = m.get(key) || [];
+      arr.push(t);
+      m.set(key, arr);
     }
     return m;
-  }, [strokes]);
+  }, [tasks]);
 
-  // Typed notes indexed by "rowEmail|dayIndex" for O(1) per-cell lookup.
-  const notesByCell = useMemo(() => {
-    const m = new Map();
-    for (const n of notes) m.set(`${n.row_owner_email}|${n.day_index}`, n);
-    return m;
-  }, [notes]);
-
-  // Save (or clear, when blank) a typed note for one day cell. Optimistic + reconcile.
-  const saveNote = useCallback(async (rowEmail, dayIndex, text) => {
-    const trimmed = text.trim();
-    const replace = (arr, note) => {
-      const others = arr.filter((n) => !(n.row_owner_email === rowEmail && n.day_index === dayIndex));
-      return note ? [...others, note] : others;
-    };
-    setNotes((prev) => replace(prev, trimmed ? {
-      id: `temp-${rowEmail}-${dayIndex}`, week_key: weekRef.current, row_owner_email: rowEmail,
-      day_index: dayIndex, text: trimmed, created_by_email: me.email, updated_at: new Date().toISOString(),
-    } : null));
+  const track = async (fn) => {
     pendingRef.current += 1;
+    try { return await fn(); } finally { pendingRef.current -= 1; }
+  };
+
+  const addTask = useCallback((rowEmail, dayIndex, text) => track(async () => {
+    // Optimistic insert with a temp id so a fast typist can keep going without
+    // waiting on the round trip. Replaced by the real row on success.
+    const tempId = `tmp-${Date.now()}-${Math.random()}`;
+    const optimistic = {
+      id: tempId, week_key: weekRef.current, row_owner_email: rowEmail,
+      day_index: dayIndex, text, done: false, position: Number.MAX_SAFE_INTEGER,
+    };
+    setTasks((prev) => [...prev, optimistic]);
     try {
       const r = await apiFetch('/api/delegation', {
         method: 'POST',
@@ -326,83 +110,104 @@ export default function Delegation() {
         body: JSON.stringify({ week: weekRef.current, row_owner_email: rowEmail, day_index: dayIndex, text }),
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Save failed');
-      setNotes((prev) => replace(prev, data.note));
-    } catch (e) { setError(e.message); load(weekRef.current, { quiet: true }); }
-    finally { pendingRef.current -= 1; }
-  }, [me.email, load]);
+      if (!r.ok) throw new Error(data.error || 'Could not add that item');
+      setTasks((prev) => prev.map((t) => (t.id === tempId ? data.task : t)));
+    } catch (e) {
+      // Roll the optimistic row back out rather than leaving a ghost item that
+      // looks saved and isn't.
+      setTasks((prev) => prev.filter((t) => t.id !== tempId));
+      setError(e.message);
+    }
+  }), []);
 
-  // Commit a finished stroke: paint it optimistically, then persist + reconcile.
-  const commitStroke = useCallback(async (rowEmail, points) => {
-    const temp = {
-      id: `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      week_key: weekRef.current,
-      row_owner_email: rowEmail,
-      points,
-      color,
-      created_by_email: me.email,
-      _pending: true,
-    };
-    setStrokes((prev) => [...prev, temp]);
-    pendingRef.current += 1;
+  const setDone = useCallback((task, done) => track(async () => {
+    const before = task.done;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done } : t)));
     try {
       const r = await apiFetch('/api/delegation', {
-        method: 'POST',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ week: weekRef.current, row_owner_email: rowEmail, points, color }),
+        body: JSON.stringify({ id: task.id, done }),
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Save failed');
-      // Swap temp→saved. Defer if a stroke is in progress so the repaint can't hitch it.
-      const apply = () => setStrokes((prev) => prev.map((s) => (s.id === temp.id ? data.stroke : s)));
-      if (drawingRef.current) deferredRef.current.push(apply); else apply();
+      if (!r.ok) throw new Error(data.error || 'Could not update that item');
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? data.task : t)));
     } catch (e) {
-      const rollback = () => setStrokes((prev) => prev.filter((s) => s.id !== temp.id));
-      if (drawingRef.current) deferredRef.current.push(rollback); else rollback();
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: before } : t)));
       setError(e.message);
-    } finally {
-      pendingRef.current -= 1;
     }
-  }, [color, me.email]);
+  }), []);
 
-  // Undo: remove the last stroke the current user can delete in this row.
-  const undoRow = useCallback(async (rowEmail) => {
-    const mine = strokes.filter(
-      (s) => s.row_owner_email === rowEmail && !s._pending &&
-        (me.is_admin || s.created_by_email === me.email),
-    );
-    const last = mine[mine.length - 1];
-    if (!last) return;
-    setStrokes((prev) => prev.filter((s) => s.id !== last.id));
+  const renameTask = useCallback((task, text) => track(async () => {
+    if (!text.trim() || text.trim() === task.text) return;
+    const before = task.text;
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, text } : t)));
+    try {
+      const r = await apiFetch('/api/delegation', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: task.id, text }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Could not rename that item');
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? data.task : t)));
+    } catch (e) {
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, text: before } : t)));
+      setError(e.message);
+    }
+  }), []);
+
+  const removeTask = useCallback((task) => track(async () => {
+    setTasks((prev) => prev.filter((t) => t.id !== task.id));
     try {
       const r = await apiFetch('/api/delegation', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: last.id }),
+        body: JSON.stringify({ id: task.id }),
       });
-      if (!r.ok) throw new Error((await r.json()).error || 'Undo failed');
-    } catch (e) { setError(e.message); load(weekRef.current, { quiet: true }); }
-  }, [strokes, me, load]);
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not remove that item');
+      }
+    } catch (e) {
+      setTasks((prev) => [...prev, task]);
+      setError(e.message);
+    }
+  }), []);
 
   const clearRow = useCallback(async (rowEmail) => {
-    if (!(strokesByRow.get(rowEmail) || []).length) return;
-    if (!window.confirm('Clear this whole row for the week?')) return;
-    setStrokes((prev) => prev.filter((s) => s.row_owner_email !== rowEmail));
-    try {
+    const count = DAYS.reduce((n, _, d) => n + (tasksByCell.get(`${rowEmail}|${d}`) || []).length, 0);
+    if (!count) return;
+    // Clearing a week's row is a handful of items at once and there is no undo,
+    // so it asks first — unlike ticking a box, which is trivially reversible.
+    if (!window.confirm(`Clear all ${count} item${count === 1 ? '' : 's'} from this row for the week?`)) return;
+    await track(async () => {
       const r = await apiFetch('/api/delegation', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ week: weekRef.current, row_owner_email: rowEmail, clearRow: true }),
       });
-      if (!r.ok) throw new Error((await r.json()).error || 'Clear failed');
-    } catch (e) { setError(e.message); load(weekRef.current, { quiet: true }); }
-  }, [strokesByRow, load]);
+      if (!r.ok) {
+        const data = await r.json().catch(() => ({}));
+        setError(data.error || 'Could not clear that row');
+        return;
+      }
+      setTasks((prev) => prev.filter((t) => t.row_owner_email !== rowEmail));
+    });
+  }, [tasksByCell]);
 
   const isThisWeek = weekKey === isoDate(mondayOf(new Date()));
   const dayDates = useMemo(() => DAYS.map((_, i) => addDays(parseISO(weekKey), i).getDate()), [weekKey]);
+  const todayIndex = isThisWeek ? (new Date().getDay() + 6) % 7 : -1; // Mon=0 … Sun=6
+
+  const rowProps = {
+    tasksByCell, todayIndex,
+    onAdd: addTask, onToggle: setDone, onRename: renameTask, onRemove: removeTask,
+    onEditingChange: (v) => { editingRef.current = v; },
+  };
 
   return (
-    <div className="page deleg" ref={pageRef}>
+    <div className="page deleg">
       <div className="page-head">
         <div>
           <div className="eyebrow">Workspace</div>
@@ -422,329 +227,221 @@ export default function Delegation() {
             <button className="btn deleg-today" onClick={() => setWeekKey(isoDate(mondayOf(new Date())))}>Today</button>
           )}
         </div>
-        <div className="deleg-tools">
-          <div className="deleg-modes" role="group" aria-label="Pen or type mode">
-            <button className={`deleg-mode${mode === 'pen' ? ' active' : ''}`} onClick={() => setMode('pen')} aria-pressed={mode === 'pen'}>✏ Pen</button>
-            <button className={`deleg-mode${mode === 'type' ? ' active' : ''}`} onClick={() => setMode('type')} aria-pressed={mode === 'type'}>⌨ Type</button>
-          </div>
-          <div className={`deleg-colors${mode === 'type' ? ' dim' : ''}`} role="group" aria-label="Pen color">
-            {COLORS.map((c) => (
-              <button
-                key={c.hex}
-                className={`deleg-swatch${color === c.hex ? ' active' : ''}`}
-                style={{ background: c.hex }}
-                onClick={() => setColor(c.hex)}
-                aria-label={c.name}
-                aria-pressed={color === c.hex}
-                title={c.name}
-              />
-            ))}
-          </div>
-          <div className="deleg-zoom" role="group" aria-label="Zoom">
-            <button className="deleg-zoombtn" onClick={() => zoomAround(zoom - ZOOM_STEP)} disabled={zoom <= ZOOM_MIN} aria-label="Zoom out" title="Zoom out">−</button>
-            <button className="deleg-zoomlevel" onClick={() => zoomAround(1)} title="Reset to 100%">{Math.round(zoom * 100)}%</button>
-            <button className="deleg-zoombtn" onClick={() => zoomAround(zoom + ZOOM_STEP)} disabled={zoom >= ZOOM_MAX} aria-label="Zoom in" title="Zoom in">+</button>
-          </div>
-        </div>
       </div>
 
       {status === 'error' && (
-        <div className="deleg-error">Couldn’t load the board: {error} <button className="btn" onClick={() => load(weekKey)}>Retry</button></div>
+        <div className="deleg-error">
+          Couldn’t load the board: {error} <button className="btn" onClick={() => load(weekKey)}>Retry</button>
+        </div>
+      )}
+      {status !== 'error' && error && (
+        <div className="deleg-error">{error} <button className="btn" onClick={() => setError('')}>Dismiss</button></div>
       )}
 
-      <div className="deleg-scroll" ref={scrollRef}>
-      <div className="deleg-grid" ref={gridRef} style={{ '--dz': zoom }}>
-        <div className="deleg-headrow">
-          <div className="deleg-namecell deleg-headcorner" />
-          <div className="deleg-days">
-            {DAYS.map((d, i) => (
-              <div key={d} className="deleg-day">
-                <span className="deleg-dayname">{d}</span>
-                <span className="deleg-daydate">{dayDates[i]}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {status === 'loading' && members.length === 0 && (
-          <div className="deleg-loading">Loading board…</div>
-        )}
-
-        {members.length > 0 && (
-          <div className="deleg-row studio">
-            <div className="deleg-namecell">
-              <div className="deleg-name">Everyone</div>
-              <div className="deleg-studiohint">Shared · all staff</div>
-              {me.is_admin && (
-                <div className="deleg-rowtools">
-                  <button className="deleg-tool" onClick={() => undoRow(STUDIO_ROW)} title="Undo last stroke">↶</button>
-                  <button className="deleg-tool" onClick={() => clearRow(STUDIO_ROW)} title="Clear row">Clear</button>
+      <div className="deleg-scroll">
+        <div className="deleg-grid">
+          <div className="deleg-headrow">
+            <div className="deleg-namecell deleg-headcorner" />
+            <div className="deleg-days">
+              {DAYS.map((d, i) => (
+                <div key={d} className={`deleg-day${i === todayIndex ? ' is-today' : ''}`}>
+                  <span className="deleg-dayname">{d}</span>
+                  <span className="deleg-daydate">{dayDates[i]}</span>
                 </div>
-              )}
+              ))}
             </div>
-            <RowCanvas
-              strokes={strokesByRow.get(STUDIO_ROW) || []}
-              color={color}
-              writable={me.is_admin}
-              mode={mode}
-              rowHeight={Math.round(ROW_H * zoom)}
-              noteFor={(d) => notesByCell.get(`${STUDIO_ROW}|${d}`)}
-              onDrawingChange={(v) => { drawingRef.current = v; setInking(v); if (!v) lastInkRef.current = Date.now(); }}
-              onEditingChange={(v) => { editingRef.current = v; }}
-              onCommit={(pts) => commitStroke(STUDIO_ROW, pts)}
-              onSaveNote={(d, text) => saveNote(STUDIO_ROW, d, text)}
-            />
           </div>
-        )}
 
-        {members.map((mem) => {
-          const writable = me.is_admin || me.email === mem.clerk_email;
-          const rowStrokes = strokesByRow.get(mem.clerk_email) || [];
-          return (
-            <div key={mem.clerk_email} className={`deleg-row${writable ? '' : ' readonly'}`}>
+          {status === 'loading' && members.length === 0 && (
+            <div className="deleg-loading">Loading board…</div>
+          )}
+
+          {members.length > 0 && (
+            <div className="deleg-row studio">
               <div className="deleg-namecell">
-                <div className="deleg-name">{mem.name}</div>
-                {writable && (
+                <div className="deleg-name">Everyone</div>
+                <div className="deleg-studiohint">Shared · all staff</div>
+                {me.is_admin && (
                   <div className="deleg-rowtools">
-                    <button className="deleg-tool" onClick={() => undoRow(mem.clerk_email)} title="Undo last stroke">↶</button>
-                    <button className="deleg-tool" onClick={() => clearRow(mem.clerk_email)} title="Clear row">Clear</button>
+                    <button className="deleg-tool" onClick={() => clearRow(STUDIO_ROW)} title="Clear this row for the week">Clear</button>
                   </div>
                 )}
-                {mem.clerk_email === me.email && <div className="deleg-youtag">You</div>}
               </div>
-              <RowCanvas
-                strokes={rowStrokes}
-                color={color}
-                writable={writable}
-                mode={mode}
-                rowHeight={Math.round(ROW_H * zoom)}
-                noteFor={(d) => notesByCell.get(`${mem.clerk_email}|${d}`)}
-                onDrawingChange={(v) => { drawingRef.current = v; setInking(v); if (!v) lastInkRef.current = Date.now(); }}
-                onEditingChange={(v) => { editingRef.current = v; }}
-                onCommit={(pts) => commitStroke(mem.clerk_email, pts)}
-                onSaveNote={(d, text) => saveNote(mem.clerk_email, d, text)}
-              />
+              <TaskRow rowEmail={STUDIO_ROW} writable={me.is_admin} {...rowProps} />
             </div>
-          );
-        })}
-      </div>
+          )}
+
+          {members.map((mem) => {
+            const writable = me.is_admin || me.email === mem.clerk_email;
+            return (
+              <div key={mem.clerk_email} className={`deleg-row${writable ? '' : ' readonly'}`}>
+                <div className="deleg-namecell">
+                  <div className="deleg-name">{mem.name}</div>
+                  {writable && (
+                    <div className="deleg-rowtools">
+                      <button className="deleg-tool" onClick={() => clearRow(mem.clerk_email)} title="Clear this row for the week">Clear</button>
+                    </div>
+                  )}
+                  {mem.clerk_email === me.email && <div className="deleg-youtag">You</div>}
+                </div>
+                <TaskRow rowEmail={mem.clerk_email} writable={writable} {...rowProps} />
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <p className="deleg-foot">
-        You can draw or type in your own row{me.is_admin ? ' — and, as admin, in any row' : ''}. Use <strong>✏ Pen</strong> to ink (Apple Pencil on iPad, mouse on desktop) or <strong>⌨ Type</strong> to click a day and type a note. Everyone sees updates within a few seconds.
+        Add items to your own row{me.is_admin ? ' — and, as admin, to any row' : ''}, then tick them off
+        as you go. Press <strong>Enter</strong> to add another straight away. Everyone sees updates
+        within a few seconds.
       </p>
     </div>
   );
 }
 
-// One employee's strip: a canvas that captures native pen/mouse ink over a light
-// "paper" surface, with a per-day typed-note overlay on top. Read-only rows still
-// render everyone's ink + notes, just without capture/editing. In 'type' mode the
-// canvas ignores the pointer so the note textareas receive clicks; in 'pen' mode
-// the note layer is click-through so ink draws over the text.
-function RowCanvas({ strokes, color, writable, mode, rowHeight = ROW_H, noteFor, onCommit, onDrawingChange, onSaveNote, onEditingChange }) {
-  const canvasRef = useRef(null);
-  const wrapRef = useRef(null);
-  const drawing = useRef(null); // { points: [{x,y,pressure,t}], color } while active
-  const activePointerRef = useRef(null); // pointerId of the pen/mouse that owns the active stroke
-  const sizeRef = useRef({ w: 0, h: rowHeight });
-
-  // Paint the paper, gridlines, all committed strokes, and any in-progress stroke.
-  const render = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const { w, h } = sizeRef.current;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const dpr = window.devicePixelRatio || 1;
-    ctx.scale(dpr, dpr);
-
-    // paper + day columns
-    ctx.fillStyle = PAPER;
-    ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = GRIDLINE;
-    ctx.lineWidth = 1;
-    for (let i = 1; i < DAYS.length; i++) {
-      const x = Math.round((w * i) / DAYS.length) + 0.5;
-      ctx.beginPath();
-      ctx.moveTo(x, 6);
-      ctx.lineTo(x, h - 6);
-      ctx.stroke();
-    }
-
-    const all = drawing.current ? [...strokes, drawing.current] : strokes;
-    for (const s of all) drawStroke(ctx, s, w, h);
-    ctx.restore();
-  }, [strokes]);
-
-  // Size the backing store to the element (DPR-aware) and repaint on resize. A layout
-  // effect (not useEffect) so on a zoom commit the canvas is re-sized + repainted crisp
-  // BEFORE paint — in the same frame the parent drops the pinch transform — so releasing
-  // a pinch never flashes an old-size raster.
-  useLayoutEffect(() => {
-    const wrap = wrapRef.current;
-    const canvas = canvasRef.current;
-    if (!wrap || !canvas) return;
-    const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
-      const w = wrap.clientWidth;
-      // The notes layer (in flow) defines the wrap's height — it grows past rowHeight when
-      // a cell has a lot of text — so measure it rather than using the fixed base height.
-      // Ink is stored normalized (0..1), so it just rescales to fill the taller row.
-      const h = wrap.clientHeight || rowHeight;
-      sizeRef.current = { w, h };
-      canvas.width = Math.round(w * dpr);
-      canvas.height = Math.round(h * dpr);
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-      render();
-    };
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(wrap);
-    return () => ro.disconnect();
-  }, [render, rowHeight]);
-
-  useEffect(() => { render(); }, [strokes, render]);
-
-  const norm = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    return {
-      x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
-      y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
-      pressure: e.pressure > 0 ? e.pressure : 0.5,
-      t: Date.now(),
-    };
-  };
-
-  // Palm rejection: the Apple Pencil is a 'pen' pointer; a resting palm is a 'touch'
-  // pointer. We only ever draw with the pen (or a desktop mouse), and — critically —
-  // once a stroke starts we lock onto that one pointerId. Every later handler ignores
-  // any event that isn't from the owning pointer, so a palm's touch up/cancel/leave
-  // can't finish (interrupt) the pen stroke that's in progress.
-  const onPointerDown = (e) => {
-    if (!writable) return;
-    if (e.pointerType === 'touch') { e.preventDefault(); return; } // swallow palm; don't draw
-    // Recover from a stuck stroke: iPadOS intermittently drops a pointerup/pointercancel
-    // for the Pencil, leaving drawing.current set. If we just bailed here, this fresh pen
-    // contact would be silently ignored — a "randomly missed stroke". Finalize the stale
-    // stroke (preserving its ink) and start this one instead.
-    if (drawing.current) finish();
-    e.preventDefault();
-    // A setPointerCapture throw (also seen on iPad) must not abort the stroke — draw anyway.
-    try { canvasRef.current.setPointerCapture(e.pointerId); } catch { /* not captured; still draws */ }
-    activePointerRef.current = e.pointerId;
-    drawing.current = { points: [norm(e)], color };
-    onDrawingChange(true);
-    render();
-  };
-  const onPointerMove = (e) => {
-    // Implicit start: on hover-capable iPads the Pencil hovers before contact, and
-    // iPadOS sometimes drops the pointerdown entirely — only pointermoves arrive once
-    // the tip is already down (pressure > 0). Without this the whole stroke never
-    // registers (the "missed stroke that never appears"). Begin the stroke from the
-    // first pressured pen move. (Hovering pen / button-up mouse report pressure 0.)
-    if (!drawing.current) {
-      // Contact = tip pressure, OR the primary "button" bit iPadOS sets when the tip is
-      // down (some light/fast contacts report pressure 0 on the first sample). Hovering
-      // pen and button-up mouse report both as 0, so they stay ignored.
-      const inContact = e.pressure > 0 || (e.buttons & 1) === 1;
-      if (!writable || e.pointerType === 'touch' || !inContact) return;
-      try { canvasRef.current.setPointerCapture(e.pointerId); } catch { /* draw anyway */ }
-      activePointerRef.current = e.pointerId;
-      drawing.current = { points: [], color };
-      onDrawingChange(true);
-    } else if (e.pointerId !== activePointerRef.current) {
-      return;
-    }
-    // Coalesced events give smoother high-frequency pen input where supported.
-    const evts = e.nativeEvent.getCoalescedEvents ? e.nativeEvent.getCoalescedEvents() : [e];
-    for (const ev of evts) drawing.current.points.push(norm(ev.clientX != null ? ev : e));
-    render();
-  };
-  const finish = (e) => {
-    if (e) { try { canvasRef.current.releasePointerCapture(e.pointerId); } catch { /* already released */ } }
-    activePointerRef.current = null;
-    const stroke = drawing.current;
-    drawing.current = null;
-    onDrawingChange(false);
-    if (stroke && stroke.points.length) {
-      // Do NOT render() here. drawing.current is now null but the committed strokes
-      // state doesn't yet include this stroke, so a repaint would blank it for one
-      // frame ("stops writing" flicker on every word). Leave the last drawn frame on
-      // the canvas; onCommit → setStrokes triggers a state-driven repaint that redraws
-      // it (with the temp stroke) seamlessly.
-      onCommit(stroke.points);
-    } else {
-      render(); // nothing committed — repaint to drop the aborted stroke
-    }
-  };
-  const onPointerUp = (e) => {
-    if (!drawing.current || e.pointerId !== activePointerRef.current) return;
-    finish(e);
-  };
-
-  // Window-level safety net: if iPadOS drops the Pencil's pointerup/cancel and it never
-  // reaches the canvas (e.g. pointer capture failed), the last stroke would sit unsynced
-  // forever. A document-level up/cancel finalizes it so it still commits. finishRef keeps
-  // the listener pointing at the latest closure without re-subscribing every render.
-  const finishRef = useRef(finish);
-  finishRef.current = finish;
-  useEffect(() => {
-    const onWinEnd = () => { if (drawing.current) finishRef.current(); };
-    window.addEventListener('pointerup', onWinEnd);
-    window.addEventListener('pointercancel', onWinEnd);
-    return () => {
-      window.removeEventListener('pointerup', onWinEnd);
-      window.removeEventListener('pointercancel', onWinEnd);
-    };
-  }, []);
-
-  const typing = mode === 'type';
-  // Grow an editing textarea to fit its content (min-height keeps it filling the cell) so
-  // the row expands as you type — matching how the read-only cells grow, no clipping.
-  const autosize = (el) => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } };
+// One person's week: five day cells, each a checklist.
+function TaskRow({
+  rowEmail, writable, tasksByCell, todayIndex,
+  onAdd, onToggle, onRename, onRemove, onEditingChange,
+}) {
   return (
-    <div className="deleg-canvaswrap" ref={wrapRef}>
-      <canvas
-        ref={canvasRef}
-        className="deleg-canvas"
-        style={{ touchAction: 'none', pointerEvents: typing ? 'none' : 'auto', cursor: writable ? 'crosshair' : 'default' }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      />
-      <div className={`deleg-notes${typing ? ' typing' : ''}`} style={{ minHeight: rowHeight }}>
-        {DAYS.map((_, d) => {
-          const note = noteFor(d);
-          const editable = writable && typing;
-          if (editable) {
-            return (
-              <textarea
-                key={`n-${d}-${note?.id || 'empty'}-${note?.updated_at || ''}`}
-                className="deleg-notecell edit"
-                style={{ minHeight: rowHeight }}
-                ref={autosize}
-                defaultValue={note?.text || ''}
-                placeholder="Add a note…"
-                onInput={(e) => autosize(e.target)}
-                onFocus={() => onEditingChange(true)}
-                onBlur={(e) => {
-                  onEditingChange(false);
-                  const next = e.target.value;
-                  if (next.trim() !== (note?.text || '').trim()) onSaveNote(d, next);
-                }}
-              />
-            );
-          }
-          return (
-            <div key={`n-${d}`} className="deleg-notecell">{note?.text || ''}</div>
-          );
-        })}
-      </div>
+    <div className="deleg-days deleg-daycells">
+      {DAYS.map((_, day) => (
+        <DayCell
+          key={day}
+          tasks={tasksByCell.get(`${rowEmail}|${day}`) || []}
+          isToday={day === todayIndex}
+          writable={writable}
+          onAdd={(text) => onAdd(rowEmail, day, text)}
+          onToggle={onToggle}
+          onRename={onRename}
+          onRemove={onRemove}
+          onEditingChange={onEditingChange}
+        />
+      ))}
     </div>
+  );
+}
+
+function DayCell({ tasks, isToday, writable, onAdd, onToggle, onRename, onRemove, onEditingChange }) {
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef(null);
+
+  const commit = () => {
+    const text = draft.trim();
+    if (!text) return;
+    onAdd(text);
+    setDraft('');
+    // Keep focus so a list can be typed straight through — the way Ang actually
+    // fills a day (six items, one after another) rather than click-type-click.
+    inputRef.current?.focus();
+  };
+
+  const doneCount = tasks.filter((t) => t.done).length;
+
+  return (
+    <div className={`deleg-cell${isToday ? ' is-today' : ''}`}>
+      {tasks.length > 0 && (
+        <ul className="deleg-tasks">
+          {tasks.map((t) => (
+            <TaskItem
+              key={t.id}
+              task={t}
+              writable={writable}
+              onToggle={onToggle}
+              onRename={onRename}
+              onRemove={onRemove}
+              onEditingChange={onEditingChange}
+            />
+          ))}
+        </ul>
+      )}
+
+      {/* Only once something is finished — an "0 of 0 done" counter on an empty
+          day would be noise on 25 cells at once. */}
+      {doneCount > 0 && (
+        <div className="deleg-cellcount">{doneCount} of {tasks.length} done</div>
+      )}
+
+      {writable && (
+        <input
+          ref={inputRef}
+          className="deleg-add"
+          placeholder="+ Add"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onFocus={() => onEditingChange(true)}
+          onBlur={() => { onEditingChange(false); commit(); }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commit(); }
+            if (e.key === 'Escape') { setDraft(''); e.currentTarget.blur(); }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function TaskItem({ task, writable, onToggle, onRename, onRemove, onEditingChange }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(task.text);
+
+  const stopEditing = (save) => {
+    setEditing(false);
+    onEditingChange(false);
+    if (save) onRename(task, text);
+    else setText(task.text);
+  };
+
+  if (editing) {
+    return (
+      <li className="deleg-task is-editing">
+        <input
+          className="deleg-taskedit"
+          value={text}
+          autoFocus
+          onChange={(e) => setText(e.target.value)}
+          onBlur={() => stopEditing(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); stopEditing(true); }
+            if (e.key === 'Escape') { e.preventDefault(); stopEditing(false); }
+          }}
+        />
+      </li>
+    );
+  }
+
+  return (
+    <li className={`deleg-task${task.done ? ' is-done' : ''}`}>
+      <label className="deleg-taskmain">
+        <input
+          type="checkbox"
+          className="deleg-taskbox"
+          checked={Boolean(task.done)}
+          disabled={!writable}
+          onChange={(e) => onToggle(task, e.target.checked)}
+        />
+        <span
+          className="deleg-tasktext"
+          title={task.done && task.done_by_email ? `Done by ${task.done_by_email}` : undefined}
+        >
+          {task.text}
+        </span>
+      </label>
+      {writable && (
+        <span className="deleg-taskactions">
+          <button
+            type="button"
+            className="deleg-taskbtn"
+            title="Edit"
+            onClick={() => { setText(task.text); setEditing(true); onEditingChange(true); }}
+          >
+            ✎
+          </button>
+          <button type="button" className="deleg-taskbtn is-del" title="Remove" onClick={() => onRemove(task)}>×</button>
+        </span>
+      )}
+    </li>
   );
 }
