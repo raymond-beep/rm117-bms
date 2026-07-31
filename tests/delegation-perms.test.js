@@ -1,15 +1,15 @@
-// Delegation Board row-level write permissions — the security rule of the feature.
-// A staff member may draw/clear ONLY their own row; the admin (Angelena) may draw
-// in any row. Enforced server-side in api/delegation.js (this app can't use RLS —
-// Supabase is reached only via the service-role key). If this ever regresses, one
-// employee could scribble in another's row via a direct API call.
+// Weekly Planner row-level write permissions — the security rule of the feature.
+// A staff member may edit ONLY their own row; the admin (Angelena) may edit any row.
+// Enforced server-side in api/delegation.js (this app can't use RLS — Supabase is
+// reached only via the service-role key). If this ever regresses, one employee could
+// rewrite or tick off another's list via a direct API call.
 import { describe, it, expect } from 'vitest';
-import { canWrite, canDelete, STUDIO_ROW } from '../api/delegation.js';
+import { canWrite, canModifyTask, STUDIO_ROW } from '../api/delegation.js';
 
 const ray = { email: 'raymond@rm117.com', is_admin: false };
 const ang = { email: 'angelena@rm117.com', is_admin: true };
 
-describe('canWrite (draw/clear a row)', () => {
+describe('canWrite (edit/clear a row)', () => {
   it('lets a staff member write their own row', () => {
     expect(canWrite(ray, 'raymond@rm117.com')).toBe(true);
   });
@@ -40,21 +40,34 @@ describe('canWrite (draw/clear a row)', () => {
   });
 });
 
-describe('canDelete (undo a stroke)', () => {
-  it('lets a staff member delete a stroke they created', () => {
-    expect(canDelete(ray, { created_by_email: 'raymond@rm117.com' })).toBe(true);
+describe('canModifyTask (tick / rename / remove an item)', () => {
+  // ⭐ Keyed on the ROW the task sits in, NOT on who created it. Angelena assigns
+  // most items, so an author-based rule would mean nobody could tick off their own
+  // work — the one interaction the board exists for. This test is the guard against
+  // someone "tightening" it to created_by_email and silently breaking the feature.
+  it('lets you tick an item in your OWN row that the admin assigned to you', () => {
+    expect(canModifyTask(ray, {
+      row_owner_email: 'raymond@rm117.com', created_by_email: 'angelena@rm117.com',
+    })).toBe(true);
   });
 
-  it("blocks deleting someone else's stroke", () => {
-    expect(canDelete(ray, { created_by_email: 'tom@rm117.com' })).toBe(false);
+  it("blocks touching an item in someone else's row, even one you created", () => {
+    expect(canModifyTask(ray, {
+      row_owner_email: 'tom@rm117.com', created_by_email: 'raymond@rm117.com',
+    })).toBe(false);
   });
 
-  it('lets the admin delete any stroke', () => {
-    expect(canDelete(ang, { created_by_email: 'tom@rm117.com' })).toBe(true);
+  it('lets the admin modify any row', () => {
+    expect(canModifyTask(ang, { row_owner_email: 'tom@rm117.com' })).toBe(true);
   });
 
-  it('rejects a missing actor or stroke', () => {
-    expect(canDelete(null, { created_by_email: 'tom@rm117.com' })).toBe(false);
-    expect(canDelete(ray, null)).toBe(false);
+  it('keeps the shared Everyone lane admin-only', () => {
+    expect(canModifyTask(ray, { row_owner_email: STUDIO_ROW })).toBe(false);
+    expect(canModifyTask(ang, { row_owner_email: STUDIO_ROW })).toBe(true);
+  });
+
+  it('rejects a missing actor or task', () => {
+    expect(canModifyTask(null, { row_owner_email: 'tom@rm117.com' })).toBe(false);
+    expect(canModifyTask(ray, null)).toBe(false);
   });
 });

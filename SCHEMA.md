@@ -249,7 +249,36 @@ identity joined to the signed-in Clerk user.
 | `sort_order` | int not null | row order top→bottom (Tom·Nicole·Danielle·Angelena·Raymond) |
 | `created_at` | timestamptz | |
 
-### `delegation_strokes` (Delegation Board)
+### `delegation_tasks` (Weekly Planner — migration `0022`)
+One checklist item in one person's day. **This is what the planner is now.**
+
+The board replaced ink + free-text notes with checklists on 2026-07-31, because that
+is what it was already being used for: `delegation_strokes` had **2 rows** in the
+board's whole life, while `delegation_notes` had 31 — every one written by Angelena,
+and already written as a list, one item per line. Migration 0022 turned all 68 of
+those lines into tasks.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | uuid PK | |
+| `week_key` | text | the Monday, `YYYY-MM-DD` |
+| `row_owner_email` | text | a member's `clerk_email`, or the reserved `'__studio__'` (Everyone lane) |
+| `day_index` | integer | 0..4 = Mon..Fri (`check`) |
+| `text` | text | one line |
+| `done` | boolean | default false |
+| `done_at` / `done_by_email` | timestamptz / text | ⚠️ stamped on tick and **cleared on untick**, so an un-ticked item never carries a stale "done by" |
+| `position` | integer | manual order in the cell. ⚠️ **Not** sorted by `created_at` — Ang writes a day top to bottom and the sequence carries meaning (a 9:30 walkthrough before an 11:00 measure) |
+| `created_by_email` | text | who added it — usually Ang, since she assigns |
+| `created_at` / `updated_at` | timestamptz | |
+
+⚠️ **Write permission keys on `row_owner_email`, never on `created_by_email`.**
+Angelena assigns most items, so an author-based rule would mean nobody could tick off
+their own work — the single interaction the board exists for. See `canModifyTask()`.
+
+### `delegation_strokes` (Weekly Planner) — ⚠️ RETIRED
+⛔ **Nothing reads or writes this.** Held **2 rows** for the board's entire life — the pen was
+Angelena's request and she never used it. Kept as a tombstone; the renderer is in git history.
+
 One ink stroke on a weekly board. `points` are normalized 0..1 (relative to the row canvas) so ink
 scales across iPad + desktop. Row-level write permission is enforced in `api/delegation.js` (own row,
 or admin) — **not** RLS, since the app reaches Supabase only via the service-role key.
@@ -264,7 +293,10 @@ or admin) — **not** RLS, since the app reaches Supabase only via the service-r
 | `created_at` | timestamptz | |
 | | | index on `(week_key, row_owner_email)` |
 
-### `delegation_notes` (Delegation Board)
+### `delegation_notes` (Weekly Planner) — ⚠️ RETIRED, but DO NOT DROP
+⛔ Nothing reads or writes this any more. **Keep it:** migration 0022 backfilled
+`delegation_tasks` from these 31 rows, so they are what makes that conversion reversible —
+delete the tasks and the original text is still here.
 Typed notes for the board — one per (week, employee row, weekday cell), coexisting with the freehand
 ink. Same server-side write permission (own row, or admin). Blank text deletes the cell's note; edits
 `upsert` on the unique triple.
