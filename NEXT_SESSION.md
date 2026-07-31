@@ -1,6 +1,43 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-31 — **MAIL + CORRESPONDENCE IS MERGED AND DEPLOYED** (452 tests green).
-Canonical doc = **`MAIL.md`** — read that first.
+**Last updated:** 2026-07-31 — two things shipped this session: **Mail + Correspondence**
+(canonical doc = **`MAIL.md`**) and the **Weekly Planner rebuilt as checklists**. 453 tests green,
+both merged and deployed.
+
+---
+
+# ▶ START HERE 2026-07-31 — Weekly Planner is now CHECKLISTS (pen removed)
+
+**Shipped to production** (merge `4343030`, verified live). `/delegation` is a Mon–Fri × employee
+grid where **every cell is a checklist**: type an item, Enter to add another, tick it off (checked
+box + line-through, plus "3 of 7 done"). Own-row items are also tickable from the dashboard
+"My week" widget.
+
+**Why the pen went.** It was Angelena's request and she never used it — `delegation_strokes` held
+**2 rows** in the board's entire life. What she *does* use is the typed notes: **31 rows, every one
+authored by her**, and already written as lists, one item per line. So the board was rebuilt as what
+it was actually being used for, rather than as what was asked for a year ago.
+
+**Migration `0022`** converted all **68 of her lines** into `delegation_tasks`, keeping person, day,
+week and order — so she opened it to a filled-in checklist, not a blank grid.
+⚠️ **`delegation_notes` + `delegation_strokes` are KEPT, unread.** The notes are what the backfill
+read, so deleting the tasks restores the original text. That is the escape hatch — do not drop them.
+
+**Removed with the ink:** the Pointer-Events canvas, the Pen/Type toggle, the colour swatches, the
+board **zoom** (it existed only to make cells big enough to HAND-WRITE in — Ray confirmed dropping
+it), the `.inking` touch-action lockdown, and the whole ink-sync cooldown. Net **~900 lines deleted**.
+`MyWeekWidget` was rewritten too — it read strokes and notes, both gone.
+
+⚠️ **`canModifyTask` keys on the ROW, not the author.** Ang assigns most items, so an author-based
+rule would mean nobody could tick off their own work — the one interaction the board exists for.
+There is a test guarding exactly that; don't "tighten" it to `created_by_email`.
+
+### Left open on the planner
+- Not every line is really a to-do — "In Office" is a status, "9:30am Brubaker Walkthrough" is an
+  appointment, and both now carry a checkbox nobody will tick. Ray chose uniform checkboxes for v1;
+  plain header lines are a contained follow-on if it grates in use.
+- Her Monday had **"Tom, Dani, Cris - In Office" copied into all five rows** — exactly what the
+  shared **Everyone** lane exists for. Worth showing her.
+- No drag-to-reorder (`position` supports it; nothing sets it after creation).
 
 ---
 

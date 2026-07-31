@@ -50,6 +50,16 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
   **do NOT run `vercel --prod`** (causes duplicate deploys). A **test gate** runs first: `vercel-build` =
   `vitest run && vite build`, so a failing test aborts the deploy. Roll back via the Vercel dashboard or
   `vercel rollback`. Tests live in `tests/` (Vitest); `npm test` to run locally.
+  - ⚠️ **Builds take ~8–12 min** (45 lambdas). That is NORMAL — don't go hunting for a problem early.
+  - ⭐ **HOW TO TELL IF A DEPLOY IS ACTUALLY LIVE.** Check the **deployment record's
+    `githubCommitSha`** (Vercel MCP `get_deployment` on `rm117-bms.vercel.app`, or the dashboard).
+    Two tempting shortcuts are both WORTHLESS and have each produced a false "it's live" claim:
+    (1) **an endpoint's status code** — `requireStaff` rejects unauthenticated requests *before*
+    method dispatch, so a brand-new `PATCH` route returns 401 on the OLD code too; (2) **grepping the
+    deployed bundle for a UI string** that exists in both versions. If you must probe the bundle, use
+    the **content-hashed chunk filename** (e.g. `assets/Delegation-<hash>.js`) against a local
+    `vite build` — that provably differs between the two builds. A check that cannot distinguish the
+    two states it is meant to distinguish is not evidence.
 
 ## Local dev
 `npm run dev` → Vite (5173) + Express API (3001) via concurrently. Vite proxies `/api/*` →
