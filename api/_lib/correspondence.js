@@ -98,6 +98,37 @@ export function buildTimeline({ threads = [], notifications = [] } = {}) {
   return entries.sort(byNewest);
 }
 
+// Resolve requested CONTACT IDS to the addresses they are allowed to reach.
+//
+// ⭐ THIS IS THE SECURITY BOUNDARY FOR COMPOSE, which is why it is a pure,
+// separately-tested function rather than three lines inside the endpoint.
+//
+// A reply is safe because the server recomputes recipients from the message being
+// answered — the UI may DROP an address but never add one. A new message has no
+// such anchor, so if compose accepted addresses from the request body, any
+// authenticated staff session could send mail as a real person at a real firm to
+// anywhere. Instead the caller names contacts by ID and this maps them, so the
+// reachable set is exactly "contacts already added to this client".
+//
+// Deactivated contacts are excluded: a project manager who left the developer must
+// stop being emailable, the same rule that revokes their portal link on removal.
+export function resolveRecipients(contacts = [], contactIds = []) {
+  const wanted = new Set((contactIds || []).map((id) => String(id)));
+  return (contacts || []).filter((c) => (
+    c
+    && wanted.has(String(c.id))
+    && c.is_active !== false
+    && Boolean(c.email)
+  ));
+}
+
+// `Name <addr>` for each recipient, as a To: header value.
+export function formatRecipients(contacts = []) {
+  return contacts
+    .map((c) => (c.name ? `${c.name} <${c.email}>` : c.email))
+    .join(', ');
+}
+
 // One-line summary for the tab badge / job card.
 export function summarize(timeline = []) {
   const threads = timeline.filter((e) => e.kind === 'thread');

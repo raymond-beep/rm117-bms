@@ -165,9 +165,153 @@ function NotificationEntry({ entry }) {
   );
 }
 
+// Start a new conversation from the job.
+//
+// ⚠️ There is no free-text address field, on purpose. The server takes CONTACT IDS
+// and resolves them against this client's `client_contacts` — see api/inbox/compose.js
+// for why. A compose box that accepted typed addresses would turn any staff session
+// into a relay sending as a real person at a real firm; a reply is safe only because
+// its recipients are recomputed from the message being answered, and a new message
+// has no such anchor. Adding a recipient is a deliberate act in the contacts UI.
+function Compose({ job, onSent }) {
+  const { getToken } = useAuth();
+  const [open, setOpen] = useState(false);
+  const [contacts, setContacts] = useState(null);   // null = not loaded
+  const [picked, setPicked] = useState(() => new Set());
+  const [subject, setSubject] = useState('');
+  const [text, setText] = useState('');
+  const [state, setState] = useState({ status: 'idle' });
+
+  useEffect(() => {
+    if (!open || contacts) return;
+    (async () => {
+      try {
+        const token = await getToken();
+        const r = await fetch(`/api/client-contacts?client_id=${encodeURIComponent(job.client_id)}`, {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const d = await r.json();
+        setContacts((d.contacts || []).filter((c) => c.is_active !== false && c.email));
+      } catch {
+        setContacts([]);
+      }
+    })();
+  }, [open, contacts, job.client_id, getToken]);
+
+  // No client means no contact list to resolve against, so there is no safe
+  // recipient set. Say why rather than showing a button that always fails.
+  if (!job.client_id) {
+    return (
+      <div className="corr-compose-blocked">
+        Link a client to this job to email about it — recipients come from the
+        client’s contacts.
+      </div>
+    );
+  }
+
+  const send = async () => {
+    if (state.status === 'sending') return;
+    setState({ status: 'sending' });
+    try {
+      const token = await getToken();
+      const r = await fetch('/api/inbox/compose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          jobId: job.job_id, contactIds: [...picked], subject, text,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setState({ status: 'error', message: d.error || 'Could not send.' }); return; }
+      setState({ status: 'sent' });
+      setSubject(''); setText(''); setPicked(new Set());
+      setTimeout(() => { setOpen(false); setState({ status: 'idle' }); onSent?.(); }, 1200);
+    } catch {
+      setState({ status: 'error', message: 'Could not send.' });
+    }
+  };
+
+  if (!open) {
+    return (
+      <button type="button" className="btn btn-sm corr-compose-open" onClick={() => setOpen(true)}>
+        ✉ New email about this job
+      </button>
+    );
+  }
+
+  const toggle = (id) => setPicked((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+
+  return (
+    <div className="corr-compose">
+      <div className="corr-compose-head">
+        <strong>New email</strong>
+        <button type="button" className="btn btn-sm" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+
+      <div className="corr-compose-to">
+        <span className="mail-rcpt-label">To</span>
+        {contacts === null && <span className="corr-meta">Loading contacts…</span>}
+        {contacts?.length === 0 && (
+          <span className="corr-meta">
+            This client has no contacts yet — add one on the client record first.
+          </span>
+        )}
+        {contacts?.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            className={`mail-rcpt${picked.has(c.id) ? '' : ' is-off'}`}
+            onClick={() => toggle(c.id)}
+            title={c.email}
+          >
+            <span className="mail-rcpt-name">{c.name || c.email}</span>
+            <span className="mail-rcpt-x" aria-hidden="true">{picked.has(c.id) ? '×' : '+'}</span>
+          </button>
+        ))}
+      </div>
+
+      <input
+        className="corr-compose-subject"
+        placeholder="Subject"
+        value={subject}
+        onChange={(e) => setSubject(e.target.value)}
+      />
+      <textarea
+        className="corr-compose-body"
+        rows={5}
+        placeholder="Write your message…"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <div className="corr-compose-foot">
+        <span className="corr-meta">
+          {state.status === 'error' && <span className="corr-error">{state.message}</span>}
+          {state.status === 'sent' && 'Sent ✓ and filed against this job'}
+          {state.status === 'idle' && 'Sends from your own Gmail · filed against this job'}
+          {state.status === 'sending' && 'Sending…'}
+        </span>
+        <button
+          type="button"
+          className="btn"
+          disabled={!picked.size || !subject.trim() || !text.trim() || state.status === 'sending'}
+          onClick={send}
+        >
+          {state.status === 'sending' ? 'Sending…' : 'Send'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function CorrespondenceTab({ job }) {
   const { getToken } = useAuth();
   const [state, setState] = useState({ status: 'loading' });
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -188,7 +332,7 @@ export default function CorrespondenceTab({ job }) {
       }
     })();
     return () => { alive = false; };
-  }, [job.job_id, getToken]);
+  }, [job.job_id, getToken, reloadKey]);
 
   if (state.status === 'loading') {
     return <div className="drawer-body"><div className="placeholder-note">Loading correspondence…</div></div>;
@@ -206,6 +350,8 @@ export default function CorrespondenceTab({ job }) {
         {' '}File a thread from the <strong>Mail</strong> tab; reply there too, so the
         recipients come from the real message.
       </p>
+
+      <Compose job={job} onSent={() => setReloadKey((k) => k + 1)} />
 
       {timeline.length === 0 ? (
         <div className="placeholder-note">

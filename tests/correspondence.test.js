@@ -1,6 +1,8 @@
 // Per-job correspondence timeline — pure, no db.
 import { describe, it, expect } from 'vitest';
-import { buildTimeline, summarize } from '../api/_lib/correspondence.js';
+import {
+  buildTimeline, summarize, resolveRecipients, formatRecipients,
+} from '../api/_lib/correspondence.js';
 
 const thread = {
   id: 't1',
@@ -102,5 +104,68 @@ describe('summarize', () => {
 
   it('is safe on an empty timeline', () => {
     expect(summarize([])).toMatchObject({ threads: 0, notifications: 0, lastAt: null });
+  });
+});
+
+// ── Compose recipient resolution ────────────────────────────────────────────
+// The security boundary for compose. A reply can only ever DROP recipients
+// because the server recomputes them from the message being answered; a new
+// message has no such anchor, so if compose took addresses from the request body
+// any staff session could send mail as a real person to anywhere. Callers name
+// contacts by ID and only this mapping decides who is reachable.
+describe('resolveRecipients', () => {
+  const contacts = [
+    { id: 'c1', name: 'Gabe', email: 'gabe@dev.com', is_active: true },
+    { id: 'c2', name: 'Peter', email: 'peter@dev.com', is_active: true },
+    { id: 'c3', name: 'Ex-PM', email: 'gone@dev.com', is_active: false },
+    { id: 'c4', name: 'No address', email: null, is_active: true },
+  ];
+
+  it('resolves the ids it was given', () => {
+    expect(resolveRecipients(contacts, ['c1', 'c2']).map((c) => c.email))
+      .toEqual(['gabe@dev.com', 'peter@dev.com']);
+  });
+
+  it('IGNORES an id that is not a contact of this client', () => {
+    // The attack this exists to stop: naming something that isn't on the list.
+    expect(resolveRecipients(contacts, ['c1', 'not-a-contact'])).toHaveLength(1);
+  });
+
+  it('cannot be used to reach an arbitrary address', () => {
+    // Addresses in the request are simply not consulted — only ids are.
+    expect(resolveRecipients(contacts, ['attacker@evil.com'])).toEqual([]);
+  });
+
+  it('excludes a DEACTIVATED contact even when named explicitly', () => {
+    // A PM who left the developer must stop being emailable.
+    expect(resolveRecipients(contacts, ['c3'])).toEqual([]);
+  });
+
+  it('skips a contact with no email rather than sending to undefined', () => {
+    expect(resolveRecipients(contacts, ['c4'])).toEqual([]);
+  });
+
+  it('tolerates numeric vs string ids', () => {
+    const numeric = [{ id: 7, email: 'a@b.com', is_active: true }];
+    expect(resolveRecipients(numeric, ['7'])).toHaveLength(1);
+    expect(resolveRecipients(numeric, [7])).toHaveLength(1);
+  });
+
+  it('returns nothing for empty or missing input', () => {
+    expect(resolveRecipients()).toEqual([]);
+    expect(resolveRecipients(contacts, [])).toEqual([]);
+    expect(resolveRecipients([], ['c1'])).toEqual([]);
+  });
+});
+
+describe('formatRecipients', () => {
+  it('formats names and falls back to the bare address', () => {
+    expect(formatRecipients([
+      { name: 'Gabe', email: 'gabe@dev.com' },
+      { name: null, email: 'peter@dev.com' },
+    ])).toBe('Gabe <gabe@dev.com>, peter@dev.com');
+  });
+  it('is empty for no recipients', () => {
+    expect(formatRecipients([])).toBe('');
   });
 });

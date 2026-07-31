@@ -2831,3 +2831,24 @@ input, select, textarea { font: inherit; }
 }
 .cp-corr-quoted:hover { border-color: var(--primary); color: var(--primary); }
 .cp-msg-bubble.is-quoted { margin-top: 6px; background: transparent; border: 1px solid var(--divider); color: var(--muted); font-size: 12px; }
+
+/* ── Compose (new email from a job) ─────────────────────────────────────────── */
+.corr-compose-open { margin-bottom: 12px; }
+.corr-compose-blocked {
+  font-size: 11.5px; color: var(--muted); margin-bottom: 12px;
+  border: 1px dashed var(--border); border-radius: 6px; padding: 8px 10px;
+}
+.corr-compose {
+  border: 1px solid var(--accent); border-radius: 8px; padding: 10px;
+  margin-bottom: 12px; background: var(--panel);
+}
+.corr-compose-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.corr-compose-to { display: flex; flex-wrap: wrap; gap: 5px; align-items: center; margin-bottom: 8px; }
+.corr-compose-subject, .corr-compose-body {
+  width: 100%; box-sizing: border-box; font: inherit; font-size: 12.5px;
+  border: 1px solid var(--border); border-radius: 6px; padding: 7px 9px;
+  background: var(--inset); color: var(--ink); margin-bottom: 8px;
+}
+.corr-compose-body { resize: vertical; line-height: 1.5; }
+.corr-compose-subject:focus, .corr-compose-body:focus { outline: none; border-color: var(--accent); }
+.corr-compose-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
