@@ -175,6 +175,40 @@ describe('replyRecipients', () => {
     const { to, cc } = replyRecipients(dupe, me, { all: true });
     expect([...to, ...cc]).toHaveLength(1);
   });
+
+  // ── When WE sent the newest message ────────────────────────────────────────
+  // The composer always targets the newest message, which in this firm is very
+  // often one we sent. Replying to its sender means replying to ourselves, so
+  // the box used to show "0 recipients" with Send disabled — the real Jerry
+  // Dubleski "Basement Plans" thread could not be answered from the app at all.
+  const mine = {
+    from: { name: 'Ray', email: 'raymond@rm117.com' },
+    to: [{ name: 'Jerry', email: 'jerry@dubleski.com' }],
+    cc: [{ name: 'Ang', email: 'angelena@rm117.com' }, { name: 'Kathy', email: 'kathy@dubleski.com' }],
+  };
+
+  it('replying to our OWN message addresses the people it went to', () => {
+    const { to, cc } = replyRecipients(mine, me);
+    expect(to.map((a) => a.email)).toEqual(['jerry@dubleski.com']);
+    expect(cc).toEqual([]);
+  });
+
+  it('reply-all on our own message keeps the Cc list', () => {
+    const { to, cc } = replyRecipients(mine, me, { all: true });
+    expect(to.map((a) => a.email)).toEqual(['jerry@dubleski.com']);
+    // A colleague who was Cc'd stays Cc'd — only WE are filtered out.
+    expect(cc.map((a) => a.email)).toEqual(['angelena@rm117.com', 'kathy@dubleski.com']);
+    // Still never ourselves, even via Cc.
+    expect([...to, ...cc].map((a) => a.email)).not.toContain(me);
+  });
+
+  it('a thread with only us on it still yields nobody', () => {
+    // A note you emailed to yourself has no one to reply to, and inventing a
+    // recipient would be worse than the disabled Send button.
+    const self = { from: { email: me }, to: [{ email: me }], cc: [] };
+    const { to, cc } = replyRecipients(self, me, { all: true });
+    expect([...to, ...cc]).toEqual([]);
+  });
 });
 
 describe('attachment display helpers', () => {

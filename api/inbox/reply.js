@@ -70,10 +70,21 @@ export default async function handler(req, res) {
       seen.add(e);
       list.push(addr);
     };
-    push(to, from);
-    if (replyAll) {
+    // When the message being answered is one WE sent, reply to the people it was
+    // addressed to — otherwise the only candidate is ourselves, we filter it as
+    // self, and the reply has no recipient. See replyRecipients() in
+    // src/lib/mail-html.js for why this case is common and what it broke.
+    // Still derived purely from the stored message, so the UI cannot widen it.
+    const fromIsMe = (from?.email || '').toLowerCase() === me.toLowerCase();
+    if (fromIsMe) {
       origTo.forEach((a) => push(to, a));
-      origCc.forEach((a) => push(cc, a));
+      if (replyAll) origCc.forEach((a) => push(cc, a));
+    } else {
+      push(to, from);
+      if (replyAll) {
+        origTo.forEach((a) => push(to, a));
+        origCc.forEach((a) => push(cc, a));
+      }
     }
 
     // The UI may DROP recipients but never add them. Expressing it as a

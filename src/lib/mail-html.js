@@ -126,10 +126,31 @@ export function replyRecipients(message, selfEmail, { all = false } = {}) {
     list.push(addr);
   };
 
-  push(to, sender);
-  if (all) {
+  // ⭐ WHEN WE SPOKE LAST, reply to the people that message went to.
+  //
+  // The composer always targets the NEWEST message in the thread, and in an
+  // architecture practice that is very often one the firm sent — you email the
+  // drawings, then want to follow up. Replying to the sender would mean replying
+  // to yourself, so the sender was filtered out as self and the box showed
+  // "0 recipients" with Send disabled. Measured on the real mailbox: the Jerry
+  // Dubleski "Basement Plans" thread (job 26_025_Dubleski_Holmdel) could not be
+  // answered from the app at all — and because only one person was in To, the
+  // "Reply all" escape hatch wasn't even offered. This is what Gmail does when
+  // you reply to your own sent mail.
+  //
+  // The security invariant is untouched: this set is still derived entirely from
+  // the stored message, and the server recomputes it the same way, so the UI
+  // still cannot ADD an address — only drop one.
+  const senderIsMe = (sender?.email || '').toLowerCase().trim() === me;
+  if (senderIsMe) {
     (message?.to || []).forEach((a) => push(to, a));
-    (message?.cc || []).forEach((a) => push(cc, a));
+    if (all) (message?.cc || []).forEach((a) => push(cc, a));
+  } else {
+    push(to, sender);
+    if (all) {
+      (message?.to || []).forEach((a) => push(to, a));
+      (message?.cc || []).forEach((a) => push(cc, a));
+    }
   }
   return { to, cc };
 }
