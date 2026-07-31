@@ -1,32 +1,49 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-30 — **MAIL + CORRESPONDENCE built on branch `mail-inbox`** (11 commits,
-413 tests green, **NOT merged, NOT deployed**). Canonical doc = **`MAIL.md`** — read that first.
+**Last updated:** 2026-07-31 — **MAIL + CORRESPONDENCE IS MERGED AND DEPLOYED** (452 tests green).
+Canonical doc = **`MAIL.md`** — read that first.
 
 ---
 
-# ▶ START HERE 2026-07-30 — Mail: read, reply and file the firm's email in the app
+# ▶ START HERE 2026-07-31 — Mail + Correspondence is LIVE
 
-**Everything about this feature is in `MAIL.md`** (why it exists, the files, the decisions that must
-not be reversed, the two hard-won bugs, and the next steps). This is only the pointer.
+**Everything about this feature is in `MAIL.md`** — why it exists, the files, the decisions that must
+not be reversed, and the bugs that cost the most time. This is only the pointer.
 
-- Branch **`mail-inbox`**, 11 commits, clean tree, **never pushed**. `main` untouched, nothing deployed.
-- ⚠️ **Migrations 0020 + 0021 are ALREADY APPLIED to production Supabase** (additive only), so the
-  live DB is ahead of `main` until this merges.
-- ⚠️ **Three things were never verified and are the real risk:** sending a reply (nothing has left
-  Gmail), filing a real thread to Drive, and mark-as-read (Ray added `gmail.modify` in Google Cloud +
-  Clerk on 2026-07-30 but had not signed out/in yet). Safe reply test: email yourself, reply in-app.
-- ⚠️ **Remove the `[mail-debug]` console.log block in `api/inbox/thread.js` before merging.**
+**Shipped to production 2026-07-31** in two merges: `724f42d` (Mail) and `d0b9d69` (Correspondence).
+Gmail is the transport; the JOB is where a client's communication is organised.
 
-**The finding that shaped it:** the firm's client communication lives entirely in Gmail. The in-app
-alternatives measured **0 rows** — `threads`/`messages` (the portal chat) never carried a message
-because it emailed nobody in either direction, and `notifications` is empty too. So Gmail is the
-transport and the JOB is where it gets organised; the portal chat is to be retired (Ray's call).
+You can now: read work mail in the app, reply/reply-all as yourself, file a thread against one or
+more jobs (attachments → the job's Drive "Files Received"), share a whole thread with a client,
+read a job's whole correspondence history on the job, and start a new email from a job.
+
+### All three originally-unverified paths were settled first
+- ✅ **Filing** — verified against Supabase *and* the real Drive folder, not the UI badge.
+- ✅ **Reply-send** — verified by reading the sent copy's raw `In-Reply-To`/`References` headers.
+- ⛔ **Mark-as-read** — blocked, and NOT a code bug: `gmail.modify` is not granted on any live token
+  (measured via Google tokeninfo). **Every staffer must sign out, back in, and accept the Gmail
+  permission.** Ray is telling Ang and Tom. Nothing else depends on it. `Save as draft` is blocked
+  behind the same scope.
+
+### Four real bugs found and fixed while verifying
+1. ⭐ **The Mail list silently lied.** Gmail caps *concurrent* requests per user, and every per-message
+   fan-out used `Promise.all` + `.catch(() => null)`, so 429s vanished as if those messages did not
+   exist — 5 lost on a cold run, 36 on a second. The same mailbox read 20 → 40 → 36 conversations
+   with nothing logged. **Never `Promise.all` over Gmail messages; use `mapGmail()`.**
+2. **"Work" was over half marketing** (35 of 60). Now judged by the mail's own headers
+   (`List-Unsubscribe` etc.), not a domain list. 60 → 13, no real correspondent lost.
+3. **Filing pre-ticked every suggested job**, making "a person confirms" a rubber stamp — the fast
+   path filed a Munsee thread into four jobs and put the PDF in Florham Park's folder.
+4. **You couldn't reply when the firm spoke last** — a real client thread was unanswerable.
+
+### Left open
+- **Search / pagination.** 30 days, 60 threads; anything older is unreachable from the app.
+- **Attachments on compose** (text only today).
+- ⚠️ `npm run dev` does **not** reload the API — restart it after editing anything in `api/`.
 
 **Also resolved 2026-07-30:** the unexplained 2026-07-28 production deploy was a Claude Code session
-running `vercel --prod` from a dirty `demo-mode` tree (`actor: claude-code_2-1-220_agent`,
-`gitDirty: 1`). **Zero impact, verified** — the demo code is dead-code-eliminated by the
-`VITE_DEMO_MODE` build flag. Real lesson: `vercel --prod` from the repo root bypasses the test gate
-and ships uncommitted files.
+running `vercel --prod` from a dirty `demo-mode` tree. **Zero impact, verified** — the demo code is
+dead-code-eliminated by the `VITE_DEMO_MODE` build flag. Real lesson: `vercel --prod` from the repo
+root bypasses the test gate and ships uncommitted files.
 
 ---
 
