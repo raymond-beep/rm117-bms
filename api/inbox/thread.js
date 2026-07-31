@@ -13,7 +13,7 @@
 import { requireStaff } from '../_lib/require-staff.js';
 import { getGoogleToken } from '../_lib/clerk.js';
 import {
-  gmailGet, headerMap, parseAddress, parseAddressList, walkParts,
+  gmailGet, mapGmail, headerMap, parseAddress, parseAddressList, walkParts,
   sanitizeEmailHtml, isUnread, threadSubject, decodeB64Url, describePayload,
 } from '../_lib/gmail-read.js';
 
@@ -36,6 +36,11 @@ export default async function handler(req, res) {
     const thread = await gmailGet(`/threads/${encodeURIComponent(threadId)}?format=full`, token);
 
     // Fetch any body that was too large to arrive inline (see walkParts).
+    //
+    // A failure here yields a message that renders BLANK, which is
+    // indistinguishable from an empty email — so it is logged rather than
+    // swallowed. gmailGet retries 429s, so anything reaching the catch is real.
+    const partErrors = [];
     const fetchPart = async (messageId, attachmentId) => {
       try {
         const a = await gmailGet(
@@ -43,12 +48,17 @@ export default async function handler(req, res) {
           token,
         );
         return decodeB64Url(a.data);
-      } catch {
+      } catch (err) {
+        console.error('[api/inbox/thread] body part failed', messageId, err.status || err.message);
+        partErrors.push(messageId);
         return '';
       }
     };
 
-    const messages = await Promise.all((thread.messages || []).map(async (msg) => {
+    // Bounded, not Promise.all: a long thread whose messages each need an
+    // out-of-line body would otherwise fan out past Gmail's per-user
+    // concurrency limit and 429 (see mapGmail in _lib/gmail-read.js).
+    const messages = await mapGmail(thread.messages || [], async (msg) => {
       const h = headerMap(msg.payload);
       const parts = walkParts(msg.payload);
 
@@ -91,7 +101,7 @@ export default async function handler(req, res) {
           contentId: a.contentId,
         })),
       };
-    }));
+    });
 
     res.status(200).json({
       connected: true,

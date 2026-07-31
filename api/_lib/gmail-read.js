@@ -12,16 +12,72 @@
 
 const GMAIL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
-export async function gmailGet(path, token) {
-  const r = await fetch(`${GMAIL}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!r.ok) {
+// Gmail's per-user CONCURRENCY ceiling, not its daily quota. Fanning out one
+// request per message trips "Too many concurrent requests for user" (429,
+// rateLimitExceeded) long before any quota is touched — measured on Ray's real
+// mailbox: 120 parallel metadata reads lost 5 messages on a cold run and 36 on a
+// second run moments later, because the earlier burst was still counted against
+// him. Six in flight held steady across repeated runs.
+//
+// ⚠️ These two exports exist because losing a message here is INVISIBLE. Every
+// caller used to fan out with Promise.all + `.catch(() => null)`, so a 429 read
+// as "that message doesn't exist": threads silently missing from the Mail list
+// and message counts quietly wrong, with nothing in the log. For a feature whose
+// whole job is "don't miss a client email", a dropped message must be a loud
+// failure, never a shorter list. Use mapGmail() for any per-message fan-out.
+const GMAIL_CONCURRENCY = 6;
+const GMAIL_RETRIES = 4;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// A 429 here is transient and worth retrying; 401/403/404 never are.
+function retryAfterMs(res, attempt) {
+  const header = Number(res?.headers?.get?.('retry-after'));
+  if (Number.isFinite(header) && header > 0) return header * 1000;
+  // Exponential backoff with jitter, so a burst doesn't retry in lockstep.
+  return Math.round((2 ** attempt) * 250 * (0.5 + Math.random()));
+}
+
+export async function gmailGet(path, token, { retries = GMAIL_RETRIES } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    const r = await fetch(`${GMAIL}${path}`, { headers: { Authorization: `Bearer ${token}` } });
+    if (r.ok) return r.json();
+
+    const retryable = r.status === 429 || r.status >= 500;
+    if (retryable && attempt < retries) {
+      await sleep(retryAfterMs(r, attempt));
+      continue;
+    }
+
     const body = await r.text().catch(() => '');
     const err = new Error(`gmail ${r.status}`);
     err.status = r.status;
     err.body = body;
+    err.retried = attempt;
     throw err;
   }
-  return r.json();
+}
+
+// Bounded-concurrency map for per-message Gmail reads. Rejects if any item
+// fails after its retries — callers must decide what a hole means rather than
+// inheriting an undetectable one.
+export async function mapGmail(items, fn, { concurrency = GMAIL_CONCURRENCY } = {}) {
+  const list = [...items];
+  const out = new Array(list.length);
+  let next = 0;
+
+  const worker = async () => {
+    while (true) {
+      const i = next++;
+      if (i >= list.length) return;
+      out[i] = await fn(list[i], i);
+    }
+  };
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, list.length) }, worker),
+  );
+  return out;
 }
 
 // Gmail returns base64url with no padding.

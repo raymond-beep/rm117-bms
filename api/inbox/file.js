@@ -20,7 +20,7 @@ import { getDb, hasDb } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
 import { getGoogleToken } from '../_lib/clerk.js';
 import {
-  gmailGet, headerMap, parseAddress, parseAddressList, walkParts,
+  gmailGet, mapGmail, headerMap, parseAddress, parseAddressList, walkParts,
   sanitizeEmailHtml, threadSubject, decodeB64Url, effectiveMime,
 } from '../_lib/gmail-read.js';
 import { hasDrive, resolveFilesReceivedFolderId, uploadToFolder } from '../_lib/google-drive.js';
@@ -112,19 +112,24 @@ export default async function handler(req, res) {
     if (!gmsgs.length) return res.status(404).json({ error: 'Thread has no messages' });
 
     // Parse every message once — bodies, participants, attachment manifests.
-    const parsed = await Promise.all(gmsgs.map(async (msg) => {
+    // Bounded concurrency, and a body fetch that fails ABORTS the filing: this
+    // copy is the durable record of what a client was told, so filing a blank
+    // one and reporting success is worse than not filing at all. (It used to
+    // fan out unbounded and `.catch(() => ({}))` each part, which under Gmail's
+    // per-user concurrency limit meant a 429 wrote an empty body to Supabase.)
+    const parsed = await mapGmail(gmsgs, async (msg) => {
       const h = headerMap(msg.payload);
       const parts = walkParts(msg.payload);
       // Large bodies arrive out of line (see walkParts); fetch them or the filed
       // copy would be blank exactly where the conversation was longest.
       if (!parts.html && parts.htmlRef) {
         parts.html = decodeB64Url(
-          (await gmailGet(`/messages/${msg.id}/attachments/${parts.htmlRef}`, token).catch(() => ({}))).data,
+          (await gmailGet(`/messages/${msg.id}/attachments/${parts.htmlRef}`, token)).data,
         );
       }
       if (!parts.text && parts.textRef) {
         parts.text = decodeB64Url(
-          (await gmailGet(`/messages/${msg.id}/attachments/${parts.textRef}`, token).catch(() => ({}))).data,
+          (await gmailGet(`/messages/${msg.id}/attachments/${parts.textRef}`, token)).data,
         );
       }
       const from = parseAddress(h.from || '');
@@ -133,7 +138,7 @@ export default async function handler(req, res) {
         participants: participantsOf(h),
         sentAt: h.date ? new Date(h.date).toISOString() : null,
       };
-    }));
+    });
 
     const subject = threadSubject(parsed.map((p) => ({ subject: p.h.subject })));
     const lastAt = parsed.map((p) => p.sentAt).filter(Boolean).sort().pop() || null;

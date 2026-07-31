@@ -18,7 +18,9 @@
 import { getDb, hasDb } from './_lib/db.js';
 import { hasClerk, getUserId, getGoogleToken } from './_lib/clerk.js';
 import { buildMatcher, classifySender, inScope } from './_lib/client-match.js';
-import { gmailGet, headerMap, parseAddress, parseAddressList, isUnread } from './_lib/gmail-read.js';
+import {
+  gmailGet, mapGmail, headerMap, parseAddress, parseAddressList, isUnread,
+} from './_lib/gmail-read.js';
 
 const STAFF_DOMAIN = '@rm117.com';
 
@@ -87,13 +89,19 @@ export default async function handler(req, res) {
     const ids = (list.messages || []).map((m) => m.id);
 
     // 3. Metadata for each (From/To/Subject/Date), then match against clients.
-    const settled = await Promise.all(
-      ids.map((id) =>
-        gmailGet(
-          `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To` +
-          `&metadataHeaders=Subject&metadataHeaders=Date`,
-          token,
-        ).catch(() => null),
+    //
+    // ⚠️ Read six at a time via mapGmail, and let a failure THROW. This was a
+    // `Promise.all(...).catch(() => null)` over all ~120 ids, which trips Gmail's
+    // per-user concurrency limit: messages came back 429 and were silently
+    // discarded, so the list was quietly short and message counts were wrong —
+    // the same mailbox reported 20 conversations on one load and 40 on the next.
+    // A short list nobody can tell is short is the worst outcome for this page,
+    // so an unrecoverable hole now surfaces as an error instead.
+    const settled = await mapGmail(ids, (id) =>
+      gmailGet(
+        `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To` +
+        `&metadataHeaders=Subject&metadataHeaders=Date`,
+        token,
       ),
     );
 
