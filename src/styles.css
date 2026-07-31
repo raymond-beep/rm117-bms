@@ -2383,3 +2383,352 @@ input, select, textarea { font: inherit; }
 .portal-login-help { font-size: 0.82rem; color: var(--ink2); margin: 0; text-align: center; }
 .portal-login-staff { font-size: 0.75rem; color: var(--ink3); text-decoration: none; }
 .portal-login-staff:hover { text-decoration: underline; }
+
+/* ============================================================================
+   Mail (/mail) — read work email in the app.
+   Themed with the app's variables so it reads correctly in light and dark; the
+   MESSAGE BODY itself is a sandboxed iframe with its own light styling, because
+   sender HTML assumes a white page and can't be trusted with ours.
+   ========================================================================== */
+.mail-page .page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.mail-scopes { display: inline-flex; gap: 2px; padding: 3px; background: var(--inset); border-radius: var(--radius-sm); }
+.mail-scope {
+  border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: 600; padding: 6px 14px; border-radius: calc(var(--radius-sm) - 2px);
+}
+.mail-scope:hover { color: var(--ink); }
+.mail-scope.is-on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
+
+.mail-split { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 16px; align-items: start; }
+.mail-list { padding: 0; overflow: hidden; max-height: calc(100vh - 210px); overflow-y: auto; }
+.mail-reader { padding: 0; min-height: 320px; max-height: calc(100vh - 210px); overflow-y: auto; }
+.mail-empty { padding: 48px 24px; text-align: center; }
+
+/* thread rows */
+.mail-row {
+  display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left;
+  padding: 11px 14px; border: 0; border-bottom: 1px solid var(--divider);
+  background: transparent; cursor: pointer; font: inherit; color: var(--ink);
+}
+.mail-row:last-child { border-bottom: none; }
+.mail-row:hover { background: var(--hover); }
+.mail-row.is-active { background: var(--accent-soft); }
+.mail-dot { width: 7px; height: 7px; border-radius: 50%; background: transparent; margin-top: 14px; flex: 0 0 auto; }
+.mail-dot.on { background: var(--accent); }
+.mail-row.is-unread .mail-from, .mail-row.is-unread .mail-subj { font-weight: 700; }
+.mail-ava {
+  width: 30px; height: 30px; border-radius: 50%; flex: 0 0 auto;
+  display: grid; place-items: center; font-size: 11px; font-weight: 700;
+  background: var(--inset); color: var(--muted);
+}
+.mail-ava.sm { width: 26px; height: 26px; font-size: 10px; }
+.mail-row.is-unread .mail-ava { background: var(--accent-soft); color: var(--accent-ink); }
+.mail-row-main { flex: 1; min-width: 0; }
+.mail-row-top { display: flex; align-items: baseline; gap: 6px; }
+.mail-from { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+.mail-count { font-size: 11px; color: var(--muted); background: var(--inset); border-radius: 8px; padding: 0 6px; }
+.mail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.mail-subj { display: block; font-size: 13px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail-snip { display: block; font-size: 12px; color: var(--ink3); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* tags: client / job / kind */
+.mail-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; }
+.mail-tag {
+  font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  white-space: nowrap; max-width: 190px; overflow: hidden; text-overflow: ellipsis;
+}
+.mail-tag.is-client { background: var(--accent-soft); color: var(--accent-ink); }
+.mail-tag.is-job { background: var(--inset); color: var(--muted); font-family: var(--mono); font-size: 10px; }
+.mail-tag.is-staff { background: var(--brass-ink, var(--inset)); color: var(--panel); }
+.mail-tag.is-project { background: var(--inset); color: var(--muted); }
+
+/* reader */
+.mail-reader-head { padding: 16px 18px 12px; border-bottom: 1px solid var(--divider); position: sticky; top: 0; background: var(--panel); z-index: 2; }
+.mail-reader-head h3 { margin: 0 0 8px; font-size: 16px; line-height: 1.3; }
+.mail-msgcount { font-size: 11px; color: var(--muted); }
+.mail-msgs { padding: 0 18px 18px; }
+.mail-msg { border-bottom: 1px solid var(--divider); padding: 12px 0; }
+.mail-msg:last-child { border-bottom: none; }
+.mail-msg-head {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: transparent; border: 0; cursor: pointer; font: inherit; color: var(--ink); padding: 0;
+}
+.mail-msg-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mail-msg-who strong { font-size: 13px; }
+.mail-msg-to { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail-msg-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.mail-msg-peek { font-size: 12px; color: var(--ink3); margin: 6px 0 0 36px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail-msg-body { margin-top: 10px; }
+.mail-body-text {
+  font: 13px/1.6 var(--mono); white-space: pre-wrap; word-wrap: break-word;
+  margin: 0; padding: 12px; background: var(--inset); border-radius: var(--radius-sm); color: var(--ink);
+}
+.mail-body-wrap { position: relative; }
+.mail-body-frame {
+  /* Height is set inline from the frame's own measurement (see wrapEmailHtml).
+     A fixed height gave every long email an inner scrollbar nested inside the
+     reader pane — two scrollbars fighting, message cut off. */
+  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: #fff; display: block; transition: height 90ms ease-out;
+}
+.mail-images-blocked {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  font-size: 12px; color: var(--muted); background: var(--inset);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 8px;
+}
+
+/* attachments */
+.mail-atts { margin-top: 12px; }
+.mail-atts-label { font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.mail-atts-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.mail-att {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 9px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--inset); max-width: 100%;
+}
+.mail-att-icon { font-size: 15px; color: var(--muted); }
+.mail-att-meta { display: flex; flex-direction: column; min-width: 0; margin-right: 4px; }
+.mail-att-name { font-size: 12px; font-weight: 600; max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-att-size { font-size: 10.5px; color: var(--muted); }
+
+@media (max-width: 900px) {
+  .mail-split { grid-template-columns: 1fr; }
+  .mail-list, .mail-reader { max-height: none; }
+  .mail-att-name { max-width: 130px; }
+}
+
+/* Attachment viewer — full-screen PDF/image preview inside the app.
+   PDFs use the browser's own viewer inside the frame (zoom / page nav / print
+   come free); images render directly. Drawing sets arrive as a pile of PDFs, so
+   the bar steps between them instead of making you close and reopen. */
+.mail-viewer {
+  position: fixed; inset: 0; z-index: 200; display: flex; flex-direction: column;
+  background: color-mix(in srgb, var(--app-bg) 88%, #000 12%);
+  backdrop-filter: blur(3px);
+}
+.mail-viewer-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.mail-viewer-title { min-width: 0; display: flex; flex-direction: column; }
+.mail-viewer-title strong { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46vw; }
+.mail-viewer-sub { font-size: 11px; color: var(--muted); }
+.mail-viewer-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mail-viewer-actions .btn { text-decoration: none; }
+.mail-viewer-body { flex: 1; min-height: 0; display: grid; place-items: center; padding: 14px; }
+.mail-viewer-frame { width: 100%; height: 100%; border: 0; border-radius: var(--radius-sm); background: #fff; }
+.mail-viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius-sm); }
+.mail-att.is-pdf .mail-att-icon { color: var(--danger); }
+.mail-att.is-image .mail-att-icon { color: var(--accent); }
+
+@media (max-width: 900px) {
+  .mail-viewer-title strong { max-width: 60vw; }
+}
+
+/* Collapsed messages need to read as expandable — a one-line peek alone looks
+   like the whole message got truncated rather than folded. */
+.mail-chev {
+  flex: 0 0 auto; color: var(--muted); font-size: 15px; line-height: 1;
+  transition: transform 120ms ease; display: inline-block; width: 10px;
+}
+.mail-msg.is-open .mail-chev { transform: rotate(90deg); }
+.mail-reader-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+/* Email body rendered INLINE (no iframe) — sanitised with DOMPurify.
+   On "paper": email HTML assumes a light background and frequently sets its own
+   colours, so dropping it onto a dark theme makes light-on-light text invisible.
+   Every mail client renders on paper for the same reason. */
+.mail-body-html {
+  color: #111;
+  font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: auto; word-wrap: break-word; overflow-wrap: break-word;
+  /* Keep a wide marketing table from stretching the whole page. */
+  contain: layout paint style;
+}
+.mail-body-html img { max-width: 100%; height: auto; }
+.mail-body-html table { max-width: 100%; }
+.mail-body-html a { color: #0b57d0; }
+.mail-body-html blockquote {
+  margin: 8px 0 8px 12px; padding-left: 12px; border-left: 3px solid #ddd; color: #555;
+}
+.mail-body-html pre { white-space: pre-wrap; word-wrap: break-word; }
+/* Images the server neutralised keep their layout box but load nothing. */
+.mail-body-html img[data-blocked-src] { min-width: 1px; min-height: 1px; }
+
+/* ── Chat-style thread ─────────────────────────────────────────────────────
+   Every reply embeds the whole conversation so far, so a 13-message thread
+   means the last message physically contains the other 12. With the quoted
+   history folded away (src/lib/mail-quote.js) most replies are a line or two —
+   which is what makes a message-app layout readable here. */
+.mail-turn { margin: 14px 0; display: flex; flex-direction: column; align-items: flex-start; max-width: 100%; }
+.mail-turn.is-mine { align-items: flex-end; }
+
+.mail-bubble {
+  /* "Paper": email HTML assumes a light background and sets its own colours,
+     so both bubbles stay light or the sender's own text goes invisible. */
+  background: #fff; color: #111;
+  border: 1px solid var(--border); border-radius: 14px;
+  padding: 11px 14px; max-width: min(78%, 620px);
+  box-shadow: var(--shadow); overflow-x: auto;
+}
+.mail-turn.is-mine .mail-bubble {
+  background: var(--accent-soft); border-color: transparent;
+  border-bottom-right-radius: 4px;
+}
+.mail-turn:not(.is-mine) .mail-bubble { border-bottom-left-radius: 4px; }
+
+.mail-turn-meta { font-size: 11px; color: var(--muted); margin: 4px 2px 0; }
+.mail-turn-cc { opacity: 0.8; }
+.mail-turn .mail-atts-row { margin-top: 7px; max-width: min(78%, 620px); }
+.mail-turn.is-mine .mail-atts-row { justify-content: flex-end; }
+
+.mail-bubble .mail-body-text {
+  background: transparent; padding: 0; color: inherit;
+  font: 13.5px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.mail-bubble .mail-body-html > *:first-child { margin-top: 0; }
+.mail-bubble .mail-body-html > *:last-child { margin-bottom: 0; }
+
+/* The "•••" — nothing is deleted, only folded. */
+.mail-quoted { margin-top: 8px; }
+.mail-quoted-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: rgba(0, 0, 0, 0.05); border: 0; border-radius: 9px;
+  padding: 2px 9px; cursor: pointer; font: inherit; font-size: 11px; color: #555;
+}
+.mail-quoted-btn:hover { background: rgba(0, 0, 0, 0.1); }
+.mail-dots { letter-spacing: 1px; line-height: 1; }
+.mail-body-html.is-quoted, .mail-body-text.is-quoted {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid #e6e6e6;
+  color: #555; font-size: 12.5px;
+}
+
+@media (max-width: 900px) {
+  .mail-bubble, .mail-turn .mail-atts-row { max-width: 92%; }
+}
+
+/* Reply box, pinned under the conversation. */
+.mail-reply {
+  border-top: 1px solid var(--divider); padding: 12px 18px 16px;
+  position: sticky; bottom: 0; background: var(--panel);
+}
+.mail-reply-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.mail-reply-count { font-size: 11.5px; color: var(--muted); }
+
+/* Every recipient shown in full and wrapping — never truncated. On a developer's
+   thread this is the last chance to notice a reply-all is reaching their whole
+   team, and a name cut off mid-word is exactly where that gets missed.
+   Click a chip to drop that person (the server treats it as a subtraction, so
+   the browser can never ADD a recipient). */
+.mail-rcpts { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-bottom: 8px; }
+.mail-rcpt-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); margin-right: 1px;
+}
+.mail-rcpt-label:not(:first-child) { margin-left: 6px; }
+.mail-rcpt-none { font-size: 11.5px; color: var(--muted); }
+.mail-rcpt {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  border: 1px solid var(--border); border-radius: 999px; padding: 2px 7px 2px 9px;
+  background: var(--inset); color: var(--ink); cursor: pointer;
+  font: inherit; font-size: 11.5px; line-height: 1.7;
+}
+.mail-rcpt:hover { border-color: var(--accent); }
+.mail-rcpt.is-cc { background: transparent; color: var(--muted); }
+.mail-rcpt.is-off { opacity: 0.45; text-decoration: line-through; }
+.mail-rcpt-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.mail-rcpt-x { font-size: 12px; color: var(--muted); line-height: 1; }
+.mail-rcpt:hover .mail-rcpt-x { color: var(--danger); }
+.mail-rcpt.is-off .mail-rcpt-x { color: var(--accent-ink); }
+.mail-reply-all { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); white-space: nowrap; cursor: pointer; }
+.mail-reply-input {
+  width: 100%; resize: vertical; min-height: 62px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--inset); color: var(--ink); padding: 10px 12px;
+  font: 13.5px/1.5 inherit;
+}
+.mail-reply-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.mail-reply-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 8px; }
+.mail-reply-note { font-size: 11px; color: var(--muted); }
+.mail-reply-err { color: var(--danger); }
+.mail-reply-ok { color: var(--accent-ink); font-weight: 600; }
+
+/* "File to job" — attaching an email thread to the work it belongs to. */
+.mail-file { margin-top: 10px; }
+.mail-file-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mail-filed-badge {
+  font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-ink);
+}
+.mail-tag.is-shared { background: var(--bill-soft, var(--inset)); color: var(--bill, var(--muted)); }
+.mail-file-hint { font-size: 11px; color: var(--muted); }
+.mail-file-warn {
+  margin-top: 6px; font-size: 11.5px; color: var(--muted);
+  background: var(--inset); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 7px 9px;
+}
+.mail-file-panel {
+  margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--inset); padding: 10px;
+}
+.mail-file-search {
+  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--panel); color: var(--ink); padding: 7px 10px; font: inherit; font-size: 13px;
+}
+.mail-file-search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.mail-file-results { max-height: 190px; overflow-y: auto; margin: 8px 0; }
+.mail-file-empty { font-size: 12px; color: var(--muted); padding: 10px 2px; }
+.mail-file-job {
+  display: flex; align-items: center; gap: 8px; padding: 5px 4px; cursor: pointer;
+  border-radius: 6px; font-size: 12.5px;
+}
+.mail-file-job:hover { background: var(--hover); }
+.mail-file-jobid { font-family: var(--mono); font-size: 11.5px; }
+.mail-file-jobname { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-file-opt {
+  display: flex; align-items: flex-start; gap: 7px; font-size: 12px;
+  color: var(--ink); margin-top: 7px; cursor: pointer; flex-wrap: wrap;
+}
+.mail-file-sub { flex-basis: 100%; margin-left: 21px; font-size: 11px; color: var(--muted); }
+.mail-file-actions {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--divider);
+}
+.mail-file-count { margin-right: auto; font-size: 11.5px; color: var(--muted); }
+
+/* Share preview — the whole thread goes to the client, so a person reads it
+   first. Ticking "visible to the client" loads this immediately; you cannot
+   turn sharing on without the real conversation in front of you. */
+.mail-share-preview {
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--divider);
+}
+.mail-share-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  font-size: 12px; margin-bottom: 7px;
+}
+.mail-share-head span { color: var(--muted); font-size: 11px; }
+.mail-share-warn {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  font-size: 11.5px; line-height: 1.45; color: var(--ink);
+  background: var(--bill-soft, var(--inset)); border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 8px;
+}
+.mail-share-list { max-height: 240px; overflow-y: auto; }
+.mail-share-msg {
+  display: flex; gap: 8px; align-items: flex-start; padding: 7px 6px;
+  border-radius: 6px; cursor: pointer; font-size: 12px;
+}
+.mail-share-msg:hover { background: var(--hover); }
+.mail-share-msg.is-new { background: color-mix(in srgb, var(--danger) 7%, transparent); }
+.mail-share-msg.is-off { opacity: 0.45; }
+.mail-share-msg.is-off .mail-share-snip { text-decoration: line-through; }
+.mail-share-msg-main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.mail-share-msg-top { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.mail-share-flag {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--danger); border: 1px solid var(--danger); border-radius: 999px; padding: 0 6px;
+}
+.mail-share-date { margin-left: auto; font-size: 10.5px; color: var(--muted); }
+.mail-share-snip { color: var(--ink3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-share-atts { font-size: 10.5px; color: var(--muted); }

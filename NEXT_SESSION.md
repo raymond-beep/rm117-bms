@@ -1,6 +1,32 @@
 # RM117 BMS — Next Session Start Here
-**Last updated:** 2026-07-25 — **"Next up" is now DERIVED, the phase clock starts at creation, and the
-portal-preview picker is a search box.** `main` in sync, **329 tests green**, deployed & verified live.
+**Last updated:** 2026-07-30 — **MAIL + CORRESPONDENCE built on branch `mail-inbox`** (11 commits,
+413 tests green, **NOT merged, NOT deployed**). Canonical doc = **`MAIL.md`** — read that first.
+
+---
+
+# ▶ START HERE 2026-07-30 — Mail: read, reply and file the firm's email in the app
+
+**Everything about this feature is in `MAIL.md`** (why it exists, the files, the decisions that must
+not be reversed, the two hard-won bugs, and the next steps). This is only the pointer.
+
+- Branch **`mail-inbox`**, 11 commits, clean tree, **never pushed**. `main` untouched, nothing deployed.
+- ⚠️ **Migrations 0020 + 0021 are ALREADY APPLIED to production Supabase** (additive only), so the
+  live DB is ahead of `main` until this merges.
+- ⚠️ **Three things were never verified and are the real risk:** sending a reply (nothing has left
+  Gmail), filing a real thread to Drive, and mark-as-read (Ray added `gmail.modify` in Google Cloud +
+  Clerk on 2026-07-30 but had not signed out/in yet). Safe reply test: email yourself, reply in-app.
+- ⚠️ **Remove the `[mail-debug]` console.log block in `api/inbox/thread.js` before merging.**
+
+**The finding that shaped it:** the firm's client communication lives entirely in Gmail. The in-app
+alternatives measured **0 rows** — `threads`/`messages` (the portal chat) never carried a message
+because it emailed nobody in either direction, and `notifications` is empty too. So Gmail is the
+transport and the JOB is where it gets organised; the portal chat is to be retired (Ray's call).
+
+**Also resolved 2026-07-30:** the unexplained 2026-07-28 production deploy was a Claude Code session
+running `vercel --prod` from a dirty `demo-mode` tree (`actor: claude-code_2-1-220_agent`,
+`gitDirty: 1`). **Zero impact, verified** — the demo code is dead-code-eliminated by the
+`VITE_DEMO_MODE` build flag. Real lesson: `vercel --prod` from the repo root bypasses the test gate
+and ships uncommitted files.
 
 ---
 
