@@ -1,9 +1,33 @@
 # Mail + Correspondence — canonical doc
 
-**Branch `mail-inbox` · 11 commits · NOT merged, NOT deployed · 413 tests green**
-Last worked: 2026-07-30.
+**Branch `mail-inbox` · 15 commits · NOT merged, NOT deployed · 429 tests green**
+Last worked: 2026-07-31.
 
 Read this first when picking the feature back up.
+
+## Verification status (2026-07-31)
+
+| Path | State |
+|---|---|
+| **Filing a real thread** | ✅ **VERIFIED end to end**, checked against the DB and Drive directly rather than the UI badge |
+| **Mark-as-read** | ❌ **BLOCKED** — `gmail.modify` is genuinely not granted (measured, see below) |
+| **Sending a reply** | ⏳ still unverified — nothing has left Gmail |
+
+**Filing proof:** DaSilva "235 Munsee Way Rev 3" filed against `25_049_DaSilva_Munsee`
+only → `mail_threads` row with 2 messages, both bodies non-blank (4,473 / 5,032
+chars), client resolved to Gabe DaSilva, and `235 Munsee Superior Wall Rev3.pdf`
+(853,479 bytes) really present in that job's Drive "Files Received" alongside the
+firm's own history. **This is real production data — the thread is filed and the
+file is in Drive. Leave it; it is a legitimate received file for that job.**
+
+**Mark-as-read is not a code bug.** Querying Google's tokeninfo for the tokens
+Clerk holds shows the granted scopes for **both** Ray and Angelena are:
+`email profile calendar.readonly gmail.readonly gmail.send userinfo.* openid`
+— **no `gmail.modify`**. The endpoint's graceful `{ok:false, reason:'scope_not_granted'}`
+is working as designed; unread stays display-only. **Nobody has re-consented yet.**
+To re-check: pull the token from Clerk and hit
+`https://oauth2.googleapis.com/tokeninfo?access_token=…`. Do not debug the
+endpoint before checking the scope list.
 
 ---
 
@@ -126,6 +150,74 @@ ahead of `main` until this branch merges.
   user: reading a thread, what matters is us vs the client, so a colleague's
   reply sits on your side.
 
+## Gmail's CONCURRENCY limit — the bug that made the list lie
+
+⚠️ **Read this before adding any per-message Gmail call.**
+
+Gmail caps **concurrent** requests per user, separately from any daily quota.
+Every fan-out on this page used to be `Promise.all(ids.map(...))` with
+`.catch(() => null)`, i.e. one request per message, ~120 at once. Measured on
+Ray's mailbox: **5 of 120 metadata reads failed on a cold run and 36 on a second
+run moments later** (the first burst still counted against him), all returning
+429 `rateLimitExceeded` — and every one was swallowed. A dropped message was
+indistinguishable from a message that did not exist.
+
+The visible symptom: the same mailbox reported **20 conversations, then 40, then
+36** across consecutive loads, with wrong per-thread message counts, nothing in
+the log and nothing on screen. Threads simply went missing from the Mail list —
+the exact failure this feature exists to prevent.
+
+**The rule now: never fan out with `Promise.all` over messages.** Use
+`mapGmail()` from `api/_lib/gmail-read.js` — six at a time, and it **rejects**
+rather than returning a short list, so a hole must be handled instead of
+inherited invisibly. `gmailGet()` retries 429/5xx with backoff, jitter and
+`Retry-After`; 401/403 still fail fast so a missing scope reports immediately.
+After the fix: **120/120 on three consecutive runs, a steady 91 threads in ~2.3s**,
+and the page reads 60/60/60. Covered by `tests/gmail-concurrency.test.js`.
+
+Filing (`api/inbox/file.js`) now **aborts** if a body can't be read. It used to
+write the blank to Supabase — corrupting the durable record of what a client was
+told, which is the whole point of filing.
+
+## Noise: bulk mail is identified by its OWN headers, not a domain list
+
+The "Work" scope was **over half marketing** — 35 of 60 threads on the real
+mailbox: Zillow, Autodesk, DealMachine, newsletters from personal-looking
+addresses ("AI with Mariah", "Elise Knaack", "Ray Fu"), and the BMS's own portal
+sign-in-code emails. `SAAS_DOMAINS` can only catch senders someone thought to
+enumerate, and these were precisely the ones nobody would.
+
+`isBulkMail()` (`api/_lib/client-match.js`) keys on **List-Unsubscribe** (RFC
+2369/8058), `List-Id`, `Precedence: bulk`, `Auto-Submitted`. A sender must set
+these to reach inboxes at scale; a township clerk, engineer or client writing by
+hand never does. `api/inbox.js` requests those headers in the metadata call.
+
+Precedence rules, all load-bearing:
+- An **exact** client-address match still wins over bulk headers.
+- Bulk **beats the surname GUESS** — otherwise a newsletter whose display name
+  shares a surname with one of 162 jobs gets promoted to client mail.
+- `portal@rm117.com` reads as **automated, not staff** (an automated role address
+  at our own domain is still automated).
+
+⚠️ **Deliberately NOT subject/body keyword matching.** A permit expediter chasing
+a deadline writes exactly like a marketer, and wrongly hiding one real email
+costs far more than showing ten newsletters.
+
+Result: **Work 60 → 13 threads**, with every real correspondent still present
+(verified against the full pre-change list). An Anthropic security alert survives
+as `project` — it has no List-Unsubscribe, correctly, and hiding security notices
+by default would be worse.
+
+## Filing suggests — it does not pre-accept
+
+The File-to-job dialog **starts with nothing ticked**. It used to pre-tick every
+suggestion, which made "a person confirms" a rubber stamp: the fastest path
+through the dialog accepted all of them. On DaSilva's "235 Munsee Way Rev 3" that
+meant filing against four DaSilva jobs and — since **attachments go to the first
+job only** — uploading the Munsee drawings into **Florham Park's** Drive folder.
+Suggestions are still listed and one click each. Jobs **already filed** do start
+ticked; that is recorded state, not a guess.
+
 ## Two hard-won bugs worth remembering
 
 1. **The declared MIME type is not trustworthy.** A contractor's drawing set
@@ -152,10 +244,10 @@ lives).
 ## ▶ NEXT SESSION — start here
 
 ### Must do before merging
-1. **Remove the local-dev diagnostic** in `api/inbox/thread.js` (the
-   `[mail-debug]` console.log block, gated on `!process.env.VERCEL`). It logs
-   lengths only, never content, but it should not ship.
-2. Decide whether `scripts/` needs anything; branch is otherwise clean.
+1. ~~Remove the local-dev diagnostic in `api/inbox/thread.js`~~ — ✅ done
+   (`dc7991d`).
+2. **Verify sending a reply** — the last unverified path. See below.
+3. Decide whether `scripts/` needs anything; branch is otherwise clean.
 
 ### Not yet built
 - **Correspondence view in the JobEditor**, replacing the dead `MessagesTab` —
@@ -172,13 +264,23 @@ lives).
   ("Elise Knaack", "AI with Mariah") lands in Work as `project`.
 - No search / no pagination (30 days, 60 threads).
 
-### ⚠️ NEVER VERIFIED — do these first, they are the real risk
-- **Sending a reply.** Nothing has left Gmail. Safe test: email yourself from
-  Gmail, wait for it in the Mail list, reply in the app. Confirms send-as-you,
-  threading and the Sent folder without touching a client.
-- **Filing a real thread** and confirming the attachment lands in that job's
-  Drive "Files Received".
-- **Mark-as-read.** Ray added `gmail.modify` in Google Cloud Console + Clerk on
-  2026-07-30 but had not yet signed out/in. Test: open an unread thread, then
-  fully reload — if the dot stays gone it wrote to Gmail (unread is read from
-  Gmail's label on every load, so it cannot be a local illusion).
+### ⚠️ STILL UNVERIFIED — the one real remaining risk
+- **Sending a reply.** Nothing has ever left Gmail from this app. Safe test:
+  email yourself from Gmail, wait for it in the Mail list, reply in the app.
+  Confirms send-as-you, `In-Reply-To`/`References` threading and the Sent folder
+  without touching a client. ⚠️ Threading is the part that fails INVISIBLY from
+  this end — a reply missing those headers looks correct in our mailbox and
+  arrives as a NEW conversation in the client's inbox. Check the raw headers of
+  the sent copy, not just that it appeared.
+
+### Re-consent needed for mark-as-read
+`gmail.modify` is configured in Google Cloud Console + Clerk but **not granted**
+on any live token — every staffer who wants mark-as-read must sign out and back
+in and accept the permission. Verified by tokeninfo, not inferred. Nothing else
+on the page depends on it.
+
+### Local dev gotcha
+`npm run dev` runs the API as plain `node server.js` — **no watch, no reload.**
+API edits do nothing until you restart it. This silently wasted a round of
+testing: the fixed code was on disk while the browser kept exercising the old
+endpoint and still showed unstable thread counts.
