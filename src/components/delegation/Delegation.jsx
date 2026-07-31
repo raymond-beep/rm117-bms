@@ -41,7 +41,15 @@ export default function Delegation() {
   const [tasks, setTasks] = useState([]);
   const [me, setMe] = useState({ email: myEmail, is_admin: false });
   const [status, setStatus] = useState('loading'); // loading | ready | error
-  const [error, setError] = useState('');
+  // TWO kinds of error, deliberately separate:
+  //   loadError   — the board itself couldn't be fetched. Cleared automatically the
+  //                 moment a load succeeds, so it can never contradict the grid
+  //                 rendered underneath it.
+  //   actionError — a write (add / tick / rename / delete) failed. Stays until
+  //                 dismissed, because a 4s poll would otherwise wipe it off the
+  //                 screen before anyone had read it.
+  const [loadError, setLoadError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   // Lets the poll skip clobbering a field someone is typing in, or a write that
   // hasn't come back yet.
@@ -64,9 +72,15 @@ export default function Delegation() {
         setMe(data.me || { email: myEmail, is_admin: false });
         setTasks(data.tasks || []);
       }
+      // ⚠️ CLEAR on success. Without this, one transient failure — most likely the
+      // very first fetch, before the Clerk token is ready — left "Couldn't load the
+      // board" pinned above the grid for the rest of the session, contradicting the
+      // board sitting underneath it. A stale error is worse than none: it teaches
+      // people to ignore the banner.
+      setLoadError('');
       setStatus('ready');
     } catch (e) {
-      if (weekRef.current === wk) { setError(e.message); setStatus('error'); }
+      if (weekRef.current === wk) { setLoadError(e.message); setStatus('error'); }
     }
   }, [myEmail]);
 
@@ -116,7 +130,7 @@ export default function Delegation() {
       // Roll the optimistic row back out rather than leaving a ghost item that
       // looks saved and isn't.
       setTasks((prev) => prev.filter((t) => t.id !== tempId));
-      setError(e.message);
+      setActionError(e.message);
     }
   }), []);
 
@@ -134,7 +148,7 @@ export default function Delegation() {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? data.task : t)));
     } catch (e) {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, done: before } : t)));
-      setError(e.message);
+      setActionError(e.message);
     }
   }), []);
 
@@ -153,7 +167,7 @@ export default function Delegation() {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? data.task : t)));
     } catch (e) {
       setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, text: before } : t)));
-      setError(e.message);
+      setActionError(e.message);
     }
   }), []);
 
@@ -171,7 +185,7 @@ export default function Delegation() {
       }
     } catch (e) {
       setTasks((prev) => [...prev, task]);
-      setError(e.message);
+      setActionError(e.message);
     }
   }), []);
 
@@ -189,7 +203,7 @@ export default function Delegation() {
       });
       if (!r.ok) {
         const data = await r.json().catch(() => ({}));
-        setError(data.error || 'Could not clear that row');
+        setActionError(data.error || 'Could not clear that row');
         return;
       }
       setTasks((prev) => prev.filter((t) => t.row_owner_email !== rowEmail));
@@ -229,13 +243,18 @@ export default function Delegation() {
         </div>
       </div>
 
+      {/* Only while the board genuinely isn't loaded. `status` flips back to 'ready'
+          and loadError clears on the next successful poll, so this cannot linger
+          above a grid that is showing fine. */}
       {status === 'error' && (
         <div className="deleg-error">
-          Couldn’t load the board: {error} <button className="btn" onClick={() => load(weekKey)}>Retry</button>
+          Couldn’t load the board: {loadError} <button className="btn" onClick={() => load(weekKey)}>Retry</button>
         </div>
       )}
-      {status !== 'error' && error && (
-        <div className="deleg-error">{error} <button className="btn" onClick={() => setError('')}>Dismiss</button></div>
+      {actionError && (
+        <div className="deleg-error">
+          {actionError} <button className="btn" onClick={() => setActionError('')}>Dismiss</button>
+        </div>
       )}
 
       <div className="deleg-scroll">
