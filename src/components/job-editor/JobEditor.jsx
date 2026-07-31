@@ -1,4 +1,4 @@
-// JobEditor drawer — Details / Progress / Payments / Messages tabs for one job.
+// JobEditor drawer — Details / Progress / Payments / Correspondence tabs for one job.
 // Details edits save optimistically through the parent's onSave (rollback there).
 import React, { useEffect, useState } from 'react';
 import { apiFetch } from '../../lib/api.js';
@@ -9,7 +9,7 @@ import {
 } from '../../lib/format.js';
 import ProgressTab from './ProgressTab.jsx';
 import PaymentsTab from './PaymentsTab.jsx';
-import MessagesTab from './MessagesTab.jsx';
+import CorrespondenceTab from './CorrespondenceTab.jsx';
 import CorrectJobIdModal from './CorrectJobIdModal.jsx';
 import ClientContacts from './ClientContacts.jsx';
 
@@ -226,7 +226,7 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
           <button className={`drawer-tab${tab === 'details' ? ' active' : ''}`} onClick={() => setTab('details')}>Details</button>
           <button className={`drawer-tab${tab === 'progress' ? ' active' : ''}`} onClick={() => setTab('progress')}>Progress</button>
           <button className={`drawer-tab${tab === 'payments' ? ' active' : ''}`} onClick={() => setTab('payments')}>Payments</button>
-          <button className={`drawer-tab${tab === 'messages' ? ' active' : ''}`} onClick={() => setTab('messages')}>Messages</button>
+          <button className={`drawer-tab${tab === 'messages' ? ' active' : ''}`} onClick={() => setTab('messages')}>Correspondence</button>
         </div>
 
         {tab === 'details' && (
@@ -465,8 +465,11 @@ export default function JobEditor({ job, onClose, onSave, onPaymentLogged, onRen
           <PaymentsTab job={job} onLogged={onPaymentLogged} />
         )}
 
+        {/* Tab key stays 'messages' so any saved state/deep link keeps working,
+            the same reason /bms and /delegation kept their routes through a
+            rename. */}
         {tab === 'messages' && (
-          <MessagesTab job={job} />
+          <CorrespondenceTab job={job} />
         )}
       </div>
       {renaming && (

@@ -62,8 +62,6 @@ const METHODS = {
   preview: 'GET',
   files: 'GET',
   download: 'GET',
-  messages: 'GET',
-  send: 'POST',
   pay: 'GET',     // a job's due invoices + their QBO hosted pay-page links
   enter: 'GET',   // magic-link landing — PUBLIC by design (it IS the authentication)
   signout: 'GET', // clears the portal cookies
@@ -86,6 +84,9 @@ const METHODS = {
   draft: 'GET',
   notify: 'POST',
   history: 'GET', // STAFF-only — what this client has already been told, and when
+  // Threads a staffer explicitly SHARED with this client. Read-only: the client
+  // replies by email, in their own mail client, to the real conversation.
+  correspondence: 'GET',
 };
 
 // Actions that must NOT go through resolvePortalIdentity: `enter` is how a client
@@ -144,10 +145,8 @@ export default async function handler(req, res) {
       return handleFiles(req, res, identity);
     case 'download':
       return handleDownload(req, res, identity);
-    case 'messages':
-      return handleMessages(req, res, identity);
-    case 'send':
-      return handleSend(req, res, identity);
+    case 'correspondence':
+      return handleCorrespondence(req, res, identity);
     case 'pay':
       return handlePay(req, res, identity);
     case 'set-password':
@@ -448,19 +447,43 @@ async function handleDownload(req, res, identity) {
   }
 }
 
-// One message thread per job. Find-or-create on demand. Clients reach only their
-// own job's thread; staff may reach any job's thread (read + reply).
-async function findOrCreateThread(db, jobId, create) {
-  const { data: existing } = await db.from('threads').select('id').eq('job_id', jobId).maybeSingle();
-  if (existing) return existing;
-  if (!create) return null;
-  const { data, error } = await db.from('threads').insert({ job_id: jobId }).select('id').single();
-  if (error) throw new Error(error.message);
-  return data;
-}
+// ⚠️ THE PER-JOB PORTAL CHAT WAS REMOVED (2026-07-30, Ray's call).
+//
+// `findOrCreateThread`, `handleMessages` (GET /api/portal/messages) and
+// `handleSend` (POST /api/portal/send) are gone. The feature had 0 rows in
+// `threads` and 0 in `messages` after a year, and the reason was in the code
+// itself: handleSend ended with "Email notification to the other party is a later
+// slice". It notified nobody in either direction, so a client who wrote there was
+// announced to no one and a staff reply likewise — a closed loop with no doorbell,
+// which is worse than no feature because it looks like a way to reach your
+// architect.
+//
+// Replaced by real email: threads a staffer files against a job, shared with the
+// client by handleCorrespondence below, and answered in their own mail client.
+//
+// The `threads` / `messages` TABLES are deliberately left in place — empty and
+// harmless. Dropping them would be an irreversible migration to delete nothing.
 
-// GET /api/portal/messages?job_id=... — the job's thread messages (oldest first).
-async function handleMessages(req, res, identity) {
+// GET /api/portal/correspondence?job_id=… — the email conversations a staffer
+// chose to share with this client, read from the app's copy.
+//
+// ⭐ Clients see the WHOLE thread, never a filtered slice (Ray, 2026-07-30).
+// Three of seven messages, with replies referencing things they cannot see, reads
+// as broken and is worse than showing nothing. The safety is the staff-side
+// PREVIEW: ticking "visible to client" shows the real conversation and flags every
+// message the client was never on, which a person then excludes in one click
+// (`mail_messages.hidden_from_client`).
+//
+// ⚠️ So this deliberately does NOT filter on `participants`. Migration 0020's
+// comment describes an automatic participant filter — that design was SUPERSEDED
+// by the preview before any of it shipped. Do not "restore" it: it would silently
+// punch holes in a conversation a person already reviewed and approved in full.
+//
+// ⚠️ Attachment FILENAMES only, no links. Clients never receive Google Drive
+// permissions — the backend brokers every file access — and these files live in
+// the job's "Files Received" folder, which the portal's download broker does not
+// serve. Naming them keeps the record honest without opening Drive.
+async function handleCorrespondence(req, res, identity) {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   if (identity.role !== 'client' && identity.role !== 'staff') return res.status(403).json({ error: 'forbidden' });
 
@@ -468,50 +491,48 @@ async function handleMessages(req, res, identity) {
   const job = await getJobForIdentity(identity, jobId, 'job_id');
   if (!job) return res.status(404).json({ error: 'job_not_found' });
 
-  const thread = await findOrCreateThread(identity.db, job.job_id, false);
-  let messages = [];
-  if (thread) {
-    const { data } = await identity.db
-      .from('messages')
-      .select('id, sender_type, body, via, created_at')
-      .eq('thread_id', thread.id)
-      .order('created_at', { ascending: true });
-    messages = data || [];
-  }
-  return res.status(200).json({ job_id: job.job_id, messages });
-}
+  const db = identity.db;
+  const { data: links } = await db
+    .from('mail_thread_jobs').select('thread_id').eq('job_id', job.job_id);
+  const ids = (links || []).map((l) => l.thread_id);
+  if (!ids.length) return res.status(200).json({ job_id: job.job_id, threads: [] });
 
-// POST /api/portal/send { job_id, body } — append a message as client or staff.
-async function handleSend(req, res, identity) {
-  if (identity.role !== 'client' && identity.role !== 'staff') return res.status(403).json({ error: 'forbidden' });
-
-  const payload = req.body || {};
-  const text = String(payload.body || '').trim();
-  if (!text) return res.status(400).json({ error: 'empty_message' });
-  if (text.length > 5000) return res.status(400).json({ error: 'message_too_long' });
-
-  const job = await getJobForIdentity(identity, payload.job_id, 'job_id');
-  if (!job) return res.status(404).json({ error: 'job_not_found' });
-
-  let thread;
-  try {
-    thread = await findOrCreateThread(identity.db, job.job_id, true);
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
-
-  const senderType = identity.role === 'client' ? 'client' : 'staff';
-  const senderId = identity.role === 'client' ? identity.client.id : null;
-  const { data: message, error } = await identity.db
-    .from('messages')
-    .insert({ thread_id: thread.id, sender_type: senderType, sender_id: senderId, body: text, via: 'portal' })
-    .select('id, sender_type, body, via, created_at')
-    .single();
+  const { data, error } = await db
+    .from('mail_threads')
+    .select(`
+      id, subject, last_message_at, shared_at,
+      messages:mail_messages (
+        id, from_name, from_email, sent_at, body_text, hidden_from_client,
+        attachments:mail_attachments ( filename )
+      )
+    `)
+    .in('id', ids)
+    // The gate. A thread nobody shared is invisible here, full stop.
+    .eq('visible_to_client', true)
+    .order('last_message_at', { ascending: false });
   if (error) return res.status(500).json({ error: error.message });
 
-  await identity.db.from('threads').update({ updated_at: new Date().toISOString() }).eq('id', thread.id);
-  // Email notification to the other party is a later slice (notifications table ready).
-  return res.status(200).json({ message });
+  const threads = (data || []).map((t) => ({
+    id: t.id,
+    subject: t.subject || '(no subject)',
+    sharedAt: t.shared_at || null,
+    lastMessageAt: t.last_message_at || null,
+    messages: (t.messages || [])
+      // The ONLY message-level exclusion: one a staffer deliberately removed.
+      .filter((m) => !m.hidden_from_client)
+      .sort((a, b) => Date.parse(a.sent_at || 0) - Date.parse(b.sent_at || 0))
+      .map((m) => ({
+        id: m.id,
+        from: m.from_name || m.from_email || 'RM117',
+        at: m.sent_at || null,
+        text: m.body_text || '',
+        attachments: (m.attachments || []).map((a) => a.filename),
+      })),
+  }))
+    // A thread whose every message was excluded would render as an empty card.
+    .filter((t) => t.messages.length > 0);
+
+  return res.status(200).json({ job_id: job.job_id, threads });
 }
 
 // ---------------------------------------------------------------------------
