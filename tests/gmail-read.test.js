@@ -331,6 +331,58 @@ describe('classifySender + inScope', () => {
     expect(classifySender({ email: 'newsletter@somewhere.io' }, notClient)).toBe('noise');
   });
 
+  // ── Bulk detection by header ────────────────────────────────────────────────
+  // These are the senders that made the "Work" scope over half marketing: real
+  // companies on unenumerated domains, and coaching/newsletter mail from
+  // addresses that look exactly like a person.
+  const unsub = { 'list-unsubscribe': '<https://example.com/u/1>' };
+
+  it('tags a marketing sender on a domain nobody enumerated as noise', () => {
+    expect(classifySender({ email: 'no-reply@zillow.com', name: 'Zillow' }, notClient, unsub)).toBe('noise');
+    expect(classifySender({ email: 'mail@autodesk.com', name: 'Autodesk' }, notClient, unsub)).toBe('noise');
+  });
+
+  it('tags a human-LOOKING bulk sender as noise', () => {
+    // "AI with Mariah" / "Elise Knaack" / "Ray Fu" — a personal name and a
+    // personal-looking address, so every sender heuristic reads them as people.
+    expect(classifySender({ email: 'mariah@aiwithmariah.co', name: 'AI with Mariah' }, notClient, unsub)).toBe('noise');
+  });
+
+  it('honours Precedence: bulk and Auto-Submitted for automated mail that is not a list', () => {
+    expect(classifySender({ email: 'x@y.com' }, notClient, { precedence: 'bulk' })).toBe('noise');
+    expect(classifySender({ email: 'x@y.com' }, notClient, { 'auto-submitted': 'auto-generated' })).toBe('noise');
+    expect(classifySender({ email: 'x@y.com' }, notClient, { 'auto-submitted': 'no' })).toBe('project');
+  });
+
+  it('does NOT let bulk headers demote a client matched on their exact address', () => {
+    // A client whose mail happens to route through something that stamps
+    // List-Unsubscribe is still the client.
+    const byEmail = { isClient: true, via: 'email', label: 'Gabe DaSilva' };
+    expect(classifySender({ email: 'gabe@dasilvagroupinc.com' }, byEmail, unsub)).toBe('client');
+  });
+
+  it('DOES let bulk headers beat a surname GUESS', () => {
+    // The fallback matches a display-name token against 162 jobs' surnames, so a
+    // newsletter from a "Ms. Deuel" would otherwise be promoted to client mail.
+    const byName = { isClient: true, via: 'name', label: 'Deuel' };
+    expect(classifySender({ email: 'hi@marketing.example', name: 'Tyler Deuel' }, byName, unsub)).toBe('noise');
+  });
+
+  it('treats the app\'s OWN portal sender as noise, not as a colleague', () => {
+    // Sign-in codes come from portal@rm117.com and land in Ray's inbox because he
+    // is also a test client. The BMS announcing itself is not correspondence.
+    expect(classifySender({ email: 'portal@rm117.com', name: 'Room 117 Architecture & Design' }, notClient)).toBe('noise');
+    // A named colleague at the same domain is untouched.
+    expect(classifySender({ email: 'angelena@rm117.com', name: 'Angelena Hreczny' }, notClient)).toBe('staff');
+  });
+
+  it('keeps a real human with no bulk headers in work mail', () => {
+    // The failure that matters most: a township clerk or contractor must never be
+    // hidden. No List-Unsubscribe, so nothing here applies.
+    expect(classifySender({ email: 'acapriotti@rcgpllc.net', name: 'A Capriotti' }, notClient, {})).toBe('project');
+    expect(classifySender({ email: 'clerk@westfieldnj.gov', name: 'Building Dept' }, notClient, {})).toBe('project');
+  });
+
   it('work scope keeps everything except noise', () => {
     expect(inScope('client', 'work')).toBe(true);
     expect(inScope('staff', 'work')).toBe(true);

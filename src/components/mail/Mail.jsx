@@ -541,10 +541,19 @@ function ReplyBox({ thread, selfEmail, onSent }) {
 // names five different projects. A person confirms before anything is filed —
 // the same rule the Drive → app sync runs on, where a wrong link is worse than
 // no link.
+//
+// ⚠️ …which is why NOTHING starts ticked. The suggestions used to come
+// pre-selected, which made "a person confirms" a rubber stamp: the fastest path
+// through the dialog accepted all of them. On a real thread — DaSilva's "235
+// Munsee Way Rev 3" — that meant filing it against four DaSilva jobs and, since
+// attachments go to the FIRST job only, uploading the Munsee drawings into
+// Florham Park's Drive folder. Suggestions are still listed and still one click
+// each; they just no longer decide by default. Jobs ALREADY filed do start
+// ticked — that is recorded state, not a guess.
 function FileToJob({ thread, row, onFiled }) {
   const [open, setOpen] = useState(false);
   const [filed, setFiled] = useState(null);      // null = not loaded yet
-  const [picked, setPicked] = useState(() => new Set(row?.jobs || []));
+  const [picked, setPicked] = useState(() => new Set());
   const [jobs, setJobs] = useState([]);
   const [query, setQuery] = useState('');
   const [saveAttachments, setSaveAttachments] = useState(true);
@@ -563,10 +572,11 @@ function FileToJob({ thread, row, onFiled }) {
         if (!alive) return;
         setFiled(d.filed ? d : { filed: false, jobs: [] });
         if (d.filed) {
+          // Already filed: these are the jobs of record, so they stay ticked.
           setPicked(new Set(d.jobs || []));
           setVisibleToClient(Boolean(d.thread?.visible_to_client));
         } else {
-          setPicked(new Set(row?.jobs || []));
+          setPicked(new Set());
         }
       })
       .catch(() => { if (alive) setFiled({ filed: false, jobs: [] }); });

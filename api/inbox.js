@@ -97,10 +97,15 @@ export default async function handler(req, res) {
     // the same mailbox reported 20 conversations on one load and 40 on the next.
     // A short list nobody can tell is short is the worst outcome for this page,
     // so an unrecoverable hole now surfaces as an error instead.
+    // List-Unsubscribe / Precedence / Auto-Submitted are requested because they
+    // are how bulk mail identifies ITSELF — see isBulkMail(). Without them the
+    // "Work" scope was over half marketing.
     const settled = await mapGmail(ids, (id) =>
       gmailGet(
         `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=To` +
-        `&metadataHeaders=Subject&metadataHeaders=Date`,
+        `&metadataHeaders=Subject&metadataHeaders=Date` +
+        `&metadataHeaders=List-Unsubscribe&metadataHeaders=List-Id` +
+        `&metadataHeaders=Precedence&metadataHeaders=Auto-Submitted`,
         token,
       ),
     );
@@ -115,7 +120,7 @@ export default async function handler(req, res) {
       const to = parseAddressList(h.to || '');
       const who = counterparty(from, to);
       const m = matcher.match(who);
-      const kind = classifySender(who, m);
+      const kind = classifySender(who, m, h);
       if (!inScope(kind, scope)) continue;
 
       const when = h.date ? new Date(h.date).getTime() : 0;
