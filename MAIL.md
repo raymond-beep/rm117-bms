@@ -10,8 +10,21 @@ Read this first when picking the feature back up.
 | Path | State |
 |---|---|
 | **Filing a real thread** | ✅ **VERIFIED end to end**, checked against the DB and Drive directly rather than the UI badge |
+| **Sending a reply** | ✅ **VERIFIED end to end**, including the raw threading headers |
 | **Mark-as-read** | ❌ **BLOCKED** — `gmail.modify` is genuinely not granted (measured, see below) |
-| **Sending a reply** | ⏳ still unverified — nothing has left Gmail |
+
+**Reply-send proof (2026-07-31).** Seeded from Ray's personal Gmail to
+`raymond@rm117.com`, replied from the app, then read the raw headers of the sent
+copy back out of Gmail:
+
+- `From: Raymond Arocha <raymond@rm117.com>` — sent **as the staffer**, not a bot
+- `Subject: Re: Another Test`, and it is in the **SENT** label
+- `In-Reply-To` **equals** the original's `Message-ID`; `References` contains it
+- both messages sit in **one** Gmail thread
+
+That header check is the whole point: without `In-Reply-To`/`References` a reply
+looks perfectly correct in our own mailbox and lands as a NEW conversation in the
+client's inbox. Re-verify the same way, never by eye.
 
 **Filing proof:** DaSilva "235 Munsee Way Rev 3" filed against `25_049_DaSilva_Munsee`
 only → `mail_threads` row with 2 messages, both bodies non-blank (4,473 / 5,032
@@ -246,8 +259,12 @@ lives).
 ### Must do before merging
 1. ~~Remove the local-dev diagnostic in `api/inbox/thread.js`~~ — ✅ done
    (`dc7991d`).
-2. **Verify sending a reply** — the last unverified path. See below.
+2. ~~Verify sending a reply~~ — ✅ done, headers checked (see above).
 3. Decide whether `scripts/` needs anything; branch is otherwise clean.
+
+**All three originally-unverified paths are now settled** — two proven, one
+blocked on a Google consent that degrades cleanly and that nothing else depends
+on. There is no known code blocker to merging.
 
 ### Not yet built
 - **Correspondence view in the JobEditor**, replacing the dead `MessagesTab` —
@@ -264,24 +281,19 @@ lives).
   ("Elise Knaack", "AI with Mariah") lands in Work as `project`.
 - No search / no pagination (30 days, 60 threads).
 
-### ⚠️ STILL UNVERIFIED — the one real remaining risk
-**Sending a reply.** Nothing has ever left Gmail from this app.
+### How to re-test sending safely
 
-⚠️ **"Email yourself" does NOT work as the test** — it was the recipe here and it
-is impossible. A message from you to you has no reply recipient (we filter
-ourselves out, correctly), so the composer shows "0 recipients" and Send stays
-disabled. Attempting it on 2026-07-31 is what uncovered the "firm spoke last" bug
-above, but it cannot exercise the send path.
+⚠️ **"Email yourself" does NOT work** — it was the recipe here and it is
+impossible. A message from you to you has no reply recipient (we filter ourselves
+out, correctly), so the composer shows "0 recipients" and Send stays disabled.
+Attempting it on 2026-07-31 is what uncovered the "firm spoke last" bug above,
+but it cannot exercise the send path.
 
-**The working safe test: send the seed from an address you control that is NOT
-`@rm117.com`** (a personal Gmail, or your phone on another account) to
-`raymond@rm117.com`. Wait for it in the Mail list, then reply in the app. That
-gives a real external recipient without involving a client.
-
-⚠️ **Check the raw headers of the sent copy, not just that it arrived.** Threading
-is the part that fails INVISIBLY from this end: a reply missing `In-Reply-To` /
-`References` looks perfectly correct in our own mailbox and shows up as a NEW
-conversation in the recipient's inbox.
+**Send the seed from an address you control that is NOT `@rm117.com`** (a personal
+Gmail, or your phone on another account) to `raymond@rm117.com`, wait for it in
+the Mail list, then reply in the app. Real external recipient, no client involved.
+Then read the raw headers of the sent copy back out of Gmail — see the proof
+above for exactly which six things to assert.
 
 ### Re-consent needed for mark-as-read
 `gmail.modify` is configured in Google Cloud Console + Clerk but **not granted**
