@@ -1,8 +1,8 @@
 // POST /api/drive/import — pull one Drive folder into the app as a job or a lead,
 // or dismiss it so the queue stops offering it.
 //
-//   { folderId, phase?, client_name?, address? }  -> create the job/lead row
-//   { folderId, dismiss: true }                   -> never offer this folder again
+//   { folderId, phase?, client_name?, address?, set_up_folders? }  -> create the job/lead row
+//   { folderId, dismiss: true }                                    -> never offer this folder again
 //
 // The folder is re-read from Drive and re-parsed HERE rather than trusting the client's
 // copy: the queue payload is a snapshot, and a folder renamed between the scan and the
@@ -14,7 +14,7 @@
 // already has the picker.
 import { getDb, hasDb, PHASES, isPlaceholderJobId } from '../_lib/db.js';
 import { requireStaff } from '../_lib/require-staff.js';
-import { hasDrive, getFileMeta } from '../_lib/google-drive.js';
+import { hasDrive, getFileMeta, ensureJobSubfolders } from '../_lib/google-drive.js';
 import { parseFolderName } from '../_lib/drive-sync.js';
 import { stampPhaseEntry } from '../_lib/phase-clock.js';
 
@@ -106,7 +106,42 @@ export default async function handler(req, res) {
     // Start the phase clock. Best-effort — never fail an import over the side record.
     await stampPhaseEntry(db, parsed.jobId, phase, { where: 'api/drive/import' });
 
-    res.status(201).json({ job: data, folderName: meta.name });
+    // Fill in the standard folder tree INSIDE the folder that already exists (Ray, 2026-08-04).
+    // Until now the tree was only back-filled at PROMOTION — when the proposal is signed — which
+    // is one step too late: the proposal is WRITTEN before it's signed, so Ang would go to file
+    // one and find no "Proposal" folder. Measured the day this changed: 4 of 26 live leads had
+    // none, and 26_xxx_Tambakuwala's proposal .docx + .pdf were sitting loose at the folder root
+    // because there was nowhere to put them.
+    //
+    // ⚠️ This does NOT provision a folder named after a placeholder Job ID — the invariant that a
+    // `26_xxx_` id never reaches Drive-by-name still holds. The folder is already there and was
+    // named by a person; we only add subfolders inside it. `ensureJobSubfolders` is idempotent and
+    // matches case-insensitively, so an existing "Proposal" is reused, never duplicated, and
+    // nothing already in the folder is touched or moved.
+    //
+    // Ray's call on the trade: worst case a lead falls through and someone deletes a few empty
+    // folders. That beats having nowhere to save the proposal that might win the job.
+    const setUpFolders = req.body.set_up_folders !== false; // opt OUT, not in
+    let drive = setUpFolders ? null : { skipped: 'not requested' };
+    if (setUpFolders) {
+      try {
+        const { filesSentId, created } = await ensureJobSubfolders(folderId);
+        if (filesSentId) {
+          await db.from('jobs')
+            .update({ drive_files_sent_folder_id: filesSentId })
+            .eq('job_id', parsed.jobId);
+          data.drive_files_sent_folder_id = filesSentId;
+        }
+        drive = { subfoldersCreated: created };
+      } catch (e) {
+        // Non-fatal, exactly as in api/jobs/create.js: a Drive hiccup must never undo an import
+        // that already wrote the job row. The staffer sees what didn't happen and can retry.
+        console.warn('[api/drive/import] subfolder set-up failed (job still imported):', e.message);
+        drive = { error: e.message };
+      }
+    }
+
+    res.status(201).json({ job: data, folderName: meta.name, drive });
   } catch (err) {
     console.error('[api/drive/import]', err);
     res.status(500).json({ error: err.message });

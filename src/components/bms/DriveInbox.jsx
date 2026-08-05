@@ -17,6 +17,11 @@ export default function DriveInbox({ onImported }) {
   const [busy, setBusy] = useState(null); // folderId being acted on
   const [error, setError] = useState(null);
   const [phases, setPhases] = useState({}); // folderId -> chosen phase
+  // Create the standard subfolder tree inside the Drive folder as it's imported. ON by default
+  // (Ray, 2026-08-04): the folders used to appear only when the proposal was SIGNED, so there was
+  // nowhere to file the proposal you were writing to win the job. An empty folder on a lead that
+  // falls through is the cheaper mistake.
+  const [setUpFolders, setSetUpFolders] = useState(true);
 
   async function load() {
     try {
@@ -102,7 +107,10 @@ export default function DriveInbox({ onImported }) {
                   <button
                     className="btn btn-primary"
                     disabled={busy === hit.folderId}
-                    onClick={() => act(hit, { phase: phases[hit.folderId] || hit.suggestedPhase })}
+                    onClick={() => act(hit, {
+                      phase: phases[hit.folderId] || hit.suggestedPhase,
+                      set_up_folders: setUpFolders,
+                    })}
                   >
                     {busy === hit.folderId ? 'Adding…' : 'Add to app'}
                   </button>
@@ -118,6 +126,21 @@ export default function DriveInbox({ onImported }) {
               </button>
             </div>
           ))}
+          <label className="di-setup">
+            <input
+              type="checkbox"
+              checked={setUpFolders}
+              onChange={(e) => setSetUpFolders(e.target.checked)}
+            />
+            <span>
+              Set up the standard folders in Drive
+              <span className="di-setup-sub">
+                Proposal · Files Sent · Files Received · Checksets · Field Measure/Photos · Archive —
+                only the ones missing are added; nothing already in the folder is moved.
+              </span>
+            </span>
+          </label>
+
           <div className="di-note">
             Adding a folder creates the job with the client <em>unlinked</em> and no contract total —
             open it and fill those in. A lead keeps its <code>XXX</code> placeholder until its proposal

@@ -440,6 +440,21 @@ three that were built and never entered daily work**. The conclusion: stop askin
   would create `26_047_Onorato` beside the original `26_XXX_Onorato` and orphan every file in it. The
   job remembers its folder in **`jobs.drive_folder_id`** and promotion renames that — which is exactly
   the rename staff do by hand today.
+- **The standard subfolder tree is built at IMPORT, not at promotion** (Ray, 2026-08-04). It used to
+  be filled in only when the proposal was SIGNED (`assignOfficialJobId`) — one step too late, because
+  the proposal is **written before it's signed**. Ang went to file a batch of proposals and found no
+  "Proposal" folder: 4 of 26 live leads had none, and two had their proposal `.docx` + `.pdf` loose at
+  the folder root because there was nowhere else to put them. `api/drive/import.js` now calls
+  `ensureJobSubfolders` on the folder as it imports (checkbox in the "New in Drive" strip, **default
+  ON**; `set_up_folders: false` opts out). Promotion still back-fills — that stays as the safety net
+  for anything imported before this, and for a folder someone reorganised in between.
+  - ⚠️ **This is NOT a licence to provision a folder NAMED after a placeholder Job ID.** The rule that
+    a `YY_xxx_` id never reaches Drive-by-name still holds — the folder already exists and was named
+    by a person; we only add subfolders *inside* it. A lead created IN THE APP still gets no folder.
+  - Ray's stated trade: worst case a lead falls through and someone deletes a few empty folders. That
+    beats having nowhere to save the proposal that might win the job. Don't re-optimise this back.
+  - One-off backfill: `scripts/backfill-lead-subfolders.js` (dry run by default; `--all` widens it
+    from "no Proposal folder" to every lead missing anything).
 - **EVERY CONTACT GETS THEIR OWN MAGIC LINK** (`portal_links.contact_id`) and **their own email** — never one
   email with the team CC'd. A CC'd link would be a shared credential: when a developer's project manager leaves
   the firm you'd have to revoke the whole team and re-send. Per-person links mean you revoke that one person,
