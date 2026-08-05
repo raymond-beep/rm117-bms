@@ -29,6 +29,7 @@ const ProposalGenerator = lazy(() => import('./components/templates/ProposalGene
 const DrawingQA = lazy(() => import('./components/drawing-qa/DrawingQA.jsx'));
 const Delegation = lazy(() => import('./components/delegation/Delegation.jsx'));
 const Mail = lazy(() => import('./components/mail/Mail.jsx'));
+const Clients = lazy(() => import('./components/clients/Clients.jsx'));
 
 const RouteFallback = () => <div className="page"><div className="card"><div className="empty">Loading…</div></div></div>;
 
@@ -41,8 +42,25 @@ const MOBILE_TABS = [
   { to: '/portal', label: 'Portal', icon: '◱' },
 ];
 
-// "Drafting + data" nav: Templates and Client Portal are first-class items
-// alongside Dashboard / Project Management / Forefront. Settings is pinned to the bottom.
+// Sidebar order = how much the thing is actually used, busiest at the top.
+// Re-ordered 2026-08-05 against measured 30-day write activity, not intuition. Settings is
+// pinned to the bottom separately.
+//
+// ⚠️ **Writes undercount read-heavy tabs.** Dashboard, Mail, Financial and Clients are mostly
+// LOOKED AT, and reading leaves no row behind — so their measured numbers are floors, not
+// estimates. Don't re-sort this list on row counts alone next time; weigh what people open.
+// (Financial's payment rows are especially misleading: the Zapier/QBO cron writes them, not a
+// person visiting the tab.)
+//
+// What the data actually said, 30d / 7d:
+//   Weekly Planner 105/37 (used daily — it had been SEVENTH) · Project Management 15/4 ·
+//   Checksets 3/0 · Templates 3/1 · Mail 2/2 (shipped 2026-07-31; filing ≠ reading) ·
+//   Forefront 0/0 (last commission 2026-06-13) · Client Portal **0, never used by anyone**.
+//
+// The portal is deliberately near the bottom despite being fully built (three login doors,
+// Pay Now, the site button): not one magic link has ever been minted. Ray's call 2026-08-05 —
+// the sidebar should report reality, and portal adoption gets solved as its own problem
+// rather than by hopeful placement. Move it back up if that ever changes.
 const NAV_GROUPS = [
   {
     caption: 'Workspace',
@@ -51,12 +69,36 @@ const NAV_GROUPS = [
       { to: '/mail', label: 'Mail' },
       // Label only — the route stays /bms so existing links and bookmarks keep working.
       { to: '/bms', label: 'Project Management' },
-      { to: '/financial', label: 'Financial' },
-      { to: '/drawing-qa', label: 'Checksets' },
       { to: '/delegation', label: 'Weekly Planner' },
+      { to: '/financial', label: 'Financial' },
+      { to: '/clients', label: 'Clients' },
+      { to: '/drawing-qa', label: 'Checksets' },
       { to: '/portal', label: 'Client Portal' },
-      { to: '/templates', label: 'Templates' },
       { to: '/forefront', label: 'Forefront' },
+    ],
+  },
+  // The two document generators, lifted out of the Templates hub (Ray, 2026-08-05: they are
+  // the most useful things in the app and were two clicks away). They get their own group
+  // rather than a slot in Workspace because that list is ordered by DAILY frequency and these
+  // are episodic — one per new lead, one per permit review. A caption gives them one-click
+  // access without claiming they're daily tools.
+  //
+  // ⚠️ **`/templates` is still a live route, just not a nav item** — same pattern as `/bms`
+  // keeping its route after the label change. The generators' "← Templates" back-link and any
+  // existing bookmark still work. It stopped earning a sidebar slot because it was a hub of
+  // two real cards plus two greyed-out "Soon" ones (Invoice, Email) that were never built —
+  // a click that mostly advertised things that don't exist. When Invoice or Email do get
+  // built, add them to THIS group.
+  //
+  // Why this looked low-use and isn't: the `proposals` table had 1 row, but Save is optional
+  // in both generators — you can build, download, and send to Drive without ever saving. The
+  // real volume is 16 jobs sitting in "Proposal Sent" right now. Don't judge these two by
+  // their table counts.
+  {
+    caption: 'Documents',
+    items: [
+      { to: '/templates/proposal', label: 'Proposal' },
+      { to: '/templates/letter', label: 'Building-Dept Letter' },
     ],
   },
 ];
@@ -175,6 +217,7 @@ export default function AppShell() {
                     <Route path="/drawing-qa" element={<DrawingQA />} />
                     <Route path="/delegation" element={<Delegation />} />
                     <Route path="/mail" element={<Mail />} />
+                    <Route path="/clients" element={<Clients />} />
                     <Route path="/portal" element={<StaffPortalPreview />} />
                     <Route path="/settings" element={<Settings />} />
                     <Route path="*" element={<div className="page"><div className="page-head"><div><div className="eyebrow">404</div><h1 className="greeting">Not found</h1></div></div></div>} />

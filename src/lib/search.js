@@ -176,3 +176,24 @@ export function searchPortalClients(query, jobs = [], clients = [], limit = PICK
     .slice(0, limit)
     .map(({ score, ...rest }) => rest);
 }
+
+// ── Clients directory ──────────────────────────────────────────────────────
+// A different job from the two matchers above, which both rank a long list down to a
+// handful for a picker. A directory is a FILTER: show every client that matches, in the
+// order they arrived (the API sorts by name). Silently truncating to a top-N here would
+// hide clients from the one screen whose purpose is seeing all of them.
+//
+// Matches broadly on purpose — a staffer looking for a client may only remember the Job
+// ID, the address, or the name of the project manager they email.
+export function filterClientDirectory(query, clients = []) {
+  const q = norm(query);
+  if (!q) return clients;
+  return clients.filter((c) => {
+    if (hitScore(c.name, q) || hitScore(c.company, q)) return true;
+    if (hitScore(c.email, q)) return true;
+    // Digits only, so "9084514633" finds "(908) 451-4633" and vice versa.
+    if (c.phone && String(c.phone).replace(/\D/g, '').includes(q.replace(/\D/g, '')) && /\d/.test(q)) return true;
+    if ((c.contacts || []).some((ct) => hitScore(ct.name, q) || hitScore(ct.email, q))) return true;
+    return (c.jobs || []).some((j) => hitScore(j.job_id, q) || hitScore(addressLine(j.address), q));
+  });
+}

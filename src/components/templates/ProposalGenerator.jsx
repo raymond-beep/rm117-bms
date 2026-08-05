@@ -48,6 +48,14 @@ export default function ProposalGenerator() {
   const [attachments, setAttachments] = useState([]);
   const [logo, setLogo] = useState(null);
 
+  // AI summary drafting. `undoSummary` holds what the textarea said before the last draft
+  // landed — a redraft overwrites text someone may have typed by hand, so it must be reversible.
+  const [aiOpen, setAiOpen] = useState(false);
+  const [brief, setBrief] = useState('');
+  const [drafting, setDrafting] = useState(false);
+  const [aiMsg, setAiMsg] = useState('');
+  const [undoSummary, setUndoSummary] = useState(null);
+
   const [currentId, setCurrentId] = useState(null);
   const [status, setStatus] = useState('draft');
   const [saved, setSaved] = useState([]);
@@ -121,6 +129,42 @@ export default function ProposalGenerator() {
       setGreeting((prev) => prev || job.client_name.split(/\s+/)[0]);
       setTitle((prev) => prev || job.client_name.toUpperCase());
     }
+  };
+
+  // ── AI summary draft ──
+  // Sends the brief plus the job context the form already holds. The reply only ever lands in
+  // the textarea — a person edits and approves it before the PDF is built, because this text
+  // becomes part of the signed contract (see api/_lib/proposal-summary.js).
+  const draftSummary = async () => {
+    const text = brief.trim();
+    if (!text) return;
+    setDrafting(true); setAiMsg(''); setError(null);
+    try {
+      const r = await apiFetch('/api/proposals/summarize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ brief: text, projectType, projectAddress, title }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not draft a summary.');
+      if (!d.summary) {
+        // The model abstained rather than invent scope — say what it needs instead.
+        setAiMsg(d.missing ? `Needs a bit more: ${d.missing}` : 'Add a little more detail and try again.');
+        return;
+      }
+      setUndoSummary(projectSummary);
+      setProjectSummary(d.summary);
+      setAiMsg('Draft written — read it over and edit before sending.');
+    } catch (e) {
+      setAiMsg(e.message || 'Could not draft a summary.');
+    } finally { setDrafting(false); }
+  };
+
+  const undoDraft = () => {
+    if (undoSummary === null) return;
+    setProjectSummary(undoSummary);
+    setUndoSummary(null);
+    setAiMsg('Reverted.');
   };
 
   // ── Save / reopen (fields-only; attachments + PDF are not persisted) ──
@@ -295,6 +339,45 @@ export default function ProposalGenerator() {
           </div>
           <label className="tpl-field"><span>Intro paragraph</span><textarea rows={2} value={intro} onChange={(e) => setIntro(e.target.value)} /></label>
           <label className="tpl-field"><span>Project summary</span><textarea rows={3} value={projectSummary} onChange={(e) => setProjectSummary(e.target.value)} placeholder="The existing house will undergo interior renovations and a 2-story addition…" /></label>
+
+          {/* Kept OUTSIDE the label above — inside it, clicking these controls would focus the
+              summary textarea instead. */}
+          <div className="tpl-ai">
+            {!aiOpen ? (
+              <button type="button" className="tpl-ai-open" onClick={() => setAiOpen(true)}>
+                ✦ Draft this with AI
+              </button>
+            ) : (
+              <>
+                <label className="tpl-field">
+                  <span>Describe the job in a line or two — AI writes the summary</span>
+                  <textarea
+                    rows={2}
+                    value={brief}
+                    onChange={(e) => setBrief(e.target.value)}
+                    placeholder="2 story addition at the rear, plus a full kitchen reno"
+                  />
+                </label>
+                <div className="tpl-ai-actions">
+                  <button
+                    type="button"
+                    className="tpl-att-btn"
+                    onClick={draftSummary}
+                    disabled={drafting || !brief.trim()}
+                  >
+                    {drafting ? 'Writing…' : projectSummary ? 'Rewrite summary' : 'Write summary'}
+                  </button>
+                  {undoSummary !== null && (
+                    <button type="button" className="tpl-ai-undo" onClick={undoDraft}>Undo</button>
+                  )}
+                  <button type="button" className="tpl-ai-undo" onClick={() => { setAiOpen(false); setAiMsg(''); }}>
+                    Close
+                  </button>
+                </div>
+                {aiMsg && <div className="tpl-ai-msg">{aiMsg}</div>}
+              </>
+            )}
+          </div>
 
           <div className="tpl-field-group">Scope of services — edit freely (deliverables = one bullet per line)</div>
           {phases.map((p) => (

@@ -1,7 +1,7 @@
 // Global search ranking (src/lib/search.js) — the rules that decide which of 134
 // jobs a staffer actually meant.
 import { describe, it, expect } from 'vitest';
-import { searchRecords, searchPortalClients } from '../src/lib/search.js';
+import { searchRecords, searchPortalClients, filterClientDirectory } from '../src/lib/search.js';
 
 const JOBS = [
   { job_id: '26_001_Deuel', client_name: 'Tyler Deuel', phase: 'design_phase', address: '12 Oak St\nMadison NJ' },
@@ -125,5 +125,68 @@ describe('searchPortalClients', () => {
 
   it('is case-insensitive on Job IDs', () => {
     expect(searchPortalClients('26_001_deuel', PJOBS, CLIENTS)[0].clientId).toBe('c1');
+  });
+});
+
+// ── Clients directory filter ───────────────────────────────────────────────
+// Unlike the two rankers above, this one must return EVERY match — it backs a directory,
+// and quietly truncating it would hide clients from the screen that exists to show them all.
+describe('filterClientDirectory', () => {
+  const clients = [
+    {
+      id: 'a', name: 'Tyler Deuel', company: 'Deuel Development', email: 'tyler@deuel.com', phone: '(908) 451-4633',
+      contacts: [{ name: 'Maria Sanchez', email: 'maria@deuel.com' }],
+      jobs: [{ job_id: '26_001_Deuel', address: '12 Oak Ave, Westfield NJ' }],
+    },
+    {
+      id: 'b', name: 'Mike Costello', company: null, email: null, phone: null,
+      contacts: [], jobs: [{ job_id: '25_085_OBagel', address: '1 Knapp Ave' }],
+    },
+    { id: 'c', name: 'Frank Chou', company: null, email: 'frank@example.com', phone: null, contacts: [], jobs: [] },
+  ];
+
+  it('returns everything when the query is empty', () => {
+    expect(filterClientDirectory('', clients)).toHaveLength(3);
+    expect(filterClientDirectory('   ', clients)).toHaveLength(3);
+  });
+
+  it('finds a client by name', () => {
+    expect(filterClientDirectory('costello', clients).map((c) => c.id)).toEqual(['b']);
+  });
+
+  it('finds a client by company', () => {
+    expect(filterClientDirectory('deuel development', clients).map((c) => c.id)).toEqual(['a']);
+  });
+
+  it('finds a client by their Job ID', () => {
+    // The office speaks Job ID; the client's own name is often not what someone remembers.
+    expect(filterClientDirectory('25_085', clients).map((c) => c.id)).toEqual(['b']);
+  });
+
+  it('finds a client by job address', () => {
+    expect(filterClientDirectory('knapp', clients).map((c) => c.id)).toEqual(['b']);
+  });
+
+  it("finds a client by a CONTACT's name", () => {
+    // A developer's PM is often the only person you've actually emailed.
+    expect(filterClientDirectory('maria', clients).map((c) => c.id)).toEqual(['a']);
+  });
+
+  it('matches a phone number regardless of formatting', () => {
+    expect(filterClientDirectory('9084514633', clients).map((c) => c.id)).toEqual(['a']);
+    expect(filterClientDirectory('451-4633', clients).map((c) => c.id)).toEqual(['a']);
+  });
+
+  it('returns every match, not a ranked top-N', () => {
+    // "e" appears in all three names — a directory shows all of them.
+    expect(filterClientDirectory('e', clients).length).toBe(3);
+  });
+
+  it('returns nothing on a genuine miss', () => {
+    expect(filterClientDirectory('zzzznotaclient', clients)).toEqual([]);
+  });
+
+  it('survives clients with no jobs or contacts', () => {
+    expect(() => filterClientDirectory('x', [{ id: 'd', name: 'Bare' }])).not.toThrow();
   });
 });

@@ -68,11 +68,12 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 ## Key files
 | File | Purpose |
 |------|---------|
-| `src/rm117-app-shell-v1.jsx` | App shell: sidebar, dashboard, calendar, inbox, the job board at `/bms`. **Sidebar label is "Project Management"** (renamed from "BMS" 2026-07-13) — the **route stays `/bms`** so links/bookmarks don't break, same as the Drawing QA → Checksets rename. Mobile bottom tab bar = `MOBILE_TABS` (Home · Jobs · **Financial** · Portal — Forefront is desktop-sidebar-only) |
+| `src/rm117-app-shell-v1.jsx` | App shell: sidebar, dashboard, calendar, inbox, the job board at `/bms`. **Sidebar label is "Project Management"** (renamed from "BMS" 2026-07-13) — the **route stays `/bms`** so links/bookmarks don't break, same as the Drawing QA → Checksets rename. Mobile bottom tab bar = `MOBILE_TABS` (Home · Jobs · **Financial** · Portal — Forefront is desktop-sidebar-only). **Sidebar = TWO groups** (2026-08-05). **Workspace**, ordered by measured usage busiest-first: Dashboard · Mail · Project Management · Weekly Planner · Financial · **Clients** · Checksets · Client Portal · Forefront. **Documents**: Proposal · Building-Dept Letter. The second group uses the `caption` machinery `NAV_GROUPS` always had but never exercised (`.nav-item + .nav-cap` adds the separating space). ⚠️ **`/templates` is still a live ROUTE, just not a nav item** — the generators' "← Templates" back-link and old bookmarks still work; it lost its slot because it was a hub of 2 real cards plus 2 greyed-out never-built ones (Invoice, Email). Add those to the **Documents** group if they're ever built. ⚠️ **Do not judge the generators by their table counts** — `proposals` had 1 row because Save is OPTIONAL (build → download → send to Drive never writes a row); the real volume is **16 jobs sitting in "Proposal Sent"**. ⚠️ **Writes undercount read-heavy tabs** — Dashboard/Mail/Financial/Clients are mostly *looked at*, and reading leaves no row, so their numbers are floors; Financial's payment rows come from the QBO cron, not from anyone opening the tab. Don't re-sort on row counts alone. Weekly Planner moved 7th → 4th (105 tasks/30d, used daily); **Client Portal was demoted to 9th because it has never been used by a single client — 0 magic links ever minted** (Ray's call: the sidebar reports reality, adoption is a separate problem) |
 | `src/rm117-dashboard-v1.jsx` | BMS job dashboard — data layer being swapped Sheet→Supabase (Phase 3) |
 | `api/jobs.js` | GET /api/jobs — reads jobs from Supabase, joins each job's `client` record |
 | `api/jobs/update.js` | POST — `saveJob()` writes job edits; stamps a `job_phase_events` row on phase change |
-| `api/clients.js` | GET list + **POST (update/create)** — client records; powers the Details-tab picker + the editable client-contact card |
+| `api/clients.js` | GET list + **POST (update/create)** — client records; powers the Details-tab picker + the editable client-contact card. **The one place a client record is written** — the Clients tab edits through it too |
+| **Clients directory** (`/clients`) | Every client with their jobs + portal contacts, inline editing, and the **gaps made visible**. `api/clients/directory.js` (GET, staff-gated, read-only join of clients + jobs + contacts) · `src/components/clients/Clients.jsx` · `filterClientDirectory` in `src/lib/search.js`. Added 2026-08-05 on Tom + Ang's ask for "a tab reflecting what's in the database". ⚠️ **The gap flags are the point, not decoration** — on the live data 44 of 97 clients have an email, 12 a phone, 0 a company, and **40 of 166 jobs have no `client_id` at all**. None of that was visible anywhere before, because client details were only editable one-job-at-a-time inside a job's Details tab. Gaps are raised **only for clients with live work** (a finished 2023 job missing a phone is noise that trains people to ignore flags). The unlinked-jobs panel is a surfacing tool, not a prompt to auto-link — the Drive-sync invariant that a wrong client link is worse than none still holds |
 | `api/payments.js` | Payment records per job (Phase 4); webhook dedups on `qbo_invoice_id` |
 | `api/payments/webhook.js` | Inbound: Zapier POSTs here when a QBO invoice is paid → inserts a `payments` row (matched by Job ID = QBO Customer Display Name); shared-secret + idempotent |
 | `api/_lib/qbo.js` | QBO API client: OAuth refresh + token rotation (`qbo_tokens`), find/create customer, `renameCustomer`, create/send invoice, `intuit_tid` capture |
@@ -97,7 +98,8 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `api/letters.js` | GET list/`?id`/POST/DELETE — saved building-dept letters (fields-only) in `letters.content` jsonb |
 | `src/lib/note-media.jsx` | Shared field-note media render (photo thumbs + swipeable lightbox, voice players, location link) — used by the mobile sheet + desktop Progress tab |
 | `src/components/site-report/SiteReport.jsx` | Per-job printable Field-Notes site report (`/report/:jobId`, chrome-free, print→PDF) |
-| **Document generators** (`/templates`) | `src/components/templates/` — `TemplatesHome` (category grid), `LetterGenerator` (`/templates/letter`), `ProposalGenerator` (`/templates/proposal`). Both build an assembled PDF (letter/proposal + image/reference-PDF attachments) shown in an iframe + Download; save/reopen via the proposals/letters APIs. |
+| **Document generators** | `src/components/templates/` — `LetterGenerator` (`/templates/letter`), `ProposalGenerator` (`/templates/proposal`), plus `TemplatesHome` (the category grid at `/templates`, still routed but **no longer in the sidebar** — both generators are now top-level items in the **Documents** nav group). Both build an assembled PDF (letter/proposal + image/reference-PDF attachments) shown in an iframe + Download; save/reopen via the proposals/letters APIs — **saving is optional**, so the tables understate real use. |
+| `api/_lib/proposal-summary.js` + `api/proposals/summarize.js` | **AI project-summary drafting** (2026-08-05, Tom + Ang's ask): a one-line brief in, a PROJECT SUMMARY in the firm's own voice out, into the editable textarea. ⚠️ **It drafts, it does not decide** — the summary is part of a CONTRACT, so an invented scope item is work the firm just promised for free. Hence two hard prompt rules (state only what the brief states; abstain rather than embellish) and a `summary: null` branch in the schema. **The house voice came from three real signed proposals, not a guess** — it is blunter than model-default prose and has TWO forms: a numbered list for discrete scope items, short prose for one overall transformation. Both render because `wrapText` splits on newlines. `normalizeSummary()` also repairs the **intermittent Opus over-escaping** (literal `—`, backslash-prefixed punctuation) that would otherwise print as garbage in a client-facing PDF — seen once in three identical runs, so it is handled, not hoped away |
 | `src/lib/pdf-doc.js` | Shared PDF engine: page geometry, `drawLetterhead` (embeds `src/assets/rm117-logo-black.png`), `embedLogo`, `appendAttachments`, `makeWriter` (cursor/paginator) |
 | `src/lib/letter-pdf.js` / `src/lib/proposal-pdf.js` | Document renderers (proposal bakes in the scope/exclusions/binding boilerplate verbatim from samples) |
 | `src/lib/doc-format.js` / `src/lib/doc-assets.js` | Pure formatters (`longDateOnly`, `dollarsToWords`, `wrapText`, `parseBodyBlocks`, …) / logo-trim + image→JPEG helpers |
@@ -120,7 +122,7 @@ the Google Drive folder name exactly (the "Correct Job ID" tool renames all thre
 | `src/lib/search.js` | Pure ranked matcher, no React/network: `searchRecords` powers the top-bar global search (⌘K); `searchPortalClients` powers the portal-preview picker. Ranking rules (exact Job ID first, prefix over substring, name over address, live work over completed) are unit-tested in `tests/search.test.js` |
 | **Mail + Correspondence** (`/mail`) | Read, reply to, file and compose the firm's real email inside the app. UI `src/components/mail/Mail.jsx` + `src/components/job-editor/CorrespondenceTab.jsx`; API `api/inbox.js` + `api/inbox/*`; libs `api/_lib/gmail-read.js`, `gmail-send.js`, `client-match.js`, `correspondence.js`. Full detail in the section below + **`MAIL.md`** |
 | `api/_lib/gmail-read.js` | MIME walking, sanitising, `effectiveMime`, `describePayload` — **plus `gmailGet()` (retries 429/5xx) and `mapGmail()` (bounded fan-out)**. ⚠️ **Never `Promise.all` over Gmail messages** — see the invariant below |
-| `api/inbox.js` | Thread list. Scope filter (Work/Clients/All), thread grouping, unread, `counterparty()`. Requests `List-Unsubscribe`/`Precedence`/`Auto-Submitted` so bulk mail can identify itself |
+| `api/inbox.js` | Thread list. Scope filter (Work/Clients/All), thread grouping, unread, `counterparty()`. Requests `List-Unsubscribe`/`Precedence`/`Auto-Submitted` so bulk mail can identify itself. **`?q=` is SEARCH** (2026-08-05) — handed to Gmail as its own query via `buildQuery()`, so every operator staff already know (`from:`, `has:attachment`, `"exact phrase"`) works as typed |
 | `api/inbox/thread.js` / `attachment.js` | One full thread (bodies + attachment manifests) / streams one attachment, proxied so the Google token never reaches the browser |
 | `api/inbox/reply.js` | Reply/reply-all as the staffer. **Recipients recomputed server-side**; the UI may only DROP them. Handles the case where the FIRM sent the last message |
 | `api/inbox/file.js` | File/unfile a thread against jobs; attachments → the job's Drive "Files Received" (**first job only**). Aborts rather than filing a blank body |
@@ -144,8 +146,13 @@ each `api/` file deploys directly as a function.
 `COMPANY_CALENDAR_ID`, plus existing `SHEET_ID` + Google service-account creds (for the import +
 Drive broker). `QBO_REFRESH_TOKEN` is optional locally — the rotating token lives in the shared
 `qbo_tokens` table (read DB-first, env seed as fallback).
-- **`ANTHROPIC_API_KEY`** (+ optional `ANTHROPIC_MODEL`, default `claude-sonnet-5`) — Drawing QA
-  vision analysis. On Vercel for Production + Preview(`drawing-qa-merge`); in local `.env`.
+- **`ANTHROPIC_API_KEY`** — now powers **three** features: Drawing QA vision analysis, the
+  design-phase read from a signed proposal, and proposal **summary drafting**. On Vercel for
+  Production + Preview(`drawing-qa-merge`); in local `.env`.
+  - `ANTHROPIC_MODEL` (optional, default `claude-sonnet-5`) — Drawing QA + design-phase extraction.
+  - `ANTHROPIC_SUMMARY_MODEL` (optional, default `claude-opus-5`) — summary drafting only.
+    Deliberately a **separate** var: retuning the Drawing QA model shouldn't silently change the
+    voice of contract text, and vice versa.
 - **Use a personal Gmail for Google Cloud** — the rm117.com org's
   `iam.disableServiceAccountKeyCreation` blocks service-account key downloads.
 - **`PORTAL_BASE_URL`** — the origin baked into emailed magic links. Unset, links fall back to
@@ -359,8 +366,22 @@ three that were built and never entered daily work**. The conclusion: stop askin
 - ⛔ **`gmail.modify` is granted to nobody**, so **mark-as-read and Save-as-draft do not work.** Each
   staffer must sign out, back in, and accept the Gmail permission. Verified via Google tokeninfo, not
   inferred — check the granted scope list before ever debugging those endpoints.
-- ❌ **No search, no pagination** (30 days, 60 threads): a conversation older than that is currently
-  unreachable from the app.
+- ✅ **SEARCH (2026-08-05)** — `buildQuery()` in `api/inbox.js`, box in the Mail header. A search
+  **deliberately drops both browsing restrictions**, and both drops are load-bearing:
+  - **No `newer_than`.** This is the whole point — the 30-day window used to make an older
+    conversation unreachable from the app entirely.
+  - **No `(in:inbox OR in:sent)`.** Staff archive threads, so keeping it would confidently
+    report "nothing found" for a conversation the person is looking straight at in Gmail.
+    Gmail already excludes spam/trash from a bare query, so this is "everything filed".
+  - **The scope filter (Work/Clients/All) is switched OFF while searching**, and the tabs hide.
+    Someone searching has a specific message in mind; dropping it because the bulk-mail
+    heuristic filed it under "not work" is the same silently-short-list failure the Gmail
+    concurrency invariant exists to prevent. A lit "Work" tab beside results would also read
+    as "these are filtered" — which they are not.
+  - **Runs on Enter, never as-you-type.** Each run is a Gmail list plus a bounded per-message
+    fan-out; typing "Costello" live would fire eight of those and start tripping Gmail's
+    per-user concurrency limit for nothing.
+- ❌ Still no pagination (60-thread cap on both browsing and search results).
 
 ## Invariants (do not break)
 - ⭐ **NEVER `Promise.all` over Gmail messages — use `mapGmail()`.** Gmail caps *concurrent* requests

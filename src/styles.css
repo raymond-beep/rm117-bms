@@ -192,6 +192,9 @@ input, select, textarea { font: inherit; }
   text-transform: uppercase; padding: 4px 12px 8px;
 }
 .nav-cap.upcoming { padding-top: 14px; }
+/* A caption that follows nav items starts a NEW group (e.g. "Documents" under "Workspace"),
+   so it needs air above it — without this the two groups read as one long list. */
+.nav-item + .nav-cap { padding-top: 20px; }
 .nav-item {
   display: flex; align-items: center; gap: 11px;
   padding: 9px 16px; border-radius: var(--radius-sm);
@@ -2136,6 +2139,22 @@ input, select, textarea { font: inherit; }
 .tpl-fee-amt:disabled { opacity: 0.4; }
 .tpl-note { font-size: 11px; color: var(--ink3); font-style: italic; }
 
+/* AI summary drafting — sits under the Project summary field. Inset panel so it reads as a
+   helper for that field rather than another field of its own. */
+.tpl-ai { display: flex; flex-direction: column; gap: 8px; margin-top: -4px; }
+.tpl-ai-open {
+  align-self: flex-start; font: inherit; font-size: 12px; font-weight: 600;
+  color: var(--accent-ink); background: transparent; border: 1px dashed var(--border);
+  border-radius: var(--radius-sm); padding: 5px 10px; cursor: pointer;
+}
+.tpl-ai-open:hover { border-color: var(--accent); border-style: solid; }
+.tpl-ai-actions { display: flex; align-items: center; gap: 8px; }
+.tpl-ai-undo {
+  font: inherit; font-size: 12px; color: var(--ink2); background: transparent;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; cursor: pointer;
+}
+.tpl-ai-msg { font-size: 11.5px; color: var(--ink3); line-height: 1.45; }
+
 /* ── Proposal: editable scope phases ───────────────────────────────────────── */
 .tpl-phase { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px; display: flex; flex-direction: column; gap: 6px; background: var(--inset); }
 .tpl-phase-head { display: flex; align-items: center; gap: 8px; }
@@ -2429,6 +2448,27 @@ input, select, textarea { font: inherit; }
 }
 .mail-scope:hover { color: var(--ink); }
 .mail-scope.is-on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
+
+/* Search + scope tabs share the head's right-hand column; the tabs hide while a search is
+   showing, so this stays right-aligned either way. */
+.mail-head-tools { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.mail-search { display: flex; align-items: center; gap: 6px; }
+.mail-search input {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--inset);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 10px; width: 220px;
+}
+.mail-search input:focus { outline: none; border-color: var(--accent); }
+.mail-search-go, .mail-search-clear {
+  font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 12px;
+}
+.mail-search-go { color: var(--accent-ink); background: var(--accent-soft); }
+.mail-search-go:disabled { opacity: 0.45; cursor: default; }
+.mail-search-clear { color: var(--ink2); background: transparent; }
+@media (max-width: 720px) {
+  .mail-search input { width: 100%; }
+  .mail-head-tools { width: 100%; align-items: stretch; }
+}
 
 .mail-split { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 16px; align-items: start; }
 .mail-list { padding: 0; overflow: hidden; max-height: calc(100vh - 210px); overflow-y: auto; }
@@ -2886,3 +2926,96 @@ input, select, textarea { font: inherit; }
 /* Own-row items are tickable straight from the dashboard; the Everyone lane is not. */
 .myweek-task.is-live { cursor: pointer; }
 .myweek-taskinput { flex: none; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+
+/* ── Clients directory (/clients) ─────────────────────────────────────────── */
+.cl-tools { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.cl-search {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--inset);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; width: 320px;
+}
+.cl-search:focus { outline: none; border-color: var(--accent); }
+
+/* The two actionable counts. Buttons, not banners — each one filters the list. */
+.cl-flags { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.cl-flag {
+  display: inline-flex; align-items: center; gap: 10px; font: inherit; font-size: 12.5px;
+  font-weight: 600; color: var(--ink2); background: var(--panel); cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px;
+}
+.cl-flag:hover { border-color: var(--accent); }
+.cl-flag.is-on { border-color: var(--accent); color: var(--ink); }
+.cl-flag-act { font-weight: 500; font-size: 11.5px; color: var(--accent-ink); }
+
+.cl-unlinked { padding: 16px 18px; margin-bottom: 14px; }
+.cl-note { font-size: 12px; color: var(--ink3); line-height: 1.5; margin: 4px 0 12px; }
+
+.cl-list { padding: 0; overflow: hidden; }
+.cl-row + .cl-row { border-top: 1px solid var(--border); }
+.cl-row-head {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  font: inherit; background: transparent; border: 0; cursor: pointer; padding: 12px 16px;
+}
+.cl-row-head:hover { background: var(--inset); }
+.cl-row.is-open .cl-row-head { background: var(--inset); }
+/* Sized up from 11px: at that size the triangle read as a stray dot, so nothing told you
+   the rows opened at all. */
+.cl-caret { color: var(--ink2); font-size: 14px; line-height: 1; flex: none; width: 14px; }
+.cl-name { font-size: 14px; font-weight: 600; color: var(--ink); flex: 1 1 auto; min-width: 0; }
+.cl-company { font-weight: 400; color: var(--ink3); }
+.cl-meta { font-size: 12px; color: var(--ink3); flex: none; }
+.cl-contactbits { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.cl-has { color: var(--ink3); font-size: 12px; }
+.cl-gap {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .5px; text-transform: uppercase;
+  color: #b26a00; background: rgba(214, 137, 16, 0.12); border: 1px solid rgba(214, 137, 16, 0.35);
+  border-radius: 4px; padding: 2px 5px;
+}
+
+.cl-body { padding: 4px 16px 18px 38px; display: flex; flex-direction: column; gap: 16px; }
+.cl-detail { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.cl-dl { display: flex; flex-wrap: wrap; gap: 18px 28px; margin: 0; }
+.cl-dl dt { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink3); margin-bottom: 3px; }
+.cl-dl dd { margin: 0; font-size: 13px; color: var(--ink); }
+.cl-empty { color: var(--ink3); font-size: 12.5px; font-style: italic; }
+
+.cl-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; width: 100%; }
+.cl-field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--ink2); }
+.cl-field > span { font-weight: 600; }
+.cl-field input, .cl-field select {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--inset);
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 9px; min-width: 180px;
+}
+.cl-form-actions { display: flex; gap: 8px; }
+.cl-btn {
+  font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink2); background: transparent;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 13px; cursor: pointer;
+}
+.cl-btn.primary { color: var(--accent-ink); background: var(--accent-soft); }
+.cl-btn:disabled { opacity: 0.45; cursor: default; }
+.cl-err { font-size: 12px; color: #c0392b; width: 100%; }
+
+.cl-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+.cl-subhead { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--ink3); margin-bottom: 8px; }
+.cl-joblist, .cl-contactlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.cl-joblist-wide { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.cl-joblist li, .cl-contactlist li { font-size: 12.5px; color: var(--ink2); }
+.cl-joblink { font-family: var(--mono); font-size: 12px; color: var(--accent-ink); text-decoration: none; }
+.cl-joblink:hover { text-decoration: underline; }
+.cl-jobphase, .cl-ct-role { color: var(--ink3); margin-left: 8px; }
+.cl-jobtotal { color: var(--ink2); margin-left: 8px; font-variant-numeric: tabular-nums; }
+.cl-jobaddr, .cl-ct-email { color: var(--ink3); font-size: 11.5px; margin-top: 2px; }
+.cl-ct-name { color: var(--ink); font-weight: 600; }
+.cl-tag {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .5px; text-transform: uppercase;
+  color: var(--ink3); border: 1px solid var(--border); border-radius: 4px; padding: 1px 4px; margin-left: 6px;
+}
+.cl-tag.ff { color: #8a6d1f; border-color: rgba(190, 150, 40, 0.5); }
+.cl-tag.fe { color: #b4571b; border-color: rgba(200, 100, 30, 0.5); }
+
+@media (max-width: 860px) {
+  .cl-search { width: 100%; }
+  .cl-tools { width: 100%; }
+  .cl-cols { grid-template-columns: 1fr; }
+  .cl-body { padding-left: 16px; }
+  .cl-detail { flex-direction: column; }
+}

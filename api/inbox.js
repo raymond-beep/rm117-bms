@@ -11,10 +11,12 @@
 // `messages` is kept as an alias of `threads` so the Home widget keeps working.
 //
 // Query params:
-//   ?days=14        lookback window (max 60)
+//   ?days=14        lookback window (max 60) — ignored when ?q is present
 //   ?scope=work     work (default) | clients | all   — see classifySender()
 //   ?clientsOnly=1  legacy alias for scope=clients
 //   ?limit=40       thread cap (max 100)
+//   ?q=terms        SEARCH. Handed to Gmail as its own query, so every Gmail operator
+//                   (from:, has:attachment, "exact phrase", older_than:) works as typed.
 import { getDb, hasDb } from './_lib/db.js';
 import { hasClerk, getUserId, getGoogleToken } from './_lib/clerk.js';
 import { buildMatcher, classifySender, inScope } from './_lib/client-match.js';
@@ -32,6 +34,23 @@ export function counterparty(from, to) {
   const all = [from, ...(to || [])].filter((a) => a && a.email);
   const outside = all.find((a) => !a.email.endsWith(STAFF_DOMAIN));
   return outside || from || { name: '', email: '' };
+}
+
+// The Gmail query string. A SEARCH deliberately drops both of the browsing restrictions.
+// Dropping `newer_than` is the whole point — until search existed, a conversation older than
+// the window was simply unreachable from the app. Dropping `(in:inbox OR in:sent)` matters
+// just as much: staff archive threads, and a search that skipped archived mail would
+// confidently return "nothing" for a thread the person is looking straight at in Gmail.
+// Gmail already excludes spam and trash from a bare query, so this is "everything filed",
+// not "everything ever". `-in:chats` stays either way.
+//
+// The user's text is passed through verbatim, so every Gmail operator they already know
+// (`from:`, `has:attachment`, `"exact phrase"`, `older_than:1y`) works as typed.
+export function buildQuery({ days, query }) {
+  const q = (query || '').trim();
+  return q
+    ? `${q} -in:chats`
+    : `(in:inbox OR in:sent) newer_than:${days}d -in:chats`;
 }
 
 export default async function handler(req, res) {
@@ -59,6 +78,8 @@ export default async function handler(req, res) {
   const scope = url.searchParams.get('clientsOnly') === '1'
     ? 'clients'
     : (url.searchParams.get('scope') || 'work');
+  const query = (url.searchParams.get('q') || '').trim();
+  const searching = query.length > 0;
 
   try {
     // 1. Build the client matcher from jobs + clients + every client CONTACT.
@@ -81,7 +102,7 @@ export default async function handler(req, res) {
     // 2. List recent messages. SENT is included: a thread where the firm replied
     //    is still the conversation, and showing only the inbound half made the
     //    widget read as if nobody had answered the client.
-    const q = `(in:inbox OR in:sent) newer_than:${days}d -in:chats`;
+    const q = buildQuery({ days, query });
     const list = await gmailGet(
       `/messages?maxResults=${limit * 2}&q=${encodeURIComponent(q)}`,
       token,
@@ -121,7 +142,12 @@ export default async function handler(req, res) {
       const who = counterparty(from, to);
       const m = matcher.match(who);
       const kind = classifySender(who, m, h);
-      if (!inScope(kind, scope)) continue;
+      // The scope filter is a BROWSING aid, so it is switched off while searching. Someone
+      // searching has a specific message in mind; silently dropping it because the bulk-mail
+      // heuristic filed it under "not work" reproduces exactly the failure this file's
+      // concurrency invariant exists to prevent — a short list nobody can tell is short.
+      // The `kind` badge still ships, so the caller can see what each hit was classified as.
+      if (!searching && !inScope(kind, scope)) continue;
 
       const when = h.date ? new Date(h.date).getTime() : 0;
       const prev = threads.get(msg.threadId);
@@ -169,6 +195,7 @@ export default async function handler(req, res) {
     res.status(200).json({
       connected: true,
       scope,
+      query: searching ? query : null,
       count: out.length,
       unreadCount: out.filter((t) => t.unread).length,
       threads: out,

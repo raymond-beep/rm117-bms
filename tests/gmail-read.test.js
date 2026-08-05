@@ -8,7 +8,7 @@ import {
 import { resolveCidImages, replyRecipients, formatBytes, canPreview, attachmentKind, htmlHasContent } from '../src/lib/mail-html.js';
 import { buildMimeMessage, replySubject, buildReferences } from '../api/_lib/gmail-send.js';
 import { buildMatcher, classifySender, inScope } from '../api/_lib/client-match.js';
-import { counterparty } from '../api/inbox.js';
+import { counterparty, buildQuery } from '../api/inbox.js';
 
 const b64 = (s) => Buffer.from(s, 'utf8').toString('base64')
   .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -519,5 +519,40 @@ describe('reply threading headers', () => {
     expect(raw).not.toContain('Cc:');
     expect(raw).not.toContain('In-Reply-To:');
     expect(raw).not.toContain('References:');
+  });
+});
+
+// ── Mail search ────────────────────────────────────────────────────────────
+// buildQuery decides what Gmail is actually asked for. The browsing query and the search
+// query differ in ways that are invisible from the UI, so they are pinned here.
+describe('buildQuery — browsing vs searching', () => {
+  it('browses the recent inbox + sent window', () => {
+    expect(buildQuery({ days: 30 })).toBe('(in:inbox OR in:sent) newer_than:30d -in:chats');
+  });
+
+  it('drops the date window when searching', () => {
+    // The whole point: before search, a thread older than the window was unreachable.
+    expect(buildQuery({ days: 30, query: 'costello' })).not.toMatch(/newer_than/);
+  });
+
+  it('drops the inbox/sent restriction when searching', () => {
+    // Staff archive threads. Keeping in:inbox would report "nothing found" for a
+    // conversation the person is looking straight at in Gmail.
+    expect(buildQuery({ days: 30, query: 'costello' })).not.toMatch(/in:inbox/);
+  });
+
+  it('still excludes chats when searching', () => {
+    expect(buildQuery({ days: 30, query: 'costello' })).toBe('costello -in:chats');
+  });
+
+  it('passes Gmail operators through untouched', () => {
+    // Typed operators are a feature — quoting or escaping them would break the power case.
+    expect(buildQuery({ days: 30, query: 'from:gabe has:attachment "site plan"' }))
+      .toBe('from:gabe has:attachment "site plan" -in:chats');
+  });
+
+  it('treats a whitespace-only search as browsing', () => {
+    // Otherwise a stray space would silently search all mail for nothing.
+    expect(buildQuery({ days: 14, query: '   ' })).toBe('(in:inbox OR in:sent) newer_than:14d -in:chats');
   });
 });

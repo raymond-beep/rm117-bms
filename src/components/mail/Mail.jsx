@@ -878,13 +878,25 @@ export default function Mail() {
   const [openId, setOpenId] = useState(null);
   const [thread, setThread] = useState({ status: 'idle' });
   const [showImages, setShowImages] = useState(false);
+  // Two pieces of search state on purpose. `term` is what's being typed; `query` is what has
+  // actually been submitted and fetched. Search runs on Enter, NOT on every keystroke — each
+  // run costs a Gmail list plus a bounded per-message fan-out (see mapGmail), and typing
+  // "Costello" as-you-type would fire eight of those and start tripping Gmail's per-user
+  // concurrency limit for no benefit.
+  const [term, setTerm] = useState('');
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     let alive = true;
     setList({ status: 'loading' });
     (async () => {
       try {
-        const r = await apiFetch(`/api/inbox?scope=${scope}&limit=60&days=30`, { cache: 'no-store' });
+        // Searching ignores the scope tabs and the 30-day window server-side; sending them
+        // anyway would imply otherwise to anyone reading the network tab.
+        const url = query
+          ? `/api/inbox?q=${encodeURIComponent(query)}&limit=60`
+          : `/api/inbox?scope=${scope}&limit=60&days=30`;
+        const r = await apiFetch(url, { cache: 'no-store' });
         const data = await r.json();
         if (!alive) return;
         if (!data.connected) setList({ status: 'disconnected', reason: data.reason });
@@ -894,7 +906,18 @@ export default function Mail() {
       }
     })();
     return () => { alive = false; };
-  }, [scope]);
+  }, [scope, query]);
+
+  // Submitting closes whatever thread was open — it belonged to the previous list.
+  const runSearch = (e) => {
+    e.preventDefault();
+    setOpenId(null); setThread({ status: 'idle' });
+    setQuery(term.trim());
+  };
+  const clearSearch = () => {
+    setOpenId(null); setThread({ status: 'idle' });
+    setTerm(''); setQuery('');
+  };
 
   const openThread = useCallback(async (row, withImages = false) => {
     setOpenId(row.id);
@@ -947,24 +970,52 @@ export default function Mail() {
         <div>
           <h2>Mail</h2>
           <div className="page-sub">
-            Your own inbox — {list.status === 'ready' ? `${list.threads.length} conversations` : '…'}
-            {list.status === 'ready' && list.unreadCount > 0 && ` · ${list.unreadCount} unread`}
+            {query ? (
+              list.status === 'ready'
+                ? `${list.threads.length} result${list.threads.length === 1 ? '' : 's'} for “${query}” — all mail, any date`
+                : `Searching all mail for “${query}”…`
+            ) : (
+              <>
+                Your own inbox — {list.status === 'ready' ? `${list.threads.length} conversations` : '…'}
+                {list.status === 'ready' && list.unreadCount > 0 && ` · ${list.unreadCount} unread`}
+              </>
+            )}
           </div>
         </div>
-        <div className="mail-scopes" role="tablist">
-          {SCOPES.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              role="tab"
-              aria-selected={scope === s.key}
-              title={s.hint}
-              className={`mail-scope${scope === s.key ? ' is-on' : ''}`}
-              onClick={() => setScope(s.key)}
-            >
-              {s.label}
-            </button>
-          ))}
+        <div className="mail-head-tools">
+          <form className="mail-search" onSubmit={runSearch} role="search">
+            <input
+              type="search"
+              value={term}
+              onChange={(e) => setTerm(e.target.value)}
+              placeholder="Search all mail…"
+              aria-label="Search mail"
+            />
+            <button type="submit" className="mail-search-go" disabled={!term.trim()}>Search</button>
+            {query && (
+              <button type="button" className="mail-search-clear" onClick={clearSearch}>Clear</button>
+            )}
+          </form>
+          {/* Scope is a browsing filter and does not apply to results, so it is hidden rather
+              than left visible-but-inert — a lit "Work" tab beside search results would read
+              as "these results are filtered", which is exactly what they are not. */}
+          {!query && (
+            <div className="mail-scopes" role="tablist">
+              {SCOPES.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={scope === s.key}
+                  title={s.hint}
+                  className={`mail-scope${scope === s.key ? ' is-on' : ''}`}
+                  onClick={() => setScope(s.key)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -993,7 +1044,17 @@ export default function Mail() {
             </div>
           )}
           {list.status === 'ready' && list.threads.length === 0 && (
-            <div className="placeholder-note">No {scope === 'clients' ? 'client ' : ''}mail in the last 30 days.</div>
+            query ? (
+              <div className="placeholder-note">
+                Nothing matched “{query}”.
+                <div style={{ marginTop: 8, fontSize: 12 }}>
+                  Gmail’s own search terms work here — <code>from:gabe</code>,{' '}
+                  <code>has:attachment</code>, or <code>&quot;an exact phrase&quot;</code>.
+                </div>
+              </div>
+            ) : (
+              <div className="placeholder-note">No {scope === 'clients' ? 'client ' : ''}mail in the last 30 days.</div>
+            )
           )}
           {list.status === 'ready' && list.threads.map((t) => (
             <ThreadRow key={t.id} thread={t} active={t.id === openId} onOpen={openThread} />
